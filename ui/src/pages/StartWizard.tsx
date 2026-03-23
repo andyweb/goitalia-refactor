@@ -40,7 +40,7 @@ const styles = {
     boxShadow: "0 0 0 1px hsl(158 64% 42% / 0.3) inset",
   } as React.CSSProperties,
   // Input
-  input: "w-full px-4 py-3 rounded-xl border border-[hsl(0,0%,100%,0.15)] text-white text-sm placeholder:text-[hsl(215,20%,55%)] focus:border-[hsl(158,64%,42%)] focus:outline-none transition-colors",
+  input: "w-full px-4 py-3 rounded-2xl border border-[hsl(0,0%,100%,0.15)] text-white text-sm placeholder:text-[hsl(215,20%,55%)] focus:border-[hsl(158,64%,42%)] focus:outline-none transition-colors",
   inputBg: {
     background: "hsl(215 30% 12%)",
   } as React.CSSProperties,
@@ -64,6 +64,7 @@ interface TeamMember {
 interface CompanyData {
   companyName: string;
   email: string;
+  confirmEmail: string;
   password: string;
 }
 
@@ -331,7 +332,8 @@ function Step2Organigramma({ members, onNext, onBack }: { members: TeamMember[];
 // Step 3: Company data
 function Step3Account({ companyData, setCompanyData, onNext, onBack }: { companyData: CompanyData; setCompanyData: (d: CompanyData) => void; onNext: () => void; onBack: () => void }) {
   const update = (field: keyof CompanyData, value: string) => setCompanyData({ ...companyData, [field]: value });
-  const isValid = companyData.companyName && companyData.email && companyData.password && companyData.password.length >= 8;
+  const emailsMatch = companyData.email && companyData.confirmEmail && companyData.email === companyData.confirmEmail;
+  const isValid = companyData.companyName && companyData.email && emailsMatch && companyData.password && companyData.password.length >= 8;
 
   return (
     <div>
@@ -351,6 +353,13 @@ function Step3Account({ companyData, setCompanyData, onNext, onBack }: { company
           <div>
             <label className={styles.label}>Email *</label>
             <input type="email" value={companyData.email} onChange={(e) => update("email", e.target.value)} placeholder="es. info@azienda.it" className={styles.input} style={styles.inputBg} />
+          </div>
+          <div>
+            <label className={styles.label}>Conferma email *</label>
+            <input type="email" value={companyData.confirmEmail} onChange={(e) => update("confirmEmail", e.target.value)} placeholder="Ripeti la tua email" className={styles.input} style={styles.inputBg} />
+            {companyData.confirmEmail && companyData.email !== companyData.confirmEmail && (
+              <p className="text-xs mt-1" style={{ color: "hsl(0 65% 55%)" }}>Le email non corrispondono</p>
+            )}
           </div>
           <div>
             <label className={styles.label}>Password *</label>
@@ -486,7 +495,7 @@ export function StartWizard() {
     };
   }, []);
   const [companyData, setCompanyData] = useState<CompanyData>({
-    companyName: "", email: "", password: "",
+    companyName: "", email: "", confirmEmail: "", password: "",
   });
 
   return (
