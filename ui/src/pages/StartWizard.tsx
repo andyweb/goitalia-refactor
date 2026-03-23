@@ -4,7 +4,7 @@ import { Plus, Trash2, Users, Building2, CreditCard, CheckCircle, ArrowRight, Ar
 // Shared styles matching goitalia.eu
 const styles = {
   // Background matching goitalia.eu mesh-gradient
-  page: "min-h-screen text-[hsl(0,0%,98%)] relative overflow-hidden",
+  page: "min-h-screen text-[hsl(0,0%,98%)] relative",
   pageBg: {
     background: `
       radial-gradient(ellipse at 20% 20%, hsl(158 64% 42% / 0.15) 0%, transparent 50%),
