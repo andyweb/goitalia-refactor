@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { agentsApi } from "../api/agents";
@@ -16,6 +16,7 @@ interface ChatMessage {
 
 export function ChatPage() {
   const { selectedCompanyId, selectedCompany } = useCompany();
+  const queryClient = useQueryClient();
   const { setBreadcrumbs } = useBreadcrumbs();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
