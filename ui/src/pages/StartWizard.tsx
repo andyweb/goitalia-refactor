@@ -218,19 +218,19 @@ function Step1Team({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={styles.label}>Nome *</label>
-              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="es. Marco Rossi" className={styles.input} style={styles.inputBg} />
+              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="es. Marco Rossi" className={styles.input} style={styles.inputBg} autoComplete="off" />
             </div>
             <div>
               <label className={styles.label}>Ruolo *</label>
-              <input type="text" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} placeholder="es. Responsabile vendite" className={styles.input} style={styles.inputBg} />
+              <input type="text" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} placeholder="es. Responsabile vendite" className={styles.input} style={styles.inputBg} autoComplete="off" />
             </div>
             <div>
               <label className={styles.label}>Reparto *</label>
-              <input type="text" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="es. Commerciale" className={styles.input} style={styles.inputBg} />
+              <input type="text" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="es. Commerciale" className={styles.input} style={styles.inputBg} autoComplete="off" />
             </div>
             <div>
               <label className={styles.label}>Software utilizzati</label>
-              <input type="text" value={form.software} onChange={(e) => setForm({ ...form, software: e.target.value })} placeholder="es. Excel, Salesforce, WhatsApp" className={styles.input} style={styles.inputBg} />
+              <input type="text" value={form.software} onChange={(e) => setForm({ ...form, software: e.target.value })} placeholder="es. Excel, Salesforce, WhatsApp" className={styles.input} style={styles.inputBg} autoComplete="off" />
             </div>
             <div className="sm:col-span-2">
               <label className={styles.label}>Descrizione del compito</label>
@@ -348,22 +348,22 @@ function Step3Account({ companyData, setCompanyData, onNext, onBack }: { company
         <div className="space-y-4">
           <div>
             <label className={styles.label}>Nome azienda *</label>
-            <input type="text" value={companyData.companyName} onChange={(e) => update("companyName", e.target.value)} placeholder="es. Rossi & Partners S.r.l." className={styles.input} style={styles.inputBg} />
+            <input type="text" value={companyData.companyName} onChange={(e) => update("companyName", e.target.value)} placeholder="es. Rossi & Partners S.r.l." className={styles.input} style={styles.inputBg} autoComplete="off" />
           </div>
           <div>
             <label className={styles.label}>Email *</label>
-            <input type="email" value={companyData.email} onChange={(e) => update("email", e.target.value)} placeholder="es. info@azienda.it" className={styles.input} style={styles.inputBg} />
+            <input type="email" value={companyData.email} onChange={(e) => update("email", e.target.value)} placeholder="es. info@azienda.it" className={styles.input} style={styles.inputBg} autoComplete="off" />
           </div>
           <div>
             <label className={styles.label}>Conferma email *</label>
-            <input type="email" value={companyData.confirmEmail} onChange={(e) => update("confirmEmail", e.target.value)} placeholder="Ripeti la tua email" className={styles.input} style={styles.inputBg} />
+            <input type="email" value={companyData.confirmEmail} onChange={(e) => update("confirmEmail", e.target.value)} placeholder="Ripeti la tua email" className={styles.input} style={styles.inputBg} autoComplete="off" />
             {companyData.confirmEmail && companyData.email !== companyData.confirmEmail && (
               <p className="text-xs mt-1" style={{ color: "hsl(0 65% 55%)" }}>Le email non corrispondono</p>
             )}
           </div>
           <div>
             <label className={styles.label}>Password *</label>
-            <input type="password" value={companyData.password} onChange={(e) => update("password", e.target.value)} placeholder="Minimo 8 caratteri" className={styles.input} style={styles.inputBg} />
+            <input type="password" value={companyData.password} onChange={(e) => update("password", e.target.value)} placeholder="Minimo 8 caratteri" className={styles.input} style={styles.inputBg} autoComplete="off" />
             {companyData.password && companyData.password.length < 8 && (
               <p className="text-xs mt-1" style={{ color: "hsl(0 65% 55%)" }}>La password deve avere almeno 8 caratteri</p>
             )}
