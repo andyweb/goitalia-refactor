@@ -63,9 +63,14 @@ export function Dashboard() {
       .catch(() => setHasApiKey(null));
   }, [selectedCompanyId]);
 
-  if (isOnboarding && hasApiKey === true) {
-    return <Navigate to="chat" replace />;
-  }
+  useEffect(() => {
+    if (isOnboarding && hasApiKey === true && selectedCompanyId) {
+      const company = companies?.find((c: any) => c.id === selectedCompanyId);
+      if (company) {
+        window.location.href = '/' + company.issuePrefix + '/chat';
+      }
+    }
+  }, [isOnboarding, hasApiKey, selectedCompanyId, companies]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.dashboard(selectedCompanyId!),
