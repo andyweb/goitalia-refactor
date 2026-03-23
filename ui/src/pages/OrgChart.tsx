@@ -269,23 +269,10 @@ export function OrgChart() {
 
   return (
     <div className="flex flex-col h-full">
-    <div className="mb-2 flex items-center justify-start gap-2 shrink-0">
-      <Link to="/company/import">
-        <Button variant="outline" size="sm">
-          <Upload className="mr-1.5 h-3.5 w-3.5" />
-          Import company
-        </Button>
-      </Link>
-      <Link to="/company/export">
-        <Button variant="outline" size="sm">
-          <Download className="mr-1.5 h-3.5 w-3.5" />
-          Export company
-        </Button>
-      </Link>
-    </div>
+
     <div
       ref={containerRef}
-      className="w-full flex-1 min-h-0 overflow-hidden relative bg-muted/20 border border-border rounded-lg"
+      className="w-full flex-1 min-h-0 overflow-hidden relative bg-muted/20 glass-card"
       style={{ cursor: dragging ? "grabbing" : "grab" }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -395,7 +382,7 @@ export function OrgChart() {
             <div
               key={node.id}
               data-org-card
-              className="absolute bg-card border border-border rounded-lg shadow-sm hover:shadow-md hover:border-foreground/20 transition-[box-shadow,border-color] duration-150 cursor-pointer select-none"
+              className="absolute bg-card glass-card shadow-sm hover:shadow-md hover:border-foreground/20 transition-[box-shadow,border-color] duration-150 cursor-pointer select-none"
               style={{
                 left: node.x,
                 top: node.y,

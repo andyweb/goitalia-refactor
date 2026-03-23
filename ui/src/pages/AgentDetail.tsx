@@ -68,6 +68,12 @@ import {
   ChevronDown,
   ArrowLeft,
   HelpCircle,
+  LayoutDashboard,
+  FileText,
+  Boxes,
+  Settings,
+  Play,
+  Wallet,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -160,10 +166,10 @@ function formatEnvForDisplay(envValue: unknown, censorUsernameInLogs: boolean): 
 }
 
 const sourceLabels: Record<string, string> = {
-  timer: "Timer",
-  assignment: "Assignment",
-  on_demand: "On-demand",
-  automation: "Automation",
+  timer: "Programmato",
+  assignment: "Assegnazione",
+  on_demand: "Manuale",
+  automation: "Automazione",
 };
 
 const LIVE_SCROLL_BOTTOM_TOLERANCE_PX = 32;
@@ -376,7 +382,7 @@ function WorkspaceOperationLogViewer({
         {open ? "Hide full log" : "Show full log"}
       </button>
       {open && (
-        <div className="rounded-md border border-border bg-background/70 p-2">
+        <div className="glass-card p-2">
           {isLoading && <div className="text-xs text-muted-foreground">Loading log...</div>}
           {error && (
             <div className="text-xs text-destructive">
@@ -426,7 +432,7 @@ function WorkspaceOperationsSection({
   if (operations.length === 0) return null;
 
   return (
-    <div className="rounded-lg border border-border bg-background/60 p-3 space-y-3">
+    <div className="glass-card p-3 space-y-3">
       <div className="text-xs font-medium text-muted-foreground">
         Workspace ({operations.length})
       </div>
@@ -434,7 +440,7 @@ function WorkspaceOperationsSection({
         {operations.map((operation) => {
           const metadata = asRecord(operation.metadata);
           return (
-            <div key={operation.id} className="rounded-md border border-border/70 bg-background/70 p-3 space-y-2">
+            <div key={operation.id} className="glass-card p-3 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="text-sm font-medium">{workspaceOperationPhaseLabel(operation.phase)}</div>
                 <WorkspaceOperationStatusBadge status={operation.status} />
@@ -480,7 +486,7 @@ function WorkspaceOperationsSection({
               )}
               {typeof metadata?.created === "boolean" && (
                 <div className="text-xs text-muted-foreground">
-                  {metadata.created ? "Created by this run" : "Reused existing workspace"}
+                  {metadata.created ? "Creata da questa esecuzione" : "Workspace esistente riutilizzato"}
                 </div>
               )}
               {operation.stderrExcerpt && operation.stderrExcerpt.trim() && (
@@ -811,7 +817,7 @@ export function AgentDetail() {
             value={agent.icon}
             onChange={(icon) => updateIcon.mutate(icon)}
           >
-            <button className="shrink-0 flex items-center justify-center h-12 w-12 rounded-lg bg-accent hover:bg-accent/80 transition-colors">
+            <button className="shrink-0 flex items-center justify-center h-12 w-12 rounded-xl transition-colors">
               <AgentIcon icon={agent.icon} className="h-6 w-6" />
             </button>
           </AgentIconPicker>
@@ -824,18 +830,24 @@ export function AgentDetail() {
           </div>
         </div>
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
+          <button
+            className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all"
+            style={{
+              background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "rgba(255,255,255,0.8)",
+            }}
             onClick={() => openNewIssue({ assigneeAgentId: agent.id })}
+            onMouseEnter={(e) => e.currentTarget.style.background = "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.04) 100%)"}
+            onMouseLeave={(e) => e.currentTarget.style.background = "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)"}
           >
-            <Plus className="h-3.5 w-3.5 sm:mr-1" />
-            <span className="hidden sm:inline">Assign Task</span>
-          </Button>
+            <Plus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Assegna Task</span>
+          </button>
           <RunButton
             onClick={() => agentAction.mutate("invoke")}
             disabled={agentAction.isPending || isPendingApproval}
-            label="Run Heartbeat"
+            label="Esegui Heartbeat"
           />
           <PauseResumeButton
             isPaused={agent.status === "paused"}
@@ -843,7 +855,7 @@ export function AgentDetail() {
             onResume={() => agentAction.mutate("resume")}
             disabled={agentAction.isPending || isPendingApproval}
           />
-          <span className="hidden sm:inline"><StatusBadge status={agent.status} /></span>
+          
           {mobileLiveRun && (
             <Link
               to={`/agents/${canonicalAgentRef}/runs/${mobileLiveRun.id}`}
@@ -873,7 +885,7 @@ export function AgentDetail() {
                 }}
               >
                 <Copy className="h-3 w-3" />
-                Copy Agent ID
+                Copia ID Agente
               </button>
               <button
                 className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50"
@@ -883,7 +895,7 @@ export function AgentDetail() {
                 }}
               >
                 <RotateCcw className="h-3 w-3" />
-                Reset Sessions
+                Reset Sessioni
               </button>
               <button
                 className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50 text-destructive"
@@ -907,12 +919,12 @@ export function AgentDetail() {
         >
           <PageTabBar
             items={[
-              { value: "dashboard", label: "Dashboard" },
-              { value: "instructions", label: "Instructions" },
-              { value: "skills", label: "Skills" },
-              { value: "configuration", label: "Configuration" },
-              { value: "runs", label: "Runs" },
-              { value: "budget", label: "Budget" },
+              { value: "dashboard", label: "Panoramica", icon: <LayoutDashboard className="h-4 w-4" /> },
+              { value: "instructions", label: "Istruzioni", icon: <FileText className="h-4 w-4" /> },
+              { value: "skills", label: "Competenze", icon: <Boxes className="h-4 w-4" /> },
+              { value: "configuration", label: "Configurazione", icon: <Settings className="h-4 w-4" /> },
+              { value: "runs", label: "Esecuzioni", icon: <Play className="h-4 w-4" /> },
+              { value: "budget", label: "Budget", icon: <Wallet className="h-4 w-4" /> },
             ]}
             value={activeView}
             onValueChange={(value) => navigate(`/agents/${canonicalAgentRef}/${value}`)}
@@ -923,7 +935,7 @@ export function AgentDetail() {
       {actionError && <p className="text-sm text-destructive">{actionError}</p>}
       {isPendingApproval && (
         <p className="text-sm text-amber-500">
-          This agent is pending board approval and cannot be invoked yet.
+          Questo agente è in attesa di approvazione e non può essere ancora avviato.
         </p>
       )}
 
@@ -937,7 +949,7 @@ export function AgentDetail() {
               : "opacity-0 pointer-events-none"
           )}
         >
-          <div className="flex items-center gap-2 bg-background/90 backdrop-blur-sm border border-border rounded-lg px-3 py-1.5 shadow-lg">
+          <div className="flex items-center gap-2 bg-background/90 backdrop-blur-sm glass-card px-3 py-1.5 shadow-lg">
             <Button
               variant="ghost"
               size="sm"
@@ -1088,13 +1100,13 @@ function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: strin
               <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-400" />
             </span>
           )}
-          {isLive ? "Live Run" : "Latest Run"}
+          {isLive ? "Esecuzione Live" : "Ultima Esecuzione"}
         </h3>
         <Link
           to={`/agents/${agentId}/runs/${run.id}`}
           className="shrink-0 text-xs text-muted-foreground hover:text-foreground transition-colors no-underline"
         >
-          View details &rarr;
+          Vedi dettagli &rarr;
         </Link>
       </div>
 
@@ -1155,16 +1167,16 @@ function AgentOverview({
 
       {/* Charts */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <ChartCard title="Run Activity" subtitle="Last 14 days">
+        <ChartCard title="Attività Esecuzioni" subtitle="Ultimi 14 giorni">
           <RunActivityChart runs={runs} />
         </ChartCard>
-        <ChartCard title="Issues by Priority" subtitle="Last 14 days">
+        <ChartCard title="Attività per Priorità" subtitle="Ultimi 14 giorni">
           <PriorityChart issues={assignedIssues} />
         </ChartCard>
-        <ChartCard title="Issues by Status" subtitle="Last 14 days">
+        <ChartCard title="Attività per Stato" subtitle="Ultimi 14 giorni">
           <IssueStatusChart issues={assignedIssues} />
         </ChartCard>
-        <ChartCard title="Success Rate" subtitle="Last 14 days">
+        <ChartCard title="Tasso di Successo" subtitle="Ultimi 14 giorni">
           <SuccessRateChart runs={runs} />
         </ChartCard>
       </div>
@@ -1172,15 +1184,15 @@ function AgentOverview({
       {/* Recent Issues */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium">Recent Issues</h3>
+          <h3 className="text-sm font-medium">Attività Recenti</h3>
           <Link to={`/issues?assignee=${agentId}`} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-            See All &rarr;
+            Vedi Tutte &rarr;
           </Link>
         </div>
         {assignedIssues.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No assigned issues.</p>
+          <p className="text-sm text-muted-foreground">Nessuna attività assegnata.</p>
         ) : (
-          <div className="border border-border rounded-lg">
+          <div className="glass-card">
             {assignedIssues.slice(0, 10).map((issue) => (
               <EntityRow
                 key={issue.id}
@@ -1192,7 +1204,7 @@ function AgentOverview({
             ))}
             {assignedIssues.length > 10 && (
               <div className="px-3 py-2 text-xs text-muted-foreground text-center border-t border-border">
-                +{assignedIssues.length - 10} more issues
+                +{assignedIssues.length - 10} altre attività
               </div>
             )}
           </div>
@@ -1201,7 +1213,7 @@ function AgentOverview({
 
       {/* Costs */}
       <div className="space-y-3">
-        <h3 className="text-sm font-medium">Costs</h3>
+        <h3 className="text-sm font-medium">Costi</h3>
         <CostsSection runtimeState={runtimeState} runs={runs} />
       </div>
     </div>
@@ -1227,37 +1239,37 @@ function CostsSection({
   return (
     <div className="space-y-4">
       {runtimeState && (
-        <div className="border border-border rounded-lg p-4">
+        <div className="glass-card p-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 tabular-nums">
             <div>
-              <span className="text-xs text-muted-foreground block">Input tokens</span>
+              <span className="text-xs text-muted-foreground block">Token input</span>
               <span className="text-lg font-semibold">{formatTokens(runtimeState.totalInputTokens)}</span>
             </div>
             <div>
-              <span className="text-xs text-muted-foreground block">Output tokens</span>
+              <span className="text-xs text-muted-foreground block">Token output</span>
               <span className="text-lg font-semibold">{formatTokens(runtimeState.totalOutputTokens)}</span>
             </div>
             <div>
-              <span className="text-xs text-muted-foreground block">Cached tokens</span>
+              <span className="text-xs text-muted-foreground block">Token cache</span>
               <span className="text-lg font-semibold">{formatTokens(runtimeState.totalCachedInputTokens)}</span>
             </div>
             <div>
-              <span className="text-xs text-muted-foreground block">Total cost</span>
+              <span className="text-xs text-muted-foreground block">Costo totale</span>
               <span className="text-lg font-semibold">{formatCents(runtimeState.totalCostCents)}</span>
             </div>
           </div>
         </div>
       )}
       {runsWithCost.length > 0 && (
-        <div className="border border-border rounded-lg overflow-hidden">
+        <div className="glass-card overflow-hidden">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-border bg-accent/20">
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Date</th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Run</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Data</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Esecuzione</th>
                 <th className="text-right px-3 py-2 font-medium text-muted-foreground">Input</th>
                 <th className="text-right px-3 py-2 font-medium text-muted-foreground">Output</th>
-                <th className="text-right px-3 py-2 font-medium text-muted-foreground">Cost</th>
+                <th className="text-right px-3 py-2 font-medium text-muted-foreground">Costo</th>
               </tr>
             </thead>
             <tbody>
@@ -1337,10 +1349,6 @@ function AgentConfigurePage({
         hidePromptTemplate
         hideInstructionsFile
       />
-      <div>
-        <h3 className="text-sm font-medium mb-3">API Keys</h3>
-        <KeysTab agentId={agentId} companyId={companyId} />
-      </div>
 
       {/* Configuration Revisions — collapsible at the bottom */}
       <div>
@@ -1465,15 +1473,15 @@ function ConfigurationTab({
   const taskAssignLocked = agent.role === "ceo" || canCreateAgents;
   const taskAssignHint =
     taskAssignSource === "ceo_role"
-      ? "Enabled automatically for CEO agents."
+      ? "Attivato automaticamente per agenti CEO."
       : taskAssignSource === "agent_creator"
-        ? "Enabled automatically while this agent can create new agents."
+        ? "Attivato automaticamente quando l'agente può creare nuovi agenti."
         : taskAssignSource === "explicit_grant"
-          ? "Enabled via explicit company permission grant."
-          : "Disabled unless explicitly granted.";
+          ? "Attivato tramite permesso esplicito dell'azienda."
+          : "Disattivato se non concesso esplicitamente.";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 hide-adapter-section">
       <AgentConfigForm
         mode="edit"
         agent={agent}
@@ -1484,19 +1492,22 @@ function ConfigurationTab({
         onSaveActionChange={onSaveActionChange}
         onCancelActionChange={onCancelActionChange}
         hideInlineSave
+        hideAdapter
+        
+        
         hidePromptTemplate={hidePromptTemplate}
         hideInstructionsFile={hideInstructionsFile}
         sectionLayout="cards"
       />
 
       <div>
-        <h3 className="text-sm font-medium mb-3">Permissions</h3>
-        <div className="border border-border rounded-lg p-4 space-y-4">
+        <h3 className="text-sm font-medium mb-3">Permessi</h3>
+        <div className="glass-card p-4 space-y-4">
           <div className="flex items-center justify-between gap-4 text-sm">
             <div className="space-y-1">
-              <div>Can create new agents</div>
+              <div>Può creare nuovi agenti</div>
               <p className="text-xs text-muted-foreground">
-                Lets this agent create or hire agents and implicitly assign tasks.
+                Permette a questo agente di creare o assumere agenti e assegnare task.
               </p>
             </div>
             <button
@@ -1525,7 +1536,7 @@ function ConfigurationTab({
           </div>
           <div className="flex items-center justify-between gap-4 text-sm">
             <div className="space-y-1">
-              <div>Can assign tasks</div>
+              <div>Può assegnare task</div>
               <p className="text-xs text-muted-foreground">
                 {taskAssignHint}
               </p>
@@ -2033,7 +2044,7 @@ function PromptsTab({
       </Collapsible>
 
       <div ref={containerRef} className="flex gap-0">
-        <div className="border border-border rounded-lg p-3 space-y-3 shrink-0" style={{ width: filePanelWidth }}>
+        <div className="glass-card p-3 space-y-3 shrink-0" style={{ width: filePanelWidth }}>
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium">Files</h4>
             {!showNewFileInput && (
@@ -2146,7 +2157,7 @@ function PromptsTab({
           onMouseDown={handleSeparatorDrag}
         />
 
-        <div className="border border-border rounded-lg p-4 space-y-3 min-w-0 flex-1">
+        <div className="glass-card p-4 space-y-3 min-w-0 flex-1">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h4 className="text-sm font-medium font-mono">{selectedOrEntryFile}</h4>
@@ -2199,7 +2210,7 @@ function PromptsTab({
             <textarea
               value={displayValue}
               onChange={(event) => setDraft(event.target.value)}
-              className="min-h-[420px] w-full rounded-md border border-border bg-transparent px-3 py-2 font-mono text-sm outline-none"
+              className="min-h-[420px] w-full rounded-2xl border border-white/10 bg-transparent px-3 py-2 font-mono text-sm outline-none"
               placeholder="File contents"
             />
           )}
@@ -2213,7 +2224,7 @@ function PromptsTab({
 function PromptsTabSkeleton() {
   return (
     <div className="max-w-5xl space-y-4">
-      <div className="rounded-lg border border-border p-4 space-y-4">
+      <div className="glass-card p-4 space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
             <Skeleton className="h-4 w-40" />
@@ -2231,7 +2242,7 @@ function PromptsTabSkeleton() {
         </div>
       </div>
       <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <div className="rounded-lg border border-border p-3 space-y-3">
+        <div className="glass-card p-3 space-y-3">
           <div className="flex items-center justify-between">
             <Skeleton className="h-4 w-12" />
             <Skeleton className="h-8 w-16" />
@@ -2243,7 +2254,7 @@ function PromptsTabSkeleton() {
             ))}
           </div>
         </div>
-        <div className="rounded-lg border border-border p-4 space-y-3">
+        <div className="glass-card p-4 space-y-3">
           <div className="space-y-2">
             <Skeleton className="h-4 w-48" />
             <Skeleton className="h-3 w-28" />
@@ -2734,7 +2745,7 @@ function RunsTab({
   const { isMobile } = useSidebar();
 
   if (runs.length === 0) {
-    return <p className="text-sm text-muted-foreground">No runs yet.</p>;
+    return <p className="text-sm text-muted-foreground">Nessuna esecuzione.</p>;
   }
 
   // Sort by created descending
@@ -2763,7 +2774,7 @@ function RunsTab({
       );
     }
     return (
-      <div className="border border-border rounded-lg overflow-x-hidden">
+      <div className="glass-card overflow-x-hidden">
         {sorted.map((run) => (
           <RunListItem key={run.id} run={run} isSelected={false} agentId={agentRouteId} />
         ))}
@@ -2776,7 +2787,7 @@ function RunsTab({
     <div className="flex gap-0">
       {/* Left: run list — border stretches full height, content sticks */}
       <div className={cn(
-        "shrink-0 border border-border rounded-lg",
+        "shrink-0 glass-card",
         selectedRun ? "w-72" : "w-full",
       )}>
         <div className="sticky top-4 overflow-y-auto" style={{ maxHeight: "calc(100vh - 2rem)" }}>
@@ -2950,7 +2961,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType }: { run: Heartb
   return (
     <div className="space-y-4 min-w-0">
       {/* Run summary card */}
-      <div className="border border-border rounded-lg overflow-hidden">
+      <div className="glass-card overflow-hidden">
         <div className="flex flex-col sm:flex-row">
           {/* Left column: status + timing */}
           <div className="flex-1 p-4 space-y-3">
@@ -2964,7 +2975,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType }: { run: Heartb
                   onClick={() => cancelRun.mutate()}
                   disabled={cancelRun.isPending}
                 >
-                  {cancelRun.isPending ? "Cancelling…" : "Cancel"}
+                  {cancelRun.isPending ? "Annullamento…" : "Cancel"}
                 </Button>
               )}
               {canResumeLostRun && (
@@ -3097,7 +3108,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType }: { run: Heartb
                 <div className="text-sm font-medium font-mono">{formatTokens(metrics.cached)}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Cost</div>
+                <div className="text-xs text-muted-foreground">Costo</div>
                 <div className="text-sm font-medium font-mono">{metrics.cost > 0 ? `$${metrics.cost.toFixed(4)}` : "-"}</div>
               </div>
             </div>
@@ -3167,7 +3178,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType }: { run: Heartb
       {touchedIssues && touchedIssues.length > 0 && (
         <div className="space-y-2">
           <span className="text-xs font-medium text-muted-foreground">Issues Touched ({touchedIssues.length})</span>
-          <div className="border border-border rounded-lg divide-y divide-border">
+          <div className="glass-card divide-y divide-border">
             {touchedIssues.map((issue) => (
               <Link
                 key={issue.issueId}
@@ -3617,10 +3628,10 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
         censorUsernameInLogs={censorUsernameInLogs}
       />
       {adapterInvokePayload && (
-        <div className="rounded-lg border border-border bg-background/60 p-3 space-y-2">
+        <div className="glass-card p-3 space-y-2">
           <div className="text-xs font-medium text-muted-foreground">Invocation</div>
           {typeof adapterInvokePayload.adapterType === "string" && (
-            <div className="text-xs"><span className="text-muted-foreground">Adapter: </span>{adapterInvokePayload.adapterType}</div>
+            <div className="text-xs"><span className="text-muted-foreground">Adattatore: </span>{adapterInvokePayload.adapterType}</div>
           )}
           {typeof adapterInvokePayload.cwd === "string" && (
             <div className="text-xs break-all"><span className="text-muted-foreground">Working dir: </span><span className="font-mono">{adapterInvokePayload.cwd}</span></div>
@@ -3672,7 +3683,7 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
           )}
           {adapterInvokePayload.env !== undefined && (
             <div>
-              <div className="text-xs text-muted-foreground mb-1">Environment</div>
+              <div className="text-xs text-muted-foreground mb-1">Ambiente</div>
               <pre className="bg-neutral-100 dark:bg-neutral-950 rounded-md p-2 text-xs overflow-x-auto whitespace-pre-wrap font-mono">
                 {formatEnvForDisplay(adapterInvokePayload.env, censorUsernameInLogs)}
               </pre>
@@ -3686,7 +3697,7 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
           Transcript ({transcript.length})
         </span>
         <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-lg border border-border/70 bg-background/70 p-0.5">
+          <div className="inline-flex glass-card p-0.5">
             {(["nice", "raw"] as const).map((mode) => (
               <button
                 key={mode}
@@ -3862,7 +3873,7 @@ function KeysTab({ agentId, companyId }: { agentId: string; companyId?: string }
       {newToken && (
         <div className="border border-yellow-300 dark:border-yellow-600/40 bg-yellow-50 dark:bg-yellow-500/5 rounded-lg p-4 space-y-2">
           <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400">
-            API key created — copy it now, it will not be shown again.
+            Chiave API creata — copiala adesso, non verrà mostrata di nuovo.
           </p>
           <div className="flex items-center gap-2">
             <code className="flex-1 bg-neutral-100 dark:bg-neutral-950 rounded px-3 py-1.5 text-xs font-mono text-green-700 dark:text-green-300 truncate">
@@ -3898,7 +3909,7 @@ function KeysTab({ agentId, companyId }: { agentId: string; companyId?: string }
       )}
 
       {/* Create new key */}
-      <div className="border border-border rounded-lg p-4 space-y-3">
+      <div className="glass-card p-4 space-y-3">
         <h3 className="text-xs font-medium text-muted-foreground flex items-center gap-2">
           <Key className="h-3.5 w-3.5" />
           Create API Key
@@ -3931,7 +3942,7 @@ function KeysTab({ agentId, companyId }: { agentId: string; companyId?: string }
       {isLoading && <p className="text-sm text-muted-foreground">Loading keys...</p>}
 
       {!isLoading && activeKeys.length === 0 && !newToken && (
-        <p className="text-sm text-muted-foreground">No active API keys.</p>
+        <p className="text-sm text-muted-foreground">Nessuna chiave API attiva.</p>
       )}
 
       {activeKeys.length > 0 && (
@@ -3939,13 +3950,13 @@ function KeysTab({ agentId, companyId }: { agentId: string; companyId?: string }
           <h3 className="text-xs font-medium text-muted-foreground mb-2">
             Active Keys
           </h3>
-          <div className="border border-border rounded-lg divide-y divide-border">
+          <div className="glass-card divide-y divide-border">
             {activeKeys.map((key: AgentKey) => (
               <div key={key.id} className="flex items-center justify-between px-4 py-2.5">
                 <div>
                   <span className="text-sm font-medium">{key.name}</span>
                   <span className="text-xs text-muted-foreground ml-3">
-                    Created {formatDate(key.createdAt)}
+                    Creata {formatDate(key.createdAt)}
                   </span>
                 </div>
                 <Button
@@ -3967,15 +3978,15 @@ function KeysTab({ agentId, companyId }: { agentId: string; companyId?: string }
       {revokedKeys.length > 0 && (
         <div>
           <h3 className="text-xs font-medium text-muted-foreground mb-2">
-            Revoked Keys
+            Chiavi Revocate
           </h3>
-          <div className="border border-border rounded-lg divide-y divide-border opacity-50">
+          <div className="glass-card divide-y divide-border opacity-50">
             {revokedKeys.map((key: AgentKey) => (
               <div key={key.id} className="flex items-center justify-between px-4 py-2.5">
                 <div>
                   <span className="text-sm line-through">{key.name}</span>
                   <span className="text-xs text-muted-foreground ml-3">
-                    Revoked {key.revokedAt ? formatDate(key.revokedAt) : ""}
+                    Revocata {key.revokedAt ? formatDate(key.revokedAt) : ""}
                   </span>
                 </div>
               </div>

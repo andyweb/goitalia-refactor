@@ -38,7 +38,7 @@ export function ApprovalCard({
     (approval.status === "pending" || approval.status === "revision_requested");
 
   return (
-    <div className="border border-border rounded-lg p-4 space-y-0">
+    <div className="glass-card p-4 space-y-0">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">

@@ -160,7 +160,7 @@ export function PluginManager() {
         </div>
 
         {!installedPlugins.length ? (
-          <div className={glass.card} style={glass.cardStyle}>
+          <div className="glass-card px-5 py-5">
             <div className="flex flex-col items-center justify-center py-8">
               <Puzzle className="h-10 w-10 text-muted-foreground/40 mb-4" />
               <p className="text-sm font-medium">Nessun plugin installato</p>
@@ -170,7 +170,7 @@ export function PluginManager() {
         ) : (
           <div className="space-y-3">
             {installedPlugins.map((plugin) => (
-              <div key={plugin.id} className={glass.card} style={glass.cardStyle}>
+              <div key={plugin.id} className="glass-card px-5 py-5">
                 <div className="flex items-start gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">

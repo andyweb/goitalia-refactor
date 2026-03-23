@@ -1198,7 +1198,7 @@ export function DesignGuide() {
       {/*  COST TABLE PATTERN                                           */}
       {/* ============================================================ */}
       <Section title="Cost Table Pattern">
-        <div className="border border-border rounded-lg overflow-hidden">
+        <div className="glass-card overflow-hidden">
           <table className="w-full text-xs">
             <thead className="border-b border-border bg-accent/20">
               <tr>

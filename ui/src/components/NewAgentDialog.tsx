@@ -1,128 +1,68 @@
-import { useState, type ComponentType } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { useNavigate } from "@/lib/router";
 import { useDialog } from "../context/DialogContext";
 import { useCompany } from "../context/CompanyContext";
-import { agentsApi } from "../api/agents";
-import { queryKeys } from "../lib/queryKeys";
 import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import {
-  ArrowLeft,
-  Bot,
-  Code,
-  Gem,
-  MousePointer2,
-  Sparkles,
-  Terminal,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { OpenCodeLogoIcon } from "./OpenCodeLogoIcon";
-
-type AdvancedAdapterType =
-  | "claude_local"
-  | "codex_local"
-  | "gemini_local"
-  | "opencode_local"
-  | "pi_local"
-  | "cursor"
-  | "openclaw_gateway";
-
-const ADVANCED_ADAPTER_OPTIONS: Array<{
-  value: AdvancedAdapterType;
-  label: string;
-  desc: string;
-  icon: ComponentType<{ className?: string }>;
-  recommended?: boolean;
-}> = [
-  {
-    value: "claude_local",
-    label: "Claude Code",
-    icon: Sparkles,
-    desc: "Local Claude agent",
-    recommended: true,
-  },
-  {
-    value: "codex_local",
-    label: "Codex",
-    icon: Code,
-    desc: "Local Codex agent",
-    recommended: true,
-  },
-  {
-    value: "gemini_local",
-    label: "Gemini CLI",
-    icon: Gem,
-    desc: "Local Gemini agent",
-  },
-  {
-    value: "opencode_local",
-    label: "OpenCode",
-    icon: OpenCodeLogoIcon,
-    desc: "Local multi-provider agent",
-  },
-  {
-    value: "pi_local",
-    label: "Pi",
-    icon: Terminal,
-    desc: "Local Pi agent",
-  },
-  {
-    value: "cursor",
-    label: "Cursor",
-    icon: MousePointer2,
-    desc: "Local Cursor agent",
-  },
-  {
-    value: "openclaw_gateway",
-    label: "OpenClaw Gateway",
-    icon: Bot,
-    desc: "Invoke OpenClaw via gateway protocol",
-  },
-];
+import { UserPlus, X } from "lucide-react";
+import { agentsApi } from "../api/agents";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "../lib/queryKeys";
 
 export function NewAgentDialog() {
-  const { newAgentOpen, closeNewAgent, openNewIssue } = useDialog();
+  const { newAgentOpen, closeNewAgent } = useDialog();
   const { selectedCompanyId } = useCompany();
   const navigate = useNavigate();
-  const [showAdvancedCards, setShowAdvancedCards] = useState(false);
+  const queryClient = useQueryClient();
 
-  const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId && newAgentOpen,
+  const [name, setName] = useState("");
+  const [title, setTitle] = useState("");
+  const [capabilities, setCapabilities] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const createMutation = useMutation({
+    mutationFn: (data: Record<string, unknown>) =>
+      agentsApi.create(selectedCompanyId!, data),
+    onSuccess: (agent: { urlKey?: string; id: string }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(selectedCompanyId!) });
+      setName(""); setTitle(""); setCapabilities(""); setError(null);
+      closeNewAgent();
+      navigate(`/agents/${agent.urlKey ?? agent.id}/dashboard`);
+    },
+    onError: (err: unknown) => {
+      setError(err instanceof Error ? err.message : "Errore nella creazione");
+    },
   });
 
-  const ceoAgent = (agents ?? []).find((a) => a.role === "ceo");
-
-  function handleAskCeo() {
-    closeNewAgent();
-    openNewIssue({
-      assigneeAgentId: ceoAgent?.id,
-      title: "Create a new agent",
-      description: "(type in what kind of agent you want here)",
+  function handleCreate() {
+    if (!name.trim()) { setError("Il nome è obbligatorio"); return; }
+    setError(null);
+    createMutation.mutate({
+      name: name.trim(),
+      title: title.trim() || undefined,
+      capabilities: capabilities.trim() || undefined,
+      adapterType: "claude_api",
+      adapterConfig: {},
+      role: "general",
+      status: "idle",
     });
   }
 
-  function handleAdvancedConfig() {
-    setShowAdvancedCards(true);
-  }
-
-  function handleAdvancedAdapterPick(adapterType: AdvancedAdapterType) {
-    closeNewAgent();
-    setShowAdvancedCards(false);
-    navigate(`/agents/new?adapterType=${encodeURIComponent(adapterType)}`);
-  }
+  const inputClass = "w-full rounded-xl px-3 py-2.5 text-sm outline-none transition-colors";
+  const inputStyle = {
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    color: "hsl(0 0% 98%)",
+  };
 
   return (
     <Dialog
       open={newAgentOpen}
       onOpenChange={(open) => {
         if (!open) {
-          setShowAdvancedCards(false);
+          setError(null); setName(""); setTitle(""); setCapabilities("");
           closeNewAgent();
         }
       }}
@@ -130,92 +70,82 @@ export function NewAgentDialog() {
       <DialogContent
         showCloseButton={false}
         className="sm:max-w-md p-0 gap-0 overflow-hidden"
+        style={{
+          background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 50%, rgba(255,255,255,0.01) 100%)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          backdropFilter: "blur(40px)",
+          WebkitBackdropFilter: "blur(40px)",
+          borderRadius: "1.5rem",
+        }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
-          <span className="text-sm text-muted-foreground">Add a new agent</span>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            className="text-muted-foreground"
-            onClick={() => {
-              setShowAdvancedCards(false);
-              closeNewAgent();
-            }}
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="flex items-center gap-2">
+            <UserPlus className="h-4 w-4" style={{ color: "hsl(158 64% 52%)" }} />
+            <span className="text-sm font-medium">Nuovo Agente</span>
+          </div>
+          <button
+            className="h-7 w-7 flex items-center justify-center rounded-lg transition-colors"
+            style={{ background: "rgba(255,255,255,0.06)" }}
+            onClick={() => { setError(null); setName(""); setTitle(""); setCapabilities(""); closeNewAgent(); }}
           >
-            <span className="text-lg leading-none">&times;</span>
-          </Button>
+            <X className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
         </div>
 
-        <div className="p-6 space-y-6">
-          {!showAdvancedCards ? (
-            <>
-              {/* Recommendation */}
-              <div className="text-center space-y-3">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-accent">
-                  <Sparkles className="h-6 w-6 text-foreground" />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  We recommend letting your CEO handle agent setup — they know the
-                  org structure and can configure reporting, permissions, and
-                  adapters.
-                </p>
-              </div>
+        {/* Form */}
+        <div className="p-5 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">Nome *</label>
+            <input
+              className={inputClass}
+              style={inputStyle}
+              placeholder="Es. Marco, Assistente Vendite..."
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+            />
+          </div>
 
-              <Button className="w-full" size="lg" onClick={handleAskCeo}>
-                <Bot className="h-4 w-4 mr-2" />
-                Ask the CEO to create a new agent
-              </Button>
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">Ruolo / Titolo</label>
+            <input
+              className={inputClass}
+              style={inputStyle}
+              placeholder="Es. Responsabile Social, Contabile..."
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
 
-              {/* Advanced link */}
-              <div className="text-center">
-                <button
-                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-                  onClick={handleAdvancedConfig}
-                >
-                  I want advanced configuration myself
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="space-y-2">
-                <button
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => setShowAdvancedCards(false)}
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  Back
-                </button>
-                <p className="text-sm text-muted-foreground">
-                  Choose your adapter type for advanced setup.
-                </p>
-              </div>
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">Competenze</label>
+            <textarea
+              className={`${inputClass} min-h-[80px] resize-none`}
+              style={inputStyle}
+              placeholder="Descrivi cosa deve saper fare questo agente..."
+              value={capabilities}
+              onChange={(e) => setCapabilities(e.target.value)}
+            />
+          </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                {ADVANCED_ADAPTER_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    className={cn(
-                      "flex flex-col items-center gap-1.5 rounded-md border border-border p-3 text-xs transition-colors hover:bg-accent/50 relative"
-                    )}
-                    onClick={() => handleAdvancedAdapterPick(opt.value)}
-                  >
-                    {opt.recommended && (
-                      <span className="absolute -top-1.5 right-1.5 bg-green-500 text-white text-[9px] font-semibold px-1.5 py-0.5 rounded-full leading-none">
-                        Recommended
-                      </span>
-                    )}
-                    <opt.icon className="h-4 w-4" />
-                    <span className="font-medium">{opt.label}</span>
-                    <span className="text-muted-foreground text-[10px]">
-                      {opt.desc}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </>
+          {error && (
+            <div className="rounded-xl px-3 py-2 text-xs" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "hsl(0 65% 65%)" }}>
+              {error}
+            </div>
           )}
+
+          <button
+            onClick={handleCreate}
+            disabled={createMutation.isPending || !name.trim()}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))",
+              boxShadow: "0 4px 20px hsl(158 64% 42% / 0.3)",
+            }}
+          >
+            {createMutation.isPending ? "Creazione in corso..." : "Crea Agente"}
+          </button>
         </div>
       </DialogContent>
     </Dialog>

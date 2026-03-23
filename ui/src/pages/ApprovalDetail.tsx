@@ -198,7 +198,7 @@ export function ApprovalDetail() {
           </div>
         </div>
       )}
-      <div className="border border-border rounded-lg p-4 space-y-3">
+      <div className="glass-card p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <TypeIcon className="h-5 w-5 text-muted-foreground shrink-0" />
@@ -323,7 +323,7 @@ export function ApprovalDetail() {
         </div>
       </div>
 
-      <div className="border border-border rounded-lg p-4 space-y-3">
+      <div className="glass-card p-4 space-y-3">
         <h3 className="text-sm font-medium">Comments ({comments?.length ?? 0})</h3>
         <div className="space-y-2">
           {(comments ?? []).map((comment: ApprovalComment) => (

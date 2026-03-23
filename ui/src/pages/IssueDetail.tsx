@@ -1042,7 +1042,7 @@ export function IssueDetail() {
           {childIssues.length === 0 ? (
             <p className="text-xs text-muted-foreground">No sub-issues.</p>
           ) : (
-            <div className="border border-border rounded-lg divide-y divide-border">
+            <div className="glass-card divide-y divide-border">
               {childIssues.map((child) => (
                 <Link
                   key={child.id}

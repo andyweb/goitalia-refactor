@@ -97,23 +97,23 @@ const STAGED_FILE_ACCEPT = "image/*,application/pdf,text/plain,text/markdown,app
 const ISSUE_THINKING_EFFORT_OPTIONS = {
   claude_local: [
     { value: "", label: "Default" },
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High" },
+    { value: "low", label: "Bassa" },
+    { value: "medium", label: "Media" },
+    { value: "high", label: "Alta" },
   ],
   codex_local: [
     { value: "", label: "Default" },
     { value: "minimal", label: "Minimal" },
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High" },
+    { value: "low", label: "Bassa" },
+    { value: "medium", label: "Media" },
+    { value: "high", label: "Alta" },
   ],
   opencode_local: [
     { value: "", label: "Default" },
     { value: "minimal", label: "Minimal" },
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High" },
+    { value: "low", label: "Bassa" },
+    { value: "medium", label: "Media" },
+    { value: "high", label: "Alta" },
     { value: "max", label: "Max" },
   ],
 } as const;
@@ -225,18 +225,18 @@ function formatFileSize(file: File) {
 }
 
 const statuses = [
-  { value: "backlog", label: "Backlog", color: issueStatusText.backlog ?? issueStatusTextDefault },
-  { value: "todo", label: "Todo", color: issueStatusText.todo ?? issueStatusTextDefault },
-  { value: "in_progress", label: "In Progress", color: issueStatusText.in_progress ?? issueStatusTextDefault },
-  { value: "in_review", label: "In Review", color: issueStatusText.in_review ?? issueStatusTextDefault },
-  { value: "done", label: "Done", color: issueStatusText.done ?? issueStatusTextDefault },
+  { value: "backlog", label: "In Coda", color: issueStatusText.backlog ?? issueStatusTextDefault },
+  { value: "todo", label: "Da Fare", color: issueStatusText.todo ?? issueStatusTextDefault },
+  { value: "in_progress", label: "In Corso", color: issueStatusText.in_progress ?? issueStatusTextDefault },
+  { value: "in_review", label: "In Revisione", color: issueStatusText.in_review ?? issueStatusTextDefault },
+  { value: "done", label: "Completato", color: issueStatusText.done ?? issueStatusTextDefault },
 ];
 
 const priorities = [
   { value: "critical", label: "Critical", icon: AlertTriangle, color: priorityColor.critical ?? priorityColorDefault },
-  { value: "high", label: "High", icon: ArrowUp, color: priorityColor.high ?? priorityColorDefault },
-  { value: "medium", label: "Medium", icon: Minus, color: priorityColor.medium ?? priorityColorDefault },
-  { value: "low", label: "Low", icon: ArrowDown, color: priorityColor.low ?? priorityColorDefault },
+  { value: "high", label: "Alta", icon: ArrowUp, color: priorityColor.high ?? priorityColorDefault },
+  { value: "medium", label: "Media", icon: Minus, color: priorityColor.medium ?? priorityColorDefault },
+  { value: "low", label: "Bassa", icon: ArrowDown, color: priorityColor.low ?? priorityColorDefault },
 ];
 
 const EXECUTION_WORKSPACE_MODES = [
@@ -876,6 +876,13 @@ export function NewIssueDialog() {
             ? "sm:max-w-2xl h-[calc(100dvh-2rem)]"
             : "sm:max-w-lg"
         )}
+        style={{
+          background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 50%, rgba(255,255,255,0.01) 100%)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          backdropFilter: "blur(40px)",
+          WebkitBackdropFilter: "blur(40px)",
+          borderRadius: "1.5rem",
+        }}
         onKeyDown={handleKeyDown}
         onEscapeKeyDown={(event) => {
           if (createIssue.isPending) {
@@ -956,7 +963,7 @@ export function NewIssueDialog() {
               </PopoverContent>
             </Popover>
             <span className="text-muted-foreground/60">&rsaquo;</span>
-            <span>New issue</span>
+            <span>Nuova attività</span>
           </div>
           <div className="flex items-center gap-1">
             <Button
@@ -984,7 +991,7 @@ export function NewIssueDialog() {
         <div className="px-4 pt-4 pb-2 shrink-0">
           <textarea
             className="w-full text-lg font-semibold bg-transparent outline-none resize-none overflow-hidden placeholder:text-muted-foreground/50"
-            placeholder="Issue title"
+            placeholder="Titolo attività"
             rows={1}
             value={title}
             onChange={(e) => {
@@ -1024,12 +1031,12 @@ export function NewIssueDialog() {
         <div className="px-4 pb-2 shrink-0">
           <div className="overflow-x-auto overscroll-x-contain">
             <div className="inline-flex items-center gap-2 text-sm text-muted-foreground flex-wrap sm:flex-nowrap sm:min-w-max">
-              <span>For</span>
+              <span>Per</span>
               <InlineEntitySelector
                 ref={assigneeSelectorRef}
                 value={assigneeValue}
                 options={assigneeOptions}
-                placeholder="Assignee"
+                placeholder="Assegnatario"
                 disablePortal
                 noneLabel="No assignee"
                 searchPlaceholder="Search assignees..."
@@ -1082,9 +1089,9 @@ export function NewIssueDialog() {
                 options={projectOptions}
                 placeholder="Project"
                 disablePortal
-                noneLabel="No project"
+                noneLabel="Nessun progetto"
                 searchPlaceholder="Search projects..."
-                emptyMessage="No projects found."
+                emptyMessage="Nessun progetto trovato."
                 onChange={handleProjectChange}
                 onConfirm={() => {
                   descriptionEditorRef.current?.focus();
@@ -1099,7 +1106,7 @@ export function NewIssueDialog() {
                       <span className="truncate">{option.label}</span>
                     </>
                   ) : (
-                    <span className="text-muted-foreground">Project</span>
+                    <span className="text-muted-foreground">Progetto</span>
                   )
                 }
                 renderOption={(option) => {
@@ -1249,7 +1256,7 @@ export function NewIssueDialog() {
               ref={descriptionEditorRef}
               value={description}
               onChange={setDescription}
-              placeholder="Add description..."
+              placeholder="Aggiungi descrizione..."
               bordered={false}
               mentions={mentionOptions}
               contentClassName={cn("text-sm text-muted-foreground pb-12", expanded ? "min-h-[220px]" : "min-h-[120px]")}
@@ -1444,7 +1451,7 @@ export function NewIssueDialog() {
             onClick={discardDraft}
             disabled={createIssue.isPending || !canDiscardDraft}
           >
-            Discard Draft
+            Elimina Bozza
           </Button>
           <div className="flex items-center gap-3">
             <div className="min-h-5 text-right">
@@ -1466,7 +1473,7 @@ export function NewIssueDialog() {
             >
               <span className="inline-flex items-center justify-center gap-1.5">
                 {createIssue.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                <span>{createIssue.isPending ? "Creating..." : "Create Issue"}</span>
+                <span>{createIssue.isPending ? "Creazione..." : "Crea Attività"}</span>
               </span>
             </Button>
           </div>
