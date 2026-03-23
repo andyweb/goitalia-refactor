@@ -557,14 +557,14 @@ function buildAgentSnippet(input: AgentSnippetInput) {
 
   const connectivityBlock =
     candidateUrls.length === 0
-      ? `No candidate URLs are available. Ask your user to configure a reachable hostname in GoItalia, then retry.
+      ? `No candidate URLs are available. Ask your user to configure a reachable hostname in Paperclip, then retry.
 Suggested steps:
 - choose a hostname that resolves to the GoItalia host from your runtime
 - run: pnpm goitalia allowed-hostname <host>
 - restart GoItalia
 - verify with: curl -fsS http://<host>:3100/api/health
 - regenerate this invite snippet`
-      : `If none are reachable, ask your user to add a reachable hostname in GoItalia, restart, and retry.
+      : `If none are reachable, ask your user to add a reachable hostname in Paperclip, restart, and retry.
 Suggested command:
 - pnpm goitalia allowed-hostname <host>
 Then verify with: curl -fsS <base-url>/api/health`;
@@ -579,7 +579,7 @@ The URLs you should try are:
 ${candidateList}
 
 Connectivity guidance:
-If you are running on a different machine than GoItalia, GoItalia must be reachable at one of the hostnames used above.
+If you are running on a different machine than Paperclip, GoItalia must be reachable at one of the hostnames used above.
 Verify the hostname works from your runtime with: GET <base-url>/api/health
 
 ${connectivityBlock}

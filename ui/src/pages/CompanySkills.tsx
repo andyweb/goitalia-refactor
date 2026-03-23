@@ -46,7 +46,7 @@ import {
   Github,
   Link2,
   ExternalLink,
-  GoItalia,
+  Paperclip,
   Pencil,
   Plus,
   RefreshCw,
@@ -159,7 +159,7 @@ function sourceMeta(sourceBadge: CompanySkillSourceBadge, sourceLabel: string | 
     case "local":
       return { icon: Folder, label: sourceLabel ?? "Folder", managedLabel: "Folder managed" };
     case "paperclip":
-      return { icon: GoItalia, label: sourceLabel ?? "GoItalia", managedLabel: "GoItalia managed" };
+      return { icon: Paperclip, label: sourceLabel ?? "GoItalia", managedLabel: "GoItalia managed" };
     default:
       return { icon: Boxes, label: sourceLabel ?? "Catalog", managedLabel: "Catalog managed" };
   }

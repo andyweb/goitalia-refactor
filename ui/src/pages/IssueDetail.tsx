@@ -47,7 +47,7 @@ import {
   ListTree,
   MessageSquare,
   MoreHorizontal,
-  GoItalia,
+  Paperclip,
   Repeat,
   SlidersHorizontal,
   Trash2,
@@ -669,7 +669,7 @@ export function IssueDetail() {
           attachmentDragActive && "border-primary bg-primary/5",
         )}
       >
-        <GoItalia className="h-3.5 w-3.5 mr-1.5" />
+        <Paperclip className="h-3.5 w-3.5 mr-1.5" />
         {uploadAttachment.isPending || importMarkdownDocument.isPending ? "Uploading..." : "Upload attachment"}
       </Button>
     </>
