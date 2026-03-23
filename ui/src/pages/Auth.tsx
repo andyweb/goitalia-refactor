@@ -4,46 +4,93 @@ import { useNavigate, useSearchParams } from "@/lib/router";
 import { authApi } from "../api/auth";
 import { queryKeys } from "../lib/queryKeys";
 
+type Mode = "login" | "register";
+
 export function AuthPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [name, setName] = useState("");
+  const [mode, setMode] = useState<Mode>("login");
+  const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const nextPath = useMemo(() => searchParams.get("next") || "/", [searchParams]);
-  const { data: session, isLoading: isSessionLoading } = useQuery({
+  const { data: session, isLoading } = useQuery({
     queryKey: queryKeys.auth.session,
     queryFn: () => authApi.getSession(),
     retry: false,
   });
 
   useEffect(() => {
-    if (session) {
-      navigate(nextPath, { replace: true });
-    }
+    if (session) navigate(nextPath, { replace: true });
   }, [session, navigate, nextPath]);
 
-  const mutation = useMutation({
-    mutationFn: async () => {
-      await authApi.signInEmail({ email: email.trim(), password });
-    },
+  const loginMutation = useMutation({
+    mutationFn: () => authApi.signInEmail({ email: email.trim(), password }),
     onSuccess: async () => {
       setError(null);
       await queryClient.invalidateQueries({ queryKey: queryKeys.auth.session });
       await queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
       navigate(nextPath, { replace: true });
     },
-    onError: (err) => {
-      setError(err instanceof Error ? err.message : "Autenticazione fallita");
-    },
+    onError: (err) => setError(err instanceof Error ? err.message : "Credenziali non valide"),
   });
 
-  const canSubmit = email.trim().length > 0 && password.trim().length > 0;
+  const registerMutation = useMutation({
+    mutationFn: async () => {
+      // 1. Create account
+      await authApi.signUpEmail({ name: companyName.trim(), email: email.trim(), password });
+      // 2. Create company via onboarding/activate
+      const res = await fetch("/api/onboarding/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          companyName: companyName.trim(),
+          email: email.trim(),
+          password,
+          members: [],
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        // If email already registered, that's ok - the signup already worked
+        if (!data.error?.includes("già registrata")) {
+          throw new Error(data.error || "Errore nella creazione dell'impresa");
+        }
+      }
+    },
+    onSuccess: async () => {
+      setError(null);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.auth.session });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+      // After registration, go to API key setup
+      navigate("/api-claude", { replace: true });
+    },
+    onError: (err) => setError(err instanceof Error ? err.message : "Registrazione fallita"),
+  });
 
-  if (isSessionLoading) {
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (mode === "login") {
+      if (!email.trim() || !password) { setError("Inserisci email e password"); return; }
+      loginMutation.mutate();
+    } else {
+      if (!companyName.trim()) { setError("Il nome dell'impresa è obbligatorio"); return; }
+      if (!email.trim()) { setError("L'email è obbligatoria"); return; }
+      if (password.length < 8) { setError("La password deve avere almeno 8 caratteri"); return; }
+      if (password !== confirmPassword) { setError("Le password non corrispondono"); return; }
+      registerMutation.mutate();
+    }
+  }
+
+  const isPending = loginMutation.isPending || registerMutation.isPending;
+
+  if (isLoading) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
         <p className="text-sm text-muted-foreground">Caricamento...</p>
@@ -82,7 +129,7 @@ export function AuthPage() {
 
         <div className="p-8">
           {/* Logo */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <h1 className="text-2xl font-black tracking-tight">
               <span style={{ color: "hsl(0 65% 50%)" }}>GO</span>{" "}
               <span className="text-white">ITAL</span>{" "}
@@ -93,25 +140,46 @@ export function AuthPage() {
             </p>
           </div>
 
-          {/* Title */}
-          <h2 className="text-lg font-semibold text-center mb-1" style={{ color: "hsl(0 0% 98%)" }}>
-            "Accedi"
-          </h2>
-          <p className="text-xs text-center mb-6" style={{ color: "hsl(215 20% 55%)" }}>
-            "Inserisci le tue credenziali per accedere"
-          </p>
+          {/* Tab switch */}
+          <div className="flex gap-1 p-1 rounded-xl mb-6" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <button
+              className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
+              style={mode === "login" ? {
+                background: "linear-gradient(135deg, hsl(158 64% 42% / 0.25), hsl(158 64% 42% / 0.15))",
+                color: "white",
+              } : { color: "hsl(215 20% 55%)" }}
+              onClick={() => { setMode("login"); setError(null); }}
+            >
+              Accedi
+            </button>
+            <button
+              className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
+              style={mode === "register" ? {
+                background: "linear-gradient(135deg, hsl(158 64% 42% / 0.25), hsl(158 64% 42% / 0.15))",
+                color: "white",
+              } : { color: "hsl(215 20% 55%)" }}
+              onClick={() => { setMode("register"); setError(null); }}
+            >
+              Registrati
+            </button>
+          </div>
 
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (mutation.isPending || !canSubmit) return;
-              mutation.mutate();
-            }}
-          >
-
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            {mode === "register" && (
+              <div>
+                <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Nome impresa *</label>
+                <input
+                  className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
+                  style={inputStyle}
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="es. Rossi & Partners S.r.l."
+                  autoComplete="organization"
+                />
+              </div>
+            )}
             <div>
-              <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Email</label>
+              <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Email *</label>
               <input
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
                 style={inputStyle}
@@ -124,17 +192,31 @@ export function AuthPage() {
               />
             </div>
             <div>
-              <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Password</label>
+              <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Password *</label>
               <input
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
                 style={inputStyle}
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="La tua password"
-                autoComplete="current-password"
+                placeholder={mode === "register" ? "Minimo 8 caratteri" : "La tua password"}
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
               />
             </div>
+            {mode === "register" && (
+              <div>
+                <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Conferma password *</label>
+                <input
+                  className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
+                  style={inputStyle}
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Ripeti la password"
+                  autoComplete="new-password"
+                />
+              </div>
+            )}
 
             {error && (
               <div className="rounded-xl px-3 py-2 text-xs" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "hsl(0 65% 65%)" }}>
@@ -144,27 +226,20 @@ export function AuthPage() {
 
             <button
               type="submit"
-              disabled={mutation.isPending || !canSubmit}
+              disabled={isPending}
               className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               style={{
                 background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))",
                 boxShadow: "0 4px 20px hsl(158 64% 42% / 0.3)",
               }}
             >
-              {mutation.isPending ? "Caricamento..." : "Accedi"}
+              {isPending
+                ? "Caricamento..."
+                : mode === "login"
+                  ? "Accedi"
+                  : "Crea la tua impresa AI"}
             </button>
           </form>
-
-          <div className="mt-6 text-center text-sm" style={{ color: "hsl(215 20% 55%)" }}>
-            Non hai un account?{" "}
-            <a
-              href="/start"
-              className="font-medium underline underline-offset-2 transition-colors"
-              style={{ color: "hsl(158 64% 52%)" }}
-            >
-              Crea la tua impresa AI
-            </a>
-          </div>
         </div>
       </div>
     </div>
