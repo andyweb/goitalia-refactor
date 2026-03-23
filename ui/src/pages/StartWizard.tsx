@@ -62,13 +62,9 @@ interface TeamMember {
 }
 
 interface CompanyData {
-  ragioneSociale: string;
-  partitaIva: string;
-  indirizzo: string;
-  citta: string;
-  cap: string;
+  companyName: string;
   email: string;
-  whatsapp: string;
+  password: string;
 }
 
 // Step indicator
@@ -76,8 +72,8 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
   const steps = [
     { num: 1, label: "Team" },
     { num: 2, label: "Organigramma AI" },
-    { num: 3, label: "Dati Azienda" },
-    { num: 4, label: "Pagamento" },
+    { num: 3, label: "Account" },
+    { num: 4, label: "Attivazione" },
   ];
 
   return (
@@ -333,54 +329,35 @@ function Step2Organigramma({ members, onNext, onBack }: { members: TeamMember[];
 }
 
 // Step 3: Company data
-function Step3CompanyData({ companyData, setCompanyData, onNext, onBack }: { companyData: CompanyData; setCompanyData: (d: CompanyData) => void; onNext: () => void; onBack: () => void }) {
+function Step3Account({ companyData, setCompanyData, onNext, onBack }: { companyData: CompanyData; setCompanyData: (d: CompanyData) => void; onNext: () => void; onBack: () => void }) {
   const update = (field: keyof CompanyData, value: string) => setCompanyData({ ...companyData, [field]: value });
-  const isValid = companyData.ragioneSociale && companyData.partitaIva && companyData.email;
+  const isValid = companyData.companyName && companyData.email && companyData.password && companyData.password.length >= 8;
 
   return (
     <div>
       <div className="text-center mb-10">
-        <h2 className="text-3xl md:text-4xl font-black mb-3" style={{ color: "hsl(0 0% 98%)" }}>Dati della tua azienda</h2>
+        <h2 className="text-3xl md:text-4xl font-black mb-3" style={{ color: "hsl(0 0% 98%)" }}>Crea il tuo account</h2>
         <p style={{ color: styles.muted }} className="text-base max-w-md mx-auto">
-          Inserisci i dati della tua azienda per completare la registrazione.
+          Inserisci i dati per accedere alla tua dashboard.
         </p>
       </div>
 
-      <div className={styles.glass + " p-6 md:p-8 max-w-lg mx-auto mb-8"} style={styles.glassBg}>
+      <div className={styles.glass + " p-6 md:p-8 max-w-md mx-auto mb-8"} style={styles.glassBg}>
         <div className="space-y-4">
           <div>
-            <label className={styles.label}>Ragione Sociale *</label>
-            <input type="text" value={companyData.ragioneSociale} onChange={(e) => update("ragioneSociale", e.target.value)} placeholder="es. Mario Rossi S.r.l." className={styles.input} style={styles.inputBg} />
+            <label className={styles.label}>Nome azienda *</label>
+            <input type="text" value={companyData.companyName} onChange={(e) => update("companyName", e.target.value)} placeholder="es. Rossi & Partners S.r.l." className={styles.input} style={styles.inputBg} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={styles.label}>Partita IVA *</label>
-              <input type="text" value={companyData.partitaIva} onChange={(e) => update("partitaIva", e.target.value)} placeholder="es. 01234567890" className={styles.input} style={styles.inputBg} />
-            </div>
-            <div>
-              <label className={styles.label}>CAP</label>
-              <input type="text" value={companyData.cap} onChange={(e) => update("cap", e.target.value)} placeholder="es. 00100" className={styles.input} style={styles.inputBg} />
-            </div>
+          <div>
+            <label className={styles.label}>Email *</label>
+            <input type="email" value={companyData.email} onChange={(e) => update("email", e.target.value)} placeholder="es. info@azienda.it" className={styles.input} style={styles.inputBg} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={styles.label}>Indirizzo</label>
-              <input type="text" value={companyData.indirizzo} onChange={(e) => update("indirizzo", e.target.value)} placeholder="es. Via Roma 1" className={styles.input} style={styles.inputBg} />
-            </div>
-            <div>
-              <label className={styles.label}>Città</label>
-              <input type="text" value={companyData.citta} onChange={(e) => update("citta", e.target.value)} placeholder="es. Roma" className={styles.input} style={styles.inputBg} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={styles.label}>Email *</label>
-              <input type="email" value={companyData.email} onChange={(e) => update("email", e.target.value)} placeholder="es. info@azienda.it" className={styles.input} style={styles.inputBg} />
-            </div>
-            <div>
-              <label className={styles.label}>WhatsApp</label>
-              <input type="text" value={companyData.whatsapp} onChange={(e) => update("whatsapp", e.target.value)} placeholder="es. +39 333 1234567" className={styles.input} style={styles.inputBg} />
-            </div>
+          <div>
+            <label className={styles.label}>Password *</label>
+            <input type="password" value={companyData.password} onChange={(e) => update("password", e.target.value)} placeholder="Minimo 8 caratteri" className={styles.input} style={styles.inputBg} />
+            {companyData.password && companyData.password.length < 8 && (
+              <p className="text-xs mt-1" style={{ color: "hsl(0 65% 55%)" }}>La password deve avere almeno 8 caratteri</p>
+            )}
           </div>
         </div>
       </div>
@@ -390,40 +367,99 @@ function Step3CompanyData({ companyData, setCompanyData, onNext, onBack }: { com
           <ArrowLeft className="w-4 h-4" /> Indietro
         </button>
         <button onClick={onNext} disabled={!isValid} className={styles.btnPremium + " flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"} style={styles.btnPremiumBg}>
-          Procedi al pagamento <ArrowRight className="w-4 h-4" />
+          Inizia prova gratuita <ArrowRight className="w-4 h-4" />
         </button>
       </div>
     </div>
   );
 }
 
-// Step 4: Payment
-function Step4Payment({ onBack }: { onBack: () => void }) {
+// Step 4: Trial activation
+function Step4Trial({ companyData, members, onBack }: { companyData: CompanyData; members: TeamMember[]; onBack: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const activate = async () => {
+    setLoading(true);
+    // TODO: API call to create account, company, CEO + agents
+    // For now simulate with timeout
+    await new Promise((r) => setTimeout(r, 2000));
+    setDone(true);
+    setLoading(false);
+  };
+
+  if (done) {
+    return (
+      <div className="text-center">
+        <div className="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center" style={{ background: "hsl(158 64% 42% / 0.15)", border: "1px solid hsl(158 64% 42% / 0.25)" }}>
+          <CheckCircle className="w-10 h-10" style={{ color: styles.primary }} />
+        </div>
+        <h2 className="text-3xl font-black mb-3" style={{ color: "hsl(0 0% 98%)" }}>Benvenuto!</h2>
+        <p style={{ color: styles.muted }} className="text-base mb-8">
+          I tuoi {members.length} agenti AI sono pronti. La prova gratuita di 14 giorni è attiva.
+        </p>
+        <a
+          href="/auth"
+          className={styles.btnPremium + " inline-flex items-center gap-2 text-sm"}
+          style={styles.btnPremiumBg}
+        >
+          Accedi alla dashboard <ArrowRight className="w-4 h-4" />
+        </a>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="text-center mb-10">
-        <h2 className="text-3xl md:text-4xl font-black mb-3" style={{ color: "hsl(0 0% 98%)" }}>Completa il pagamento</h2>
+        <h2 className="text-3xl md:text-4xl font-black mb-3" style={{ color: "hsl(0 0% 98%)" }}>Inizia la prova gratuita</h2>
         <p style={{ color: styles.muted }} className="text-base max-w-md mx-auto">
-          Dopo il pagamento, i tuoi agenti AI saranno attivi immediatamente.
+          14 giorni gratis, nessuna carta di credito richiesta.
         </p>
       </div>
 
       <div className={styles.glass + " p-8 md:p-10 max-w-md mx-auto text-center"} style={styles.glassBg}>
-        <div className="w-16 h-16 rounded-2xl mx-auto mb-6 flex items-center justify-center" style={{ background: "hsl(158 64% 42% / 0.15)", border: "1px solid hsl(158 64% 42% / 0.25)" }}>
-          <CreditCard className="w-8 h-8" style={{ color: styles.primary }} />
+        {/* Trial summary */}
+        <div className="space-y-4 mb-8 text-left">
+          <div className="flex items-center justify-between py-3 border-b" style={{ borderColor: "hsl(0 0% 100% / 0.08)" }}>
+            <span style={{ color: styles.muted }} className="text-sm">Azienda</span>
+            <span className="text-sm font-semibold" style={{ color: "hsl(0 0% 98%)" }}>{companyData.companyName}</span>
+          </div>
+          <div className="flex items-center justify-between py-3 border-b" style={{ borderColor: "hsl(0 0% 100% / 0.08)" }}>
+            <span style={{ color: styles.muted }} className="text-sm">Email</span>
+            <span className="text-sm font-semibold" style={{ color: "hsl(0 0% 98%)" }}>{companyData.email}</span>
+          </div>
+          <div className="flex items-center justify-between py-3 border-b" style={{ borderColor: "hsl(0 0% 100% / 0.08)" }}>
+            <span style={{ color: styles.muted }} className="text-sm">Agenti AI</span>
+            <span className="text-sm font-semibold" style={{ color: styles.primary }}>{members.length} agenti</span>
+          </div>
+          <div className="flex items-center justify-between py-3">
+            <span style={{ color: styles.muted }} className="text-sm">Prova gratuita</span>
+            <span className="text-sm font-semibold" style={{ color: styles.primary }}>14 giorni</span>
+          </div>
         </div>
-        <p style={{ color: styles.muted }} className="text-sm mb-8">
-          Integrazione Stripe in arrivo. Per ora contattaci su WhatsApp per attivare il tuo account.
-        </p>
-        <a
-          href="https://wa.me/34625976744?text=Ciao%20Emanuele%2C%20ho%20completato%20l%27onboarding%20su%20GoItalia%20Impresa%20e%20vorrei%20attivare%20il%20mio%20account."
-          target="_blank"
-          rel="noopener noreferrer"
-          className={styles.btnPremium + " inline-flex items-center gap-2 text-sm"}
+
+        <button
+          onClick={activate}
+          disabled={loading}
+          className={styles.btnPremium + " w-full flex items-center justify-center gap-2 text-sm disabled:opacity-60"}
           style={styles.btnPremiumBg}
         >
-          Contattaci su WhatsApp <ArrowRight className="w-4 h-4" />
-        </a>
+          {loading ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              Creazione in corso...
+            </>
+          ) : (
+            <>
+              Attiva prova gratuita <ArrowRight className="w-4 h-4" />
+            </>
+          )}
+        </button>
+
+        <p className="text-xs mt-4" style={{ color: "hsl(215 20% 45%)" }}>
+          Nessuna carta di credito. Dopo 14 giorni scegli il piano che preferisci.
+        </p>
       </div>
 
       <div className="flex justify-start mt-10">
@@ -450,7 +486,7 @@ export function StartWizard() {
     };
   }, []);
   const [companyData, setCompanyData] = useState<CompanyData>({
-    ragioneSociale: "", partitaIva: "", indirizzo: "", citta: "", cap: "", email: "", whatsapp: "",
+    companyName: "", email: "", password: "",
   });
 
   return (
@@ -473,8 +509,8 @@ export function StartWizard() {
 
         {step === 1 && <Step1Team members={members} setMembers={setMembers} onNext={() => setStep(2)} />}
         {step === 2 && <Step2Organigramma members={members} onNext={() => setStep(3)} onBack={() => setStep(1)} />}
-        {step === 3 && <Step3CompanyData companyData={companyData} setCompanyData={setCompanyData} onNext={() => setStep(4)} onBack={() => setStep(2)} />}
-        {step === 4 && <Step4Payment onBack={() => setStep(3)} />}
+        {step === 3 && <Step3Account companyData={companyData} setCompanyData={setCompanyData} onNext={() => setStep(4)} onBack={() => setStep(2)} />}
+        {step === 4 && <Step4Trial companyData={companyData} members={members} onBack={() => setStep(3)} />}
       </div>
     </div>
   );
