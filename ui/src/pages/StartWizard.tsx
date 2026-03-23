@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Trash2, Users, Building2, CreditCard, CheckCircle, ArrowRight, ArrowLeft, Bot } from "lucide-react";
 
 // Shared styles matching goitalia.eu
@@ -439,6 +439,16 @@ function Step4Payment({ onBack }: { onBack: () => void }) {
 export function StartWizard() {
   const [step, setStep] = useState(1);
   const [members, setMembers] = useState<TeamMember[]>([]);
+
+  // Override body overflow:hidden from Paperclip's global CSS
+  useEffect(() => {
+    document.body.style.overflow = "auto";
+    document.body.style.height = "auto";
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.height = "";
+    };
+  }, []);
   const [companyData, setCompanyData] = useState<CompanyData>({
     ragioneSociale: "", partitaIva: "", indirizzo: "", citta: "", cap: "", email: "", whatsapp: "",
   });
