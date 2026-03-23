@@ -40,13 +40,12 @@ const styles = {
     boxShadow: "0 0 0 1px hsl(158 64% 42% / 0.3) inset",
   } as React.CSSProperties,
   // Input
-  input: "w-full px-4 py-3 rounded-xl border border-[hsl(0,0%,100%,0.12)] text-[hsl(0,0%,98%)] text-sm placeholder:text-[hsl(215,20%,40%)] focus:border-[hsl(158,64%,42%)] focus:outline-none transition-colors",
+  input: "w-full px-4 py-3 rounded-xl border border-[hsl(0,0%,100%,0.15)] text-white text-sm placeholder:text-[hsl(215,20%,55%)] focus:border-[hsl(158,64%,42%)] focus:outline-none transition-colors",
   inputBg: {
-    background: "linear-gradient(135deg, hsl(0 0% 100% / 0.06) 0%, hsl(0 0% 100% / 0.02) 100%)",
-    backdropFilter: "blur(20px)",
+    background: "hsl(215 30% 12%)",
   } as React.CSSProperties,
   // Label
-  label: "text-xs text-[hsl(215,20%,60%)] mb-1.5 block font-medium",
+  label: "text-xs text-[hsl(215,20%,70%)] mb-1.5 block font-medium",
   // Primary color
   primary: "hsl(158 64% 42%)",
   muted: "hsl(215 20% 60%)",
