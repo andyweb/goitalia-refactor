@@ -1,4 +1,5 @@
 import { Navigate, Outlet, Route, Routes, useLocation, useParams } from "@/lib/router";
+import { StartWizard } from "./pages/StartWizard";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Layout } from "./components/Layout";
@@ -241,7 +242,7 @@ function CompanyRootRedirect() {
         hasCompanies: false,
       })
     ) {
-      return <Navigate to="/onboarding" replace />;
+      return <Navigate to="/start" replace />;
     }
     return <NoCompaniesStartPage />;
   }
@@ -265,7 +266,7 @@ function UnprefixedBoardRedirect() {
         hasCompanies: false,
       })
     ) {
-      return <Navigate to="/onboarding" replace />;
+      return <Navigate to="/start" replace />;
     }
     return <NoCompaniesStartPage />;
   }
@@ -300,6 +301,7 @@ export function App() {
   return (
     <>
       <Routes>
+        <Route path="start" element={<StartWizard />} />
         <Route path="auth" element={<AuthPage />} />
         <Route path="board-claim/:token" element={<BoardClaimPage />} />
         <Route path="invite/:token" element={<InviteLandingPage />} />
