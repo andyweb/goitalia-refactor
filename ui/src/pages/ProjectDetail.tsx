@@ -20,6 +20,7 @@ import { BudgetPolicyCard } from "../components/BudgetPolicyCard";
 import { IssuesList } from "../components/IssuesList";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { PageTabBar } from "../components/PageTabBar";
+import { AdminDashboard } from "./AdminDashboard";
 import { projectRouteRef, cn } from "../lib/utils";
 import { Tabs } from "@/components/ui/tabs";
 import { PluginLauncherOutlet } from "@/plugins/launchers";
@@ -499,6 +500,11 @@ export function ProjectDetail() {
       navigate(`/projects/${canonicalProjectRef}/issues`);
     }
   };
+
+  // Se il progetto è GoItalIA, mostra la dashboard admin
+  if (project.name === "GoItalIA") {
+    return <AdminDashboard />;
+  }
 
   return (
     <div className="space-y-6">

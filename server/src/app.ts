@@ -12,6 +12,7 @@ import { privateHostnameGuard, resolvePrivateHostnameAllowSet } from "./middlewa
 import { healthRoutes } from "./routes/health.js";
 import { companyRoutes } from "./routes/companies.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
+import { chatRoutes } from "./routes/chat.js";
 import { companySkillRoutes } from "./routes/company-skills.js";
 import { agentRoutes } from "./routes/agents.js";
 import { projectRoutes } from "./routes/projects.js";
@@ -139,6 +140,7 @@ export async function createApp(
     }),
   );
   api.use("/onboarding", onboardingRoutes(db, opts.serverPort));
+  api.use(chatRoutes(db));
   api.use("/companies", companyRoutes(db, opts.storageService));
   api.use(companySkillRoutes(db));
   api.use(agentRoutes(db));
