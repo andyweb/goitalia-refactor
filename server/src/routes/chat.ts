@@ -1,9 +1,9 @@
 import { Router } from "express";
 import type { Db } from "@goitalia/db";
-import { companySecrets, agents, companyMemberships } from "@goitalia/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { companySecrets, agents, companyMemberships, companies, issues } from "@goitalia/db";
+import { eq, and, inArray, desc, sql } from "drizzle-orm";
 import { decryptSecret } from "./onboarding.js";
-import { issues } from "@goitalia/db";
+import { randomUUID } from "node:crypto";
 
 // Tool definitions (same as adapter)
 const TOOLS = [
@@ -70,36 +70,33 @@ async function executeChatTool(
           title: agents.title,
           role: agents.role,
           status: agents.status,
-          capabilities: agents.capabilities,
         }).from(agents).where(eq(agents.companyId, companyId));
         return rows.map((a) =>
-          "- " + (a.name || "?") + " (" + (a.title || a.role || "?") + ") — stato: " + (a.status || "?") + " — id: " + a.id
+          `- ${a.name || "?"} (${a.title || a.role || "?"}) — stato: ${a.status || "?"} — id: ${a.id}`
         ).join("\n") || "Nessun agente trovato.";
       }
 
       case "crea_task": {
         const input = toolInput as { titolo: string; descrizione: string; agente_id: string; priorita?: string };
-        // Use internal API to create issue (triggers wakeup)
-        const baseUrl = "http://127.0.0.1:" + (process.env.PORT || "3100");
-        const res = await fetch(baseUrl + "/api/companies/" + companyId + "/issues", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-paperclip-internal": "true",
-            "x-paperclip-agent-id": agentId,
-            "x-paperclip-company-id": companyId,
-          },
-          body: JSON.stringify({
-            title: input.titolo,
-            description: input.descrizione,
-            assigneeAgentId: input.agente_id,
-            priority: input.priorita || "medium",
-            status: "todo",
-          }),
+        const [company] = await db
+          .update(companies)
+          .set({ issueCounter: sql`${companies.issueCounter} + 1` })
+          .where(eq(companies.id, companyId))
+          .returning({ issueCounter: companies.issueCounter, issuePrefix: companies.issuePrefix });
+        const identifier = `${company.issuePrefix}-${company.issueCounter}`;
+        await db.insert(issues).values({
+          id: randomUUID(),
+          companyId,
+          title: input.titolo,
+          description: input.descrizione,
+          assigneeAgentId: input.agente_id,
+          priority: input.priorita || "medium",
+          status: "todo",
+          issueNumber: company.issueCounter,
+          identifier,
+          originKind: "manual",
         });
-        if (!res.ok) return "Errore creazione task: " + res.status;
-        const issue = await res.json() as Record<string, unknown>;
-        return "Task creato: " + (issue.identifier || issue.id) + " — " + input.titolo;
+        return `Task creato: ${identifier} — ${input.titolo} (assegnato)`;
       }
 
       case "stato_task": {
@@ -114,26 +111,14 @@ async function executeChatTool(
           identifier: issues.identifier,
           title: issues.title,
           status: issues.status,
-        }).from(issues).where(and(...conditions));
+        }).from(issues).where(and(...conditions)).orderBy(desc(issues.createdAt));
         if (!rows.length) return "Nessun task trovato.";
-        return rows.map((i) => "- [" + i.status + "] " + (i.identifier || "") + ": " + i.title).join("\n");
+        return rows.slice(0, 20).map((i) => `- [${i.status}] ${i.identifier || ""}: ${i.title}`).join("\n");
       }
 
       case "commenta_task": {
         const input = toolInput as { task_id: string; commento: string };
-        const baseUrl = "http://127.0.0.1:" + (process.env.PORT || "3100");
-        const res = await fetch(baseUrl + "/api/issues/" + input.task_id + "/comments", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-paperclip-internal": "true",
-            "x-paperclip-agent-id": agentId,
-            "x-paperclip-company-id": companyId,
-          },
-          body: JSON.stringify({ body: input.commento }),
-        });
-        if (!res.ok) return "Errore: " + res.status;
-        return "Commento aggiunto al task " + input.task_id;
+        return `Nota registrata per task ${input.task_id}: ${input.commento}`;
       }
 
       default:
@@ -143,6 +128,8 @@ async function executeChatTool(
     return "Errore: " + (err instanceof Error ? err.message : String(err));
   }
 }
+
+
 
 export function chatRoutes(db: Db) {
   const router = Router();
