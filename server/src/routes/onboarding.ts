@@ -1,5 +1,7 @@
 import { Router } from "express";
 import type { Db } from "@goitalia/db";
+import { companySecrets } from "@goitalia/db";
+import { eq, and } from "drizzle-orm";
 import { companyService } from "../services/companies.js";
 import { agentService } from "../services/agents.js";
 import { accessService } from "../services/access.js";
@@ -82,7 +84,7 @@ export function onboardingRoutes(db: Db, serverPort: number) {
         name: "CEO",
         role: "ceo",
         title: "Chief Executive Officer",
-        adapterType: "http",
+        adapterType: "claude_api",
         adapterConfig: {},
         capabilities: "Coordina tutti gli agenti, delega task, monitora progressi e costi. È il punto di contatto con il board.",
         budgetMonthlyCents: 5000000,
@@ -96,7 +98,7 @@ export function onboardingRoutes(db: Db, serverPort: number) {
           name: `Agente ${member.name}`,
           role: "general",
           title: member.role,
-          adapterType: "http",
+          adapterType: "claude_api",
           adapterConfig: {},
           reportsTo: ceo.id,
           capabilities: [
@@ -136,6 +138,90 @@ export function onboardingRoutes(db: Db, serverPort: number) {
       console.error("Onboarding activation error:", error);
       const message = error instanceof Error ? error.message : "Unknown error";
       res.status(500).json({ error: "Activation failed", detail: message });
+    }
+  });
+
+  // Save Claude API key for a company
+  router.post("/claude-key", async (req, res) => {
+    try {
+      const { companyId, apiKey } = req.body as { companyId: string; apiKey: string };
+
+      if (!companyId || !apiKey) {
+        res.status(400).json({ error: "companyId and apiKey are required" });
+        return;
+      }
+
+      // Validate the key format
+      if (!apiKey.startsWith("sk-ant-")) {
+        res.status(400).json({ error: "La API key deve iniziare con sk-ant-" });
+        return;
+      }
+
+      // Test the key with a minimal API call
+      const testRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 10,
+          messages: [{ role: "user", content: "test" }],
+        }),
+      });
+
+      if (!testRes.ok) {
+        const errorBody = await testRes.text();
+        res.status(400).json({ error: "API key non valida", detail: errorBody });
+        return;
+      }
+
+      // Upsert the secret
+      const existing = await db
+        .select()
+        .from(companySecrets)
+        .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "claude_api_key")))
+        .then((rows) => rows[0]);
+
+      if (existing) {
+        await db
+          .update(companySecrets)
+          .set({ description: apiKey, updatedAt: new Date() })
+          .where(eq(companySecrets.id, existing.id));
+      } else {
+        await db
+          .insert(companySecrets)
+          .values({
+            companyId,
+            name: "claude_api_key",
+            provider: "plaintext",
+            description: apiKey,
+          });
+      }
+
+      res.json({ success: true });
+    } catch (error: unknown) {
+      console.error("Claude key save error:", error);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: "Failed to save key", detail: message });
+    }
+  });
+
+  // Check if company has Claude API key
+  router.get("/claude-key/:companyId", async (req, res) => {
+    try {
+      const { companyId } = req.params;
+      const secret = await db
+        .select()
+        .from(companySecrets)
+        .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "claude_api_key")))
+        .then((rows) => rows[0]);
+
+      res.json({ hasKey: !!secret, keyPrefix: secret?.description?.slice(0, 12) + "..." });
+    } catch {
+      res.json({ hasKey: false });
     }
   });
 
