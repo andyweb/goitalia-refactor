@@ -1661,7 +1661,7 @@ function PromptTemplateEditor({
   return (
     <div className="max-w-4xl space-y-4">
       <div className="glass-card p-4 space-y-4">
-        <h3 className="text-sm font-medium text-foreground">Identit\u00e0</h3>
+        <h3 className="text-sm font-medium text-foreground">Identità</h3>
         <div className="space-y-3">
           <div>
             <label className="text-xs text-muted-foreground">Nome</label>
