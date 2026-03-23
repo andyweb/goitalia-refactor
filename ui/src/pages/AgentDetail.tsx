@@ -1500,6 +1500,7 @@ function ConfigurationTab({
         sectionLayout="cards"
       />
 
+      {(agent.adapterType as string) !== "claude_api" && (
       <div>
         <h3 className="text-sm font-medium mb-3">Permessi</h3>
         <div className="glass-card p-4 space-y-4">
@@ -1567,6 +1568,7 @@ function ConfigurationTab({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
