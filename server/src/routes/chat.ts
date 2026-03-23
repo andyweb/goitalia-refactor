@@ -185,7 +185,17 @@ export function chatRoutes(db: Db) {
         return;
       }
 
-      const apiKey = decryptSecret(secret.description);
+      let apiKey: string;
+      try {
+        apiKey = decryptSecret(secret.description);
+        console.log("[chat] decrypt OK, key starts with:", apiKey.substring(0, 10));
+      } catch (decErr) {
+        console.error("[chat] decrypt FAILED:", decErr);
+        console.error("[chat] BETTER_AUTH_SECRET set:", !!process.env.BETTER_AUTH_SECRET);
+        console.error("[chat] secret.description starts:", secret.description.substring(0, 20));
+        res.status(500).json({ error: "Errore decrittazione API key" });
+        return;
+      }
 
       let systemPrompt = "Sei un assistente AI di GoItalIA. Rispondi in italiano in modo professionale e conciso.";
       let resolvedAgentId = agentId || "";
@@ -255,7 +265,7 @@ Usa i tool per eseguire le richieste, non limitarti a descrivere cosa faresti.`;
         if (!claudeRes.ok) {
           const errText = await claudeRes.text();
           console.error("Claude API error:", claudeRes.status, errText);
-          res.write("data: " + JSON.stringify({ type: "error", error: "Errore comunicazione Claude AI" }) + "\n\n");
+          res.write("data: " + JSON.stringify({ type: "content_block_delta", delta: { text: "Errore comunicazione Claude AI" } }) + "\n\n");
           break;
         }
 
@@ -272,7 +282,7 @@ Usa i tool per eseguire le richieste, non limitarti a descrivere cosa faresti.`;
         for (const block of textBlocks) {
           if (block.text) {
             finalText += block.text;
-            res.write("data: " + JSON.stringify({ type: "text", text: block.text }) + "\n\n");
+            res.write("data: " + JSON.stringify({ type: "content_block_delta", delta: { text: block.text } }) + "\n\n");
           }
         }
 
@@ -283,7 +293,7 @@ Usa i tool per eseguire le richieste, non limitarti a descrivere cosa faresti.`;
 
         // Stream tool activity
         for (const block of toolUseBlocks) {
-          res.write("data: " + JSON.stringify({ type: "tool_start", tool: block.name }) + "\n\n");
+          res.write("data: " + JSON.stringify({ type: "content_block_delta", delta: { text: "\n🔧 Esecuzione: " + block.name + "...\n" } }) + "\n\n");
         }
 
         // Add assistant message
@@ -300,20 +310,20 @@ Usa i tool per eseguire le richieste, non limitarti a descrivere cosa faresti.`;
             resolvedAgentId,
           );
           toolResults.push({ type: "tool_result", tool_use_id: block.id || "", content: result });
-          res.write("data: " + JSON.stringify({ type: "tool_result", tool: block.name, result }) + "\n\n");
+          // tool result logged silently
         }
 
         messages.push({ role: "user", content: toolResults });
       }
 
-      res.write("data: " + JSON.stringify({ type: "done" }) + "\n\n");
+      res.write("data: [DONE]\n\n");
       res.end();
     } catch (error) {
       console.error("Chat error:", error);
       if (!res.headersSent) {
         res.status(500).json({ error: "Errore nella chat" });
       } else {
-        res.write("data: " + JSON.stringify({ type: "error", error: "Errore interno" }) + "\n\n");
+        res.write("data: " + JSON.stringify({ type: "content_block_delta", delta: { text: "Errore interno" } }) + "\n\n");
         res.end();
       }
     }
