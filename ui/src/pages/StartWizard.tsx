@@ -66,6 +66,7 @@ interface CompanyData {
   email: string;
   confirmEmail: string;
   password: string;
+  confirmPassword: string;
 }
 
 // Step indicator
@@ -332,8 +333,10 @@ function Step2Organigramma({ members, onNext, onBack }: { members: TeamMember[];
 // Step 3: Company data
 function Step3Account({ companyData, setCompanyData, onNext, onBack }: { companyData: CompanyData; setCompanyData: (d: CompanyData) => void; onNext: () => void; onBack: () => void }) {
   const update = (field: keyof CompanyData, value: string) => setCompanyData({ ...companyData, [field]: value });
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(companyData.email);
   const emailsMatch = companyData.email && companyData.confirmEmail && companyData.email === companyData.confirmEmail;
-  const isValid = companyData.companyName && companyData.email && emailsMatch && companyData.password && companyData.password.length >= 8;
+  const passwordsMatch = companyData.password && companyData.confirmPassword && companyData.password === companyData.confirmPassword;
+  const isValid = companyData.companyName && isEmailValid && emailsMatch && companyData.password && companyData.password.length >= 8 && passwordsMatch;
 
   return (
     <div>
@@ -353,6 +356,9 @@ function Step3Account({ companyData, setCompanyData, onNext, onBack }: { company
           <div>
             <label className={styles.label}>Email *</label>
             <input type="email" value={companyData.email} onChange={(e) => update("email", e.target.value)} placeholder="es. info@azienda.it" className={styles.input} style={styles.inputBg} autoComplete="off" />
+            {companyData.email && !isEmailValid && (
+              <p className="text-xs mt-1" style={{ color: "hsl(0 65% 55%)" }}>Inserisci un indirizzo email valido</p>
+            )}
           </div>
           <div>
             <label className={styles.label}>Conferma email *</label>
@@ -366,6 +372,13 @@ function Step3Account({ companyData, setCompanyData, onNext, onBack }: { company
             <input type="password" value={companyData.password} onChange={(e) => update("password", e.target.value)} placeholder="Minimo 8 caratteri" className={styles.input} style={styles.inputBg} autoComplete="off" />
             {companyData.password && companyData.password.length < 8 && (
               <p className="text-xs mt-1" style={{ color: "hsl(0 65% 55%)" }}>La password deve avere almeno 8 caratteri</p>
+            )}
+          </div>
+          <div>
+            <label className={styles.label}>Conferma password *</label>
+            <input type="password" value={companyData.confirmPassword} onChange={(e) => update("confirmPassword", e.target.value)} placeholder="Ripeti la password" className={styles.input} style={styles.inputBg} autoComplete="off" />
+            {companyData.confirmPassword && companyData.password !== companyData.confirmPassword && (
+              <p className="text-xs mt-1" style={{ color: "hsl(0 65% 55%)" }}>Le password non corrispondono</p>
             )}
           </div>
         </div>
@@ -495,7 +508,7 @@ export function StartWizard() {
     };
   }, []);
   const [companyData, setCompanyData] = useState<CompanyData>({
-    companyName: "", email: "", confirmEmail: "", password: "",
+    companyName: "", email: "", confirmEmail: "", password: "", confirmPassword: "",
   });
 
   return (
