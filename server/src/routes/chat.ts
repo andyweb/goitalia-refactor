@@ -50,6 +50,20 @@ const TOOLS = [
       required: ["task_id", "commento"],
     },
   },
+  {
+    name: "crea_agente",
+    description: "Crea un nuovo agente specializzato per la company.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        nome: { type: "string", description: "Nome dell'agente (es: Il Promotore)" },
+        titolo: { type: "string", description: "Ruolo dell'agente (es: Social Media Manager)" },
+        competenze: { type: "string", description: "Descrizione delle competenze" },
+        istruzioni: { type: "string", description: "Prompt di sistema / istruzioni operative" },
+      },
+      required: ["nome", "titolo", "competenze", "istruzioni"],
+    },
+  },
 ];
 
 type ToolInput = Record<string, unknown>;
@@ -119,6 +133,23 @@ async function executeChatTool(
       case "commenta_task": {
         const input = toolInput as { task_id: string; commento: string };
         return `Nota registrata per task ${input.task_id}: ${input.commento}`;
+      }
+
+      case "crea_agente": {
+        const input = toolInput as { nome: string; titolo: string; competenze: string; istruzioni: string };
+        const [newAgent] = await db.insert(agents).values({
+          id: randomUUID(),
+          companyId,
+          name: input.nome,
+          title: input.titolo,
+          role: input.titolo,
+          capabilities: input.competenze,
+          adapterType: "claude_api",
+          adapterConfig: { promptTemplate: input.istruzioni },
+          reportsTo: agentId,
+          status: "idle",
+        }).returning();
+        return `Agente creato: ${input.nome} (${input.titolo}) \u2014 id: ${newAgent.id}`;
       }
 
       default:
@@ -207,6 +238,7 @@ Hai a disposizione dei tool per gestire l'azienda:
 - crea_task: per creare task e assegnarli agli agenti
 - stato_task: per controllare lo stato dei lavori
 - commenta_task: per aggiungere istruzioni ai task
+- crea_agente: per creare nuovi agenti specializzati
 
 Rispondi sempre in italiano, in modo professionale e conciso.
 Usa i tool per eseguire le richieste, non limitarti a descrivere cosa faresti.`;
