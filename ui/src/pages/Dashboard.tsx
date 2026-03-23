@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "@/lib/router";
+import { Link, Navigate } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
 import { dashboardApi } from "../api/dashboard";
 import { activityApi } from "../api/activity";
@@ -46,9 +46,17 @@ export function Dashboard() {
     enabled: !!selectedCompanyId,
   });
 
+  // Redirect to chat if in onboarding (only Direttore, no other agents)
+  const otherAgents = (agents ?? []).filter((a: any) => a.role !== "ceo");
+  const isOnboarding = !!agents && agents.length > 0 && otherAgents.length === 0;
+
   useEffect(() => {
     setBreadcrumbs([{ label: "Dashboard" }]);
   }, [setBreadcrumbs]);
+
+  if (isOnboarding) {
+    return <Navigate to="chat" replace />;
+  }
 
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.dashboard(selectedCompanyId!),

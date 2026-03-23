@@ -74,7 +74,7 @@ export function ClaudeKeyModal() {
       }
       setApiKey(""); // Clear key from memory immediately
       setSuccess(true);
-      setTimeout(() => { setVisible(false); window.location.href = "/chat"; }, 1000);
+      setTimeout(() => { setVisible(false); window.location.href = "/"; }, 1000);
     } catch {
       setError("Errore di connessione");
     }
