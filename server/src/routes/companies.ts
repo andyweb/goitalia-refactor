@@ -60,8 +60,15 @@ export function companyRoutes(db: Db, storage?: StorageService) {
   router.get("/", async (req, res) => {
     assertBoard(req);
     const result = await svc.list();
+    // For instance admins: filter to own companies unless ?all=true
     if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) {
-      res.json(result);
+      if (req.query.all === "true") {
+        res.json(result);
+      } else {
+        // Even admins see only their own companies in the sidebar
+        const allowed = new Set(req.actor.companyIds ?? []);
+        res.json(result.filter((company) => allowed.has(company.id)));
+      }
       return;
     }
     const allowed = new Set(req.actor.companyIds ?? []);

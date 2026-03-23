@@ -11,6 +11,7 @@ import { heartbeatsApi } from "../api/heartbeats";
 import { companiesApi } from "../api/companies";
 import { dashboardApi } from "../api/dashboard";
 import { formatCents } from "../lib/utils";
+import { api } from "../api/client";
 import {
   Building2,
   Users,
@@ -59,6 +60,12 @@ export function AdminDashboard() {
     queryFn: () => authApi.getSession(),
   });
 
+  // All companies (admin view)
+  const { data: allCompanies } = useQuery({
+    queryKey: ["admin", "all-companies"],
+    queryFn: () => api.get<Array<{ id: string; name: string; description: string | null; issuePrefix: string; status: string }>>("/companies?all=true"),
+  });
+
   const { data: agents } = useQuery({
     queryKey: queryKeys.agents.list(selectedCompanyId!),
     queryFn: () => agentsApi.list(selectedCompanyId!),
@@ -83,7 +90,8 @@ export function AdminDashboard() {
     enabled: !!selectedCompanyId,
   });
 
-  const totalCompanies = companies.filter(c => c.status !== "archived").length;
+  const adminCompanies = (allCompanies ?? []).filter(c => c.status !== "archived");
+  const totalCompanies = adminCompanies.length;
   const totalAgents = agents?.length ?? 0;
   const activeAgents = agents?.filter(a => a.status === "idle" || a.status === "paused").length ?? 0;
   const totalIssues = issues?.length ?? 0;
@@ -162,7 +170,7 @@ export function AdminDashboard() {
           </div>
         ) : (
           <div className="space-y-2">
-            {companies.filter(c => c.status !== "archived").map((company) => (
+            {adminCompanies.map((company) => (
               <div key={company.id} className="glass-card p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="h-8 w-8 rounded-lg flex items-center justify-center text-xs font-bold" style={{ background: "hsl(158 64% 42% / 0.15)", color: "hsl(158 64% 42%)" }}>
