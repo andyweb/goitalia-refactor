@@ -1,5 +1,5 @@
 import { ChangeEvent, useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useToast } from "../context/ToastContext";
@@ -7,8 +7,9 @@ import { companiesApi } from "../api/companies";
 import { accessApi } from "../api/access";
 import { assetsApi } from "../api/assets";
 import { queryKeys } from "../lib/queryKeys";
+import { authApi } from "../api/auth";
 import { Button } from "@/components/ui/button";
-import { Settings, Check, Download, Upload } from "lucide-react";
+import { Settings, Check, Download, Upload, LogOut, Mail } from "lucide-react";
 import { CompanyPatternIcon } from "../components/CompanyPatternIcon";
 import {
   Field,
@@ -490,6 +491,9 @@ export function CompanySettings() {
         </div>
       </div>
 
+      {/* Account */}
+      <AccountSection />
+
       {/* Danger Zone */}
       <div className="space-y-4">
         <div className="text-xs font-medium text-destructive uppercase tracking-wide">
@@ -540,6 +544,56 @@ export function CompanySettings() {
               </span>
             )}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AccountSection() {
+  const sessionQuery = useQuery({
+    queryKey: queryKeys.auth.session,
+    queryFn: () => authApi.getSession(),
+  });
+  const queryClient = useQueryClient();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const email = sessionQuery.data?.user?.email;
+  const name = sessionQuery.data?.user?.name;
+
+  return (
+    <div className="space-y-4">
+      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        Account
+      </div>
+      <div className="space-y-3 rounded-md border border-border px-4 py-4">
+        {email && (
+          <div className="flex items-center gap-2 text-sm">
+            <Mail className="h-4 w-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Loggato come</span>
+            <span className="font-medium">{email}</span>
+            {name && <span className="text-muted-foreground">({name})</span>}
+          </div>
+        )}
+        <div className="pt-1">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={loggingOut}
+            onClick={async () => {
+              setLoggingOut(true);
+              try {
+                await authApi.signOut();
+                await queryClient.invalidateQueries({ queryKey: queryKeys.auth.session });
+                window.location.href = "/auth";
+              } catch {
+                setLoggingOut(false);
+              }
+            }}
+          >
+            <LogOut className="mr-1.5 h-3.5 w-3.5" />
+            {loggingOut ? "Disconnessione..." : "Logout"}
+          </Button>
         </div>
       </div>
     </div>

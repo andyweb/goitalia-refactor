@@ -56,8 +56,12 @@ function assertBoardAuth(req: { actor?: { type?: string; userId?: string } }): s
   return actor.userId;
 }
 
-function assertCompanyAccess(req: { actor?: { type?: string; userId?: string } }, companyId: string, db: Db): Promise<boolean> {
-  const userId = assertBoardAuth(req);
+function assertCompanyAccess(req: { actor?: { type?: string; userId?: string; isInstanceAdmin?: boolean } }, companyId: string, db: Db): Promise<boolean> {
+  assertBoardAuth(req);
+  const actor = req.actor as { isInstanceAdmin?: boolean; userId?: string };
+  // Instance admins can access any company
+  if (actor.isInstanceAdmin) return Promise.resolve(true);
+  const userId = actor.userId!;
   return db.select().from(companyMemberships)
     .where(and(eq(companyMemberships.companyId, companyId), eq(companyMemberships.principalId, userId)))
     .then((rows) => {
@@ -382,7 +386,8 @@ export function onboardingRoutes(db: Db, serverPort: number) {
       // Verify user has access
       try {
         await assertCompanyAccess(req, companyId, db);
-      } catch {
+      } catch (accessErr) {
+        console.error("CLAUDE-KEY DEBUG - userId:", (req as any).actor?.userId, "companyId:", companyId, "error:", accessErr);
         res.status(403).json({ error: "Accesso non autorizzato" });
         return;
       }
