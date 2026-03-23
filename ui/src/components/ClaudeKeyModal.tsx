@@ -1,6 +1,37 @@
 import { useState, useEffect } from "react";
 import { useCompany } from "../context/CompanyContext";
-import { Key, ExternalLink, Check, AlertCircle, ChevronRight } from "lucide-react";
+import { Key, ExternalLink, AlertCircle, ChevronRight } from "lucide-react";
+
+// Liquid glass styles matching goitalia.eu
+const glass = {
+  card: {
+    background: "linear-gradient(135deg, hsl(0 0% 100% / 0.12) 0%, hsl(0 0% 100% / 0.06) 50%, hsl(0 0% 100% / 0.03) 100%)",
+    backdropFilter: "blur(40px) saturate(180%)",
+    WebkitBackdropFilter: "blur(40px) saturate(180%)",
+    border: "1px solid hsl(0 0% 100% / 0.18)",
+    boxShadow: "0 8px 32px hsl(0 0% 0% / 0.3), inset 0 1px 0 0 hsl(0 0% 100% / 0.15), inset 0 -1px 0 0 hsl(0 0% 0% / 0.05)",
+  } as React.CSSProperties,
+  step: {
+    background: "linear-gradient(135deg, hsl(0 0% 100% / 0.06) 0%, hsl(0 0% 100% / 0.02) 100%)",
+    border: "1px solid hsl(0 0% 100% / 0.08)",
+  } as React.CSSProperties,
+  input: {
+    background: "hsl(215 30% 12%)",
+    border: "1px solid hsl(0 0% 100% / 0.15)",
+  } as React.CSSProperties,
+  btn: {
+    background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))",
+    boxShadow: "0 4px 20px hsl(158 64% 42% / 0.35), 0 0 0 1px hsl(158 64% 42% / 0.1) inset",
+  } as React.CSSProperties,
+  overlay: {
+    background: `
+      radial-gradient(ellipse at 30% 30%, hsl(158 64% 42% / 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 70%, hsl(170 50% 50% / 0.05) 0%, transparent 50%),
+      hsl(0 0% 0% / 0.8)
+    `,
+    backdropFilter: "blur(12px)",
+  } as React.CSSProperties,
+};
 
 export function ClaudeKeyModal() {
   const { selectedCompany } = useCompany();
@@ -17,9 +48,7 @@ export function ClaudeKeyModal() {
     fetch(`/api/onboarding/claude-key/${selectedCompany.id}`)
       .then((r) => r.json())
       .then((data) => {
-        if (!data.hasKey) {
-          setVisible(true);
-        }
+        if (!data.hasKey) setVisible(true);
         setChecking(false);
       })
       .catch(() => setChecking(false));
@@ -31,7 +60,6 @@ export function ClaudeKeyModal() {
     if (!selectedCompany || !apiKey) return;
     setLoading(true);
     setError(null);
-
     try {
       const res = await fetch("/api/onboarding/claude-key", {
         method: "POST",
@@ -53,101 +81,99 @@ export function ClaudeKeyModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-border bg-card text-card-foreground shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={glass.overlay}>
+      <div className="w-full max-w-lg rounded-[2rem] overflow-hidden" style={glass.card}>
+
+        {/* Gradient accent top */}
+        <div className="h-1" style={{ background: "linear-gradient(90deg, hsl(158 64% 42%), hsl(170 50% 50%), hsl(158 64% 42%))" }} />
+
         {/* Header */}
-        <div className="p-6 pb-4 border-b border-border">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
-              <Key className="w-5 h-5 text-primary" />
+        <div className="p-8 pb-5">
+          <div className="flex items-center gap-4 mb-1">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "hsl(158 64% 42% / 0.15)", border: "1px solid hsl(158 64% 42% / 0.25)" }}>
+              <Key className="w-6 h-6" style={{ color: "hsl(158 64% 42%)" }} />
             </div>
             <div>
-              <h2 className="text-lg font-bold">Collega Claude AI</h2>
-              <p className="text-sm text-muted-foreground">Inserisci la tua API key per attivare gli agenti</p>
+              <h2 className="text-xl font-black" style={{ color: "hsl(0 0% 98%)" }}>Collega Claude AI</h2>
+              <p className="text-sm" style={{ color: "hsl(215 20% 60%)" }}>Inserisci la tua API key per attivare gli agenti</p>
             </div>
           </div>
         </div>
 
         {/* Tutorial */}
-        <div className="p-6 space-y-4">
-          <div className="space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Come ottenere la API key</p>
+        <div className="px-8 pb-6 space-y-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "hsl(158 64% 42%)" }}>Come ottenere la API key</p>
 
-            <div className="space-y-2">
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                <span className="w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
-                <div>
-                  <p className="text-sm font-medium">Crea un account su Anthropic</p>
-                  <a
-                    href="https://console.anthropic.com/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-0.5"
-                  >
-                    console.anthropic.com <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
+          <div className="space-y-2.5">
+            <div className="flex items-start gap-3 p-4 rounded-2xl" style={glass.step}>
+              <span className="w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0" style={{ background: "hsl(158 64% 42% / 0.2)", color: "hsl(158 64% 42%)" }}>1</span>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "hsl(0 0% 98%)" }}>Crea un account su Anthropic</p>
+                <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" className="text-xs inline-flex items-center gap-1 mt-1 hover:underline" style={{ color: "hsl(158 64% 42%)" }}>
+                  console.anthropic.com <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
+            </div>
 
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                <span className="w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
-                <div>
-                  <p className="text-sm font-medium">Vai su "API Keys" nel menu</p>
-                  <a
-                    href="https://console.anthropic.com/settings/keys"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-0.5"
-                  >
-                    Vai alle API Keys <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
+            <div className="flex items-start gap-3 p-4 rounded-2xl" style={glass.step}>
+              <span className="w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0" style={{ background: "hsl(158 64% 42% / 0.2)", color: "hsl(158 64% 42%)" }}>2</span>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "hsl(0 0% 98%)" }}>Vai su "API Keys" nel menu</p>
+                <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-xs inline-flex items-center gap-1 mt-1 hover:underline" style={{ color: "hsl(158 64% 42%)" }}>
+                  Vai alle API Keys <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
+            </div>
 
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                <span className="w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
-                <p className="text-sm font-medium">Clicca "Create Key", copia la chiave e incollala qui sotto</p>
-              </div>
+            <div className="flex items-start gap-3 p-4 rounded-2xl" style={glass.step}>
+              <span className="w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0" style={{ background: "hsl(158 64% 42% / 0.2)", color: "hsl(158 64% 42%)" }}>3</span>
+              <p className="text-sm font-semibold" style={{ color: "hsl(0 0% 98%)" }}>Clicca "Create Key", copia la chiave e incollala qui sotto</p>
             </div>
           </div>
 
           {/* Input */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">API Key *</label>
+            <label className="text-xs font-medium mb-2 block" style={{ color: "hsl(215 20% 70%)" }}>API Key *</label>
             <input
               type="password"
               value={apiKey}
               onChange={(e) => { setApiKey(e.target.value); setError(null); }}
               placeholder="sk-ant-api03-..."
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
+              className="w-full px-4 py-3.5 rounded-2xl text-sm focus:outline-none transition-colors"
+              style={{
+                ...glass.input,
+                color: "hsl(0 0% 98%)",
+                borderColor: apiKey && !apiKey.startsWith("sk-ant-") ? "hsl(0 65% 50% / 0.5)" : error ? "hsl(0 65% 50% / 0.5)" : "hsl(0 0% 100% / 0.15)",
+              }}
               autoComplete="off"
             />
           </div>
 
           {/* Error */}
           {error && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+            <div className="flex items-center gap-2.5 p-4 rounded-2xl text-sm" style={{ background: "hsl(0 65% 50% / 0.1)", border: "1px solid hsl(0 65% 50% / 0.2)", color: "hsl(0 65% 65%)" }}>
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               {error}
             </div>
           )}
 
           {/* Note */}
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs" style={{ color: "hsl(215 20% 45%)" }}>
             La key viene verificata con una chiamata di test e salvata in modo sicuro. Non viene mai condivisa.
           </p>
         </div>
 
         {/* Footer */}
-        <div className="p-6 pt-2 flex justify-end gap-3">
+        <div className="px-8 pb-8 flex justify-end">
           <button
             onClick={handleSubmit}
             disabled={!apiKey || !apiKey.startsWith("sk-ant-") || loading}
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full text-sm font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg"
+            style={!apiKey || !apiKey.startsWith("sk-ant-") || loading ? {} : glass.btn}
           >
             {loading ? (
               <>
-                <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 Verifica in corso...
               </>
             ) : (
