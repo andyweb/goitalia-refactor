@@ -249,7 +249,7 @@ function CompanyRootRedirect() {
         hasCompanies: false,
       })
     ) {
-      return <Navigate to="/start" replace />;
+      return <Navigate to="/auth" replace />;
     }
     return <NoCompaniesStartPage />;
   }
@@ -273,7 +273,7 @@ function UnprefixedBoardRedirect() {
         hasCompanies: false,
       })
     ) {
-      return <Navigate to="/start" replace />;
+      return <Navigate to="/auth" replace />;
     }
     return <NoCompaniesStartPage />;
   }
@@ -308,7 +308,7 @@ export function App() {
   return (
     <>
       <Routes>
-        <Route path="start" element={<StartWizard />} />
+        <Route path="start" element={<Navigate to="/auth" replace />} />
         <Route path="auth" element={<AuthPage />} />
         <Route path="board-claim/:token" element={<BoardClaimPage />} />
         <Route path="invite/:token" element={<InviteLandingPage />} />
