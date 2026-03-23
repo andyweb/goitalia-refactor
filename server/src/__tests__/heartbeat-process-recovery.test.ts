@@ -16,7 +16,7 @@ import {
   heartbeatRunEvents,
   heartbeatRuns,
   issues,
-} from "@paperclipai/db";
+} from "@goitalia/db";
 import { runningProcesses } from "../adapters/index.ts";
 import { heartbeatService } from "../services/heartbeat.ts";
 
@@ -150,7 +150,7 @@ describe("heartbeat orphaned process recovery", () => {
 
     await db.insert(companies).values({
       id: companyId,
-      name: "Paperclip",
+      name: "GoItalia",
       issuePrefix,
       requireBoardApprovalForNewAgents: false,
     });

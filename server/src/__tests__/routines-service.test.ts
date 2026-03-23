@@ -20,7 +20,7 @@ import {
   routineRuns,
   routines,
   routineTriggers,
-} from "@paperclipai/db";
+} from "@goitalia/db";
 import { issueService } from "../services/issues.ts";
 import { routineService } from "../services/routines.ts";
 
@@ -156,7 +156,7 @@ describe("routine service live-execution coalescing", () => {
 
     await db.insert(companies).values({
       id: companyId,
-      name: "Paperclip",
+      name: "GoItalia",
       issuePrefix,
       requireBoardApprovalForNewAgents: false,
     });

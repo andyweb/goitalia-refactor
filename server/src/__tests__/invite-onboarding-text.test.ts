@@ -37,7 +37,7 @@ describe("buildInviteOnboardingTextDocument", () => {
       allowedHostnames: [],
     });
 
-    expect(text).toContain("Paperclip OpenClaw Gateway Onboarding");
+    expect(text).toContain("GoItalia OpenClaw Gateway Onboarding");
     expect(text).toContain("/api/invites/token-123/accept");
     expect(text).toContain("/api/join-requests/{requestId}/claim-api-key");
     expect(text).toContain("/api/invites/token-123/onboarding.txt");

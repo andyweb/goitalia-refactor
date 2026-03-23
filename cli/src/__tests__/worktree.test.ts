@@ -24,7 +24,7 @@ import {
   rewriteLocalUrlPort,
   sanitizeWorktreeInstanceId,
 } from "../commands/worktree-lib.js";
-import type { PaperclipConfig } from "../config/schema.js";
+import type { GoItaliaConfig } from "../config/schema.js";
 
 const ORIGINAL_CWD = process.cwd();
 const ORIGINAL_ENV = { ...process.env };
@@ -40,7 +40,7 @@ afterEach(() => {
   }
 });
 
-function buildSourceConfig(): PaperclipConfig {
+function buildSourceConfig(): GoItaliaConfig {
   return {
     $meta: {
       version: 1,
@@ -344,12 +344,12 @@ describe("worktree helpers", () => {
     }
   });
 
-  it("defaults the seed source config to the current repo-local Paperclip config", () => {
+  it("defaults the seed source config to the current repo-local GoItalia config", () => {
     const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-worktree-source-config-"));
     const repoRoot = path.join(tempRoot, "repo");
     const localConfigPath = path.join(repoRoot, ".paperclip", "config.json");
     const originalCwd = process.cwd();
-    const originalPaperclipConfig = process.env.PAPERCLIP_CONFIG;
+    const originalGoItaliaConfig = process.env.PAPERCLIP_CONFIG;
 
     try {
       fs.mkdirSync(path.dirname(localConfigPath), { recursive: true });
@@ -360,10 +360,10 @@ describe("worktree helpers", () => {
       expect(fs.realpathSync(resolveSourceConfigPath({}))).toBe(fs.realpathSync(localConfigPath));
     } finally {
       process.chdir(originalCwd);
-      if (originalPaperclipConfig === undefined) {
+      if (originalGoItaliaConfig === undefined) {
         delete process.env.PAPERCLIP_CONFIG;
       } else {
-        process.env.PAPERCLIP_CONFIG = originalPaperclipConfig;
+        process.env.PAPERCLIP_CONFIG = originalGoItaliaConfig;
       }
       fs.rmSync(tempRoot, { recursive: true, force: true });
     }
@@ -374,7 +374,7 @@ describe("worktree helpers", () => {
     const sourceConfigPath = path.join(tempRoot, "source", "config.json");
     const targetRoot = path.join(tempRoot, "target");
     const originalCwd = process.cwd();
-    const originalPaperclipConfig = process.env.PAPERCLIP_CONFIG;
+    const originalGoItaliaConfig = process.env.PAPERCLIP_CONFIG;
 
     try {
       fs.mkdirSync(path.dirname(sourceConfigPath), { recursive: true });
@@ -388,10 +388,10 @@ describe("worktree helpers", () => {
       );
     } finally {
       process.chdir(originalCwd);
-      if (originalPaperclipConfig === undefined) {
+      if (originalGoItaliaConfig === undefined) {
         delete process.env.PAPERCLIP_CONFIG;
       } else {
-        process.env.PAPERCLIP_CONFIG = originalPaperclipConfig;
+        process.env.PAPERCLIP_CONFIG = originalGoItaliaConfig;
       }
       fs.rmSync(tempRoot, { recursive: true, force: true });
     }

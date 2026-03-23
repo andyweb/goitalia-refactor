@@ -1,4 +1,4 @@
-import type { PaperclipPluginManifestV1 } from "@paperclipai/plugin-sdk";
+import type { PaperclipPluginManifestV1 } from "@goitalia/plugin-sdk";
 import {
   DEFAULT_CONFIG,
   EXPORT_NAMES,
@@ -17,7 +17,7 @@ const manifest: PaperclipPluginManifestV1 = {
   version: PLUGIN_VERSION,
   displayName: "Kitchen Sink (Example)",
   description: "Reference plugin that demonstrates the current Paperclip plugin API surface, UI surfaces, bridge actions, events, jobs, webhooks, tools, local workspace access, and runtime diagnostics in one place.",
-  author: "Paperclip",
+  author: "GoItalia",
   categories: ["ui", "automation", "workspace", "connector"],
   capabilities: [
     "companies.read",

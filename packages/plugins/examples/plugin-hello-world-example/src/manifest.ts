@@ -1,4 +1,4 @@
-import type { PaperclipPluginManifestV1 } from "@paperclipai/plugin-sdk";
+import type { PaperclipPluginManifestV1 } from "@goitalia/plugin-sdk";
 
 /**
  * Stable plugin ID used by host registration and namespacing.
@@ -17,7 +17,7 @@ const manifest: PaperclipPluginManifestV1 = {
   version: PLUGIN_VERSION,
   displayName: "Hello World Widget (Example)",
   description: "Reference UI plugin that adds a simple Hello World widget to the Paperclip dashboard.",
-  author: "Paperclip",
+  author: "GoItalia",
   categories: ["ui"],
   capabilities: ["ui.dashboardWidget.register"],
   entrypoints: {

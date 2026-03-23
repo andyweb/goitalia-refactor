@@ -1,4 +1,4 @@
-import { usePluginAction, usePluginData, type PluginWidgetProps } from "@paperclipai/plugin-sdk/ui";
+import { usePluginAction, usePluginData, type PluginWidgetProps } from "@goitalia/plugin-sdk/ui";
 
 type HealthData = {
   status: "ok" | "degraded" | "error";

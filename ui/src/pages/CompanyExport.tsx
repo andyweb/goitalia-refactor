@@ -5,7 +5,7 @@ import type {
   CompanyPortabilityExportPreviewResult,
   CompanyPortabilityExportResult,
   CompanyPortabilityManifest,
-} from "@paperclipai/shared";
+} from "@goitalia/shared";
 import { useNavigate, useLocation } from "@/lib/router";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
@@ -71,7 +71,7 @@ function checkedSlugs(checkedFiles: Set<string>): {
  * since the file has a known, simple structure produced by our own
  * renderYamlBlock.
  */
-function filterPaperclipYaml(yaml: string, checkedFiles: Set<string>): string {
+function filterGoItaliaYaml(yaml: string, checkedFiles: Set<string>): string {
   const slugs = checkedSlugs(checkedFiles);
   const lines = yaml.split("\n");
   const out: string[] = [];
@@ -422,13 +422,13 @@ function generateReadmeFromSelection(
   lines.push("## Getting Started");
   lines.push("");
   lines.push("```bash");
-  lines.push("pnpm paperclipai company import this-github-url-or-folder");
+  lines.push("pnpm goitalia company import this-github-url-or-folder");
   lines.push("```");
   lines.push("");
-  lines.push("See [Paperclip](https://paperclip.ing) for more information.");
+  lines.push("See [GoItalia](https://paperclip.ing) for more information.");
   lines.push("");
   lines.push("---");
-  lines.push(`Exported from [Paperclip](https://paperclip.ing) on ${new Date().toISOString().split("T")[0]}`);
+  lines.push(`Exported from [GoItalia](https://paperclip.ing) on ${new Date().toISOString().split("T")[0]}`);
   lines.push("");
 
   return lines.join("\n");
@@ -685,7 +685,7 @@ export function CompanyExport() {
     // Filter .paperclip.yaml
     const yamlPath = exportData.paperclipExtensionPath;
     if (yamlPath && typeof exportData.files[yamlPath] === "string") {
-      filtered[yamlPath] = filterPaperclipYaml(exportData.files[yamlPath], checkedFiles);
+      filtered[yamlPath] = filterGoItaliaYaml(exportData.files[yamlPath], checkedFiles);
     }
 
     // Regenerate README.md based on checked selection

@@ -10,13 +10,13 @@ import { fileURLToPath } from "node:url";
 import { Router } from "express";
 import type { Request } from "express";
 import { and, eq, isNull, desc } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@goitalia/db";
 import {
   agentApiKeys,
   authUsers,
   invites,
   joinRequests
-} from "@paperclipai/db";
+} from "@goitalia/db";
 import {
   acceptInviteSchema,
   claimJoinRequestApiKeySchema,
@@ -26,8 +26,8 @@ import {
   updateMemberPermissionsSchema,
   updateUserCompanyAccessSchema,
   PERMISSION_KEYS
-} from "@paperclipai/shared";
-import type { DeploymentExposure, DeploymentMode } from "@paperclipai/shared";
+} from "@goitalia/shared";
+import type { DeploymentExposure, DeploymentMode } from "@goitalia/shared";
 import {
   forbidden,
   conflict,
@@ -917,7 +917,7 @@ function buildOnboardingDiscoveryDiagnostics(input: {
     diagnostics.push({
       code: "openclaw_onboarding_private_loopback_bind",
       level: "warn",
-      message: "Paperclip is bound to loopback in authenticated/private mode.",
+      message: "GoItalia is bound to loopback in authenticated/private mode.",
       hint: "Run with a reachable bind host or use pnpm dev --tailscale-auth for private-network onboarding."
     });
   }
@@ -934,7 +934,7 @@ function buildOnboardingDiscoveryDiagnostics(input: {
       code: "openclaw_onboarding_private_host_not_allowed",
       level: "warn",
       message: `Onboarding host "${apiHost}" is not in allowed hostnames for authenticated/private mode.`,
-      hint: `Run pnpm paperclipai allowed-hostname ${apiHost}`
+      hint: `Run pnpm goitalia allowed-hostname ${apiHost}`
     });
   }
 
@@ -1054,7 +1054,7 @@ function buildInviteOnboardingManifest(
         guidance:
           opts.deploymentMode === "authenticated" &&
           opts.deploymentExposure === "private"
-            ? "If OpenClaw runs on another machine, ensure the Paperclip hostname is reachable and allowed via `pnpm paperclipai allowed-hostname <host>`."
+            ? "If OpenClaw runs on another machine, ensure the Paperclip hostname is reachable and allowed via `pnpm goitalia allowed-hostname <host>`."
             : "Ensure OpenClaw can reach this Paperclip API base URL for invite, claim, and skill bootstrap calls."
       },
       textInstructions: {
@@ -1282,7 +1282,7 @@ export function buildInviteOnboardingTextDocument(
 
       If none are reachable: ask your human operator for a reachable hostname/address and help them update network configuration.
       For authenticated/private mode, they may need:
-      - pnpm paperclipai allowed-hostname <host>
+      - pnpm goitalia allowed-hostname <host>
       - then restart Paperclip and retry onboarding.
     `);
   }

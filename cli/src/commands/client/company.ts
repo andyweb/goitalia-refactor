@@ -9,7 +9,7 @@ import type {
   CompanyPortabilityInclude,
   CompanyPortabilityPreviewResult,
   CompanyPortabilityImportResult,
-} from "@paperclipai/shared";
+} from "@goitalia/shared";
 import { ApiRequestError } from "../../client/http.js";
 import {
   addCommonClientOptions,
@@ -137,9 +137,9 @@ async function collectPackageFiles(
     }
     if (!entry.isFile()) continue;
     const isMarkdown = entry.name.endsWith(".md");
-    const isPaperclipYaml = entry.name === ".paperclip.yaml" || entry.name === ".paperclip.yml";
+    const isGoItaliaYaml = entry.name === ".paperclip.yaml" || entry.name === ".paperclip.yml";
     const contentType = binaryContentTypeByExtension[path.extname(entry.name).toLowerCase()];
-    if (!isMarkdown && !isPaperclipYaml && !contentType) continue;
+    if (!isMarkdown && !isGoItaliaYaml && !contentType) continue;
     const relativePath = path.relative(root, absolutePath).replace(/\\/g, "/");
     files[relativePath] = readPortableFileEntry(relativePath, await readFile(absolutePath));
   }

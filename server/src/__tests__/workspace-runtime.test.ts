@@ -13,7 +13,7 @@ import {
   stopRuntimeServicesForExecutionWorkspace,
   type RealizedExecutionWorkspace,
 } from "../services/workspace-runtime.ts";
-import type { WorkspaceOperation } from "@paperclipai/shared";
+import type { WorkspaceOperation } from "@goitalia/shared";
 import type { WorkspaceOperationRecorder } from "../services/workspace-operations.ts";
 
 const execFileAsync = promisify(execFile);
@@ -27,7 +27,7 @@ async function createTempRepo() {
   const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-worktree-repo-"));
   await runGit(repoRoot, ["init"]);
   await runGit(repoRoot, ["config", "user.email", "paperclip@example.com"]);
-  await runGit(repoRoot, ["config", "user.name", "Paperclip Test"]);
+  await runGit(repoRoot, ["config", "user.name", "GoItalia Test"]);
   await fs.writeFile(path.join(repoRoot, "README.md"), "hello\n", "utf8");
   await runGit(repoRoot, ["add", "README.md"]);
   await runGit(repoRoot, ["commit", "-m", "Initial commit"]);

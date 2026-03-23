@@ -3,10 +3,10 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { and, asc, eq } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { companySkills } from "@paperclipai/db";
-import { readPaperclipSkillSyncPreference, writePaperclipSkillSyncPreference } from "@paperclipai/adapter-utils/server-utils";
-import type { PaperclipSkillEntry } from "@paperclipai/adapter-utils/server-utils";
+import type { Db } from "@goitalia/db";
+import { companySkills } from "@goitalia/db";
+import { readPaperclipSkillSyncPreference, writePaperclipSkillSyncPreference } from "@goitalia/adapter-utils/server-utils";
+import type { PaperclipSkillEntry } from "@goitalia/adapter-utils/server-utils";
 import type {
   CompanySkill,
   CompanySkillCreateRequest,
@@ -25,8 +25,8 @@ import type {
   CompanySkillTrustLevel,
   CompanySkillUpdateStatus,
   CompanySkillUsageAgent,
-} from "@paperclipai/shared";
-import { normalizeAgentUrlKey } from "@paperclipai/shared";
+} from "@goitalia/shared";
+import { normalizeAgentUrlKey } from "@goitalia/shared";
 import { findServerAdapter } from "../adapters/index.js";
 import { resolvePaperclipInstanceRoot } from "../home-paths.js";
 import { notFound, unprocessable } from "../errors.js";
@@ -216,7 +216,7 @@ function uniqueImportedSkillKey(companyId: string, baseSlug: string, usedKeys: S
 }
 
 function buildSkillRuntimeName(key: string, slug: string) {
-  if (key.startsWith("paperclipai/paperclip/")) return slug;
+  if (key.startsWith("goitalia/paperclip/")) return slug;
   return `${slug}--${hashSkillValue(key)}`;
 }
 
@@ -247,7 +247,7 @@ function deriveCanonicalSkillKey(
 
   const sourceKind = asString(metadata?.sourceKind);
   if (sourceKind === "paperclip_bundled") {
-    return `paperclipai/paperclip/${slug}`;
+    return `goitalia/paperclip/${slug}`;
   }
 
   const owner = normalizeSkillSlug(asString(metadata?.owner));
@@ -1312,7 +1312,7 @@ function deriveSkillSourceInfo(skill: CompanySkill): {
     return {
       editable: false,
       editableReason: "Bundled Paperclip skills are read-only.",
-      sourceLabel: "Paperclip bundled",
+      sourceLabel: "GoItalia bundled",
       sourceBadge: "paperclip",
       sourcePath: null,
     };
@@ -1361,7 +1361,7 @@ function deriveSkillSourceInfo(skill: CompanySkill): {
       return {
         editable: true,
         editableReason: null,
-        sourceLabel: "Paperclip workspace",
+        sourceLabel: "GoItalia workspace",
         sourceBadge: "paperclip",
         sourcePath: managedRoot,
       };
@@ -2170,7 +2170,7 @@ export function companySkillService(db: Db) {
         existing
         && existingMeta.sourceKind === "paperclip_bundled"
         && incomingKind === "github"
-        && incomingOwner === "paperclipai"
+        && incomingOwner === "goitalia"
         && incomingRepo === "paperclip"
       ) {
         out.push(existing);

@@ -47,13 +47,13 @@ import {
   ListTree,
   MessageSquare,
   MoreHorizontal,
-  Paperclip,
+  GoItalia,
   Repeat,
   SlidersHorizontal,
   Trash2,
 } from "lucide-react";
-import type { ActivityEvent } from "@paperclipai/shared";
-import type { Agent, IssueAttachment } from "@paperclipai/shared";
+import type { ActivityEvent } from "@goitalia/shared";
+import type { Agent, IssueAttachment } from "@goitalia/shared";
 
 type CommentReassignment = {
   assigneeAgentId: string | null;
@@ -669,7 +669,7 @@ export function IssueDetail() {
           attachmentDragActive && "border-primary bg-primary/5",
         )}
       >
-        <Paperclip className="h-3.5 w-3.5 mr-1.5" />
+        <GoItalia className="h-3.5 w-3.5 mr-1.5" />
         {uploadAttachment.isPending || importMarkdownDocument.isPending ? "Uploading..." : "Upload attachment"}
       </Button>
     </>

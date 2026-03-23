@@ -16,17 +16,17 @@ import { registerApprovalCommands } from "./commands/client/approval.js";
 import { registerActivityCommands } from "./commands/client/activity.js";
 import { registerDashboardCommands } from "./commands/client/dashboard.js";
 import { applyDataDirOverride, type DataDirOptionLike } from "./config/data-dir.js";
-import { loadPaperclipEnvFile } from "./config/env.js";
+import { loadGoItaliaEnvFile } from "./config/env.js";
 import { registerWorktreeCommands } from "./commands/worktree.js";
 import { registerPluginCommands } from "./commands/client/plugin.js";
 
 const program = new Command();
 const DATA_DIR_OPTION_HELP =
-  "Paperclip data directory root (isolates state from ~/.paperclip)";
+  "GoItalia data directory root (isolates state from ~/.paperclip)";
 
 program
-  .name("paperclipai")
-  .description("Paperclip CLI — setup, diagnose, and configure your instance")
+  .name("goitalia")
+  .description("GoItalia CLI — setup, diagnose, and configure your instance")
   .version("0.2.7");
 
 program.hook("preAction", (_thisCommand, actionCommand) => {
@@ -36,7 +36,7 @@ program.hook("preAction", (_thisCommand, actionCommand) => {
     hasConfigOption: optionNames.has("config"),
     hasContextOption: optionNames.has("context"),
   });
-  loadPaperclipEnvFile(options.config);
+  loadGoItaliaEnvFile(options.config);
 });
 
 program
@@ -45,12 +45,12 @@ program
   .option("-c, --config <path>", "Path to config file")
   .option("-d, --data-dir <path>", DATA_DIR_OPTION_HELP)
   .option("-y, --yes", "Accept defaults (quickstart + start immediately)", false)
-  .option("--run", "Start Paperclip immediately after saving config", false)
+  .option("--run", "Start GoItalia immediately after saving config", false)
   .action(onboard);
 
 program
   .command("doctor")
-  .description("Run diagnostic checks on your Paperclip setup")
+  .description("Run diagnostic checks on your GoItalia setup")
   .option("-c, --config <path>", "Path to config file")
   .option("-d, --data-dir <path>", DATA_DIR_OPTION_HELP)
   .option("--repair", "Attempt to repair issues automatically")
@@ -98,7 +98,7 @@ program
 
 program
   .command("run")
-  .description("Bootstrap local setup (onboard + doctor) and run Paperclip")
+  .description("Bootstrap local setup (onboard + doctor) and run GoItalia")
   .option("-c, --config <path>", "Path to config file")
   .option("-d, --data-dir <path>", DATA_DIR_OPTION_HELP)
   .option("-i, --instance <id>", "Local instance id (default: default)")
@@ -116,7 +116,7 @@ heartbeat
   .option("-d, --data-dir <path>", DATA_DIR_OPTION_HELP)
   .option("--context <path>", "Path to CLI context file")
   .option("--profile <name>", "CLI context profile name")
-  .option("--api-base <url>", "Base URL for the Paperclip server API")
+  .option("--api-base <url>", "Base URL for the GoItalia server API")
   .option("--api-key <token>", "Bearer token for agent-authenticated calls")
   .option(
     "--source <source>",
