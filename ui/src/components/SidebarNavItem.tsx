@@ -39,13 +39,17 @@ export function SidebarNavItem({
       onClick={() => { if (isMobile) setSidebarOpen(false); }}
       className={({ isActive }) =>
         cn(
-          "flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors",
+          "flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-all rounded-xl",
           isActive
-            ? "bg-accent text-foreground"
-            : "text-foreground/80 hover:bg-accent/50 hover:text-foreground",
+            ? "text-white"
+            : "text-foreground/70 hover:text-foreground",
           className,
         )
       }
+      style={({ isActive }) => isActive ? {
+        background: "linear-gradient(135deg, hsl(158 64% 42% / 0.2), hsl(158 64% 42% / 0.1))",
+        boxShadow: "0 0 12px hsl(158 64% 42% / 0.1)",
+      } : {}}
     >
       <span className="relative shrink-0">
         <Icon className="h-4 w-4" />
