@@ -830,6 +830,7 @@ export function AgentDetail() {
           </div>
         </div>
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          {(agent.adapterType as string) !== "claude_api" && (<>
           <button
             className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all"
             style={{
@@ -855,6 +856,7 @@ export function AgentDetail() {
             onResume={() => agentAction.mutate("resume")}
             disabled={agentAction.isPending || isPendingApproval}
           />
+          </>)}
           
           {mobileLiveRun && (
             <Link
