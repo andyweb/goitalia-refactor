@@ -392,12 +392,38 @@ function Step4Trial({ companyData, members, onBack }: { companyData: CompanyData
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
+  const [error, setError] = useState<string | null>(null);
+
   const activate = async () => {
     setLoading(true);
-    // TODO: API call to create account, company, CEO + agents
-    // For now simulate with timeout
-    await new Promise((r) => setTimeout(r, 2000));
-    setDone(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/onboarding/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyName: companyData.companyName,
+          email: companyData.email,
+          password: companyData.password,
+          members: members.map((m) => ({
+            name: m.name,
+            role: m.role,
+            department: m.department,
+            software: m.software,
+            description: m.description,
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Errore durante l'attivazione");
+        setLoading(false);
+        return;
+      }
+      setDone(true);
+    } catch {
+      setError("Errore di connessione. Riprova.");
+    }
     setLoading(false);
   };
 
@@ -470,9 +496,16 @@ function Step4Trial({ companyData, members, onBack }: { companyData: CompanyData
           )}
         </button>
 
-        <p className="text-xs mt-4" style={{ color: "hsl(215 20% 45%)" }}>
-          Nessuna carta di credito. Dopo 14 giorni scegli il piano che preferisci.
-        </p>
+        {error && (
+          <p className="text-xs mt-4 px-4 py-2 rounded-xl" style={{ color: "hsl(0 65% 65%)", background: "hsl(0 65% 50% / 0.1)" }}>
+            {error}
+          </p>
+        )}
+        {!error && (
+          <p className="text-xs mt-4" style={{ color: "hsl(215 20% 45%)" }}>
+            Nessuna carta di credito. Dopo 14 giorni scegli il piano che preferisci.
+          </p>
+        )}
       </div>
 
       <div className="flex justify-start mt-10">
