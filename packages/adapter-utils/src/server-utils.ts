@@ -839,3 +839,5 @@ export async function runChildProcess(
       .catch(reject);
   });
 }
+
+export { resolvePaperclipSkillsDir as resolveGoItaliaSkillsDir } from "./server-utils.js";
