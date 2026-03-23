@@ -70,7 +70,14 @@ export function AuthPage() {
       // After registration, go to API key setup
       navigate("/api-claude", { replace: true });
     },
-    onError: (err) => setError(err instanceof Error ? err.message : "Registrazione fallita"),
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("422") || msg.includes("409")) {
+        setError("Questa email è già registrata. Prova ad accedere.");
+      } else {
+        setError(msg || "Registrazione fallita. Riprova.");
+      }
+    },
   });
 
   function handleSubmit(e: React.FormEvent) {
