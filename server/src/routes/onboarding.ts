@@ -39,7 +39,7 @@ export function onboardingRoutes(db: Db, serverPort: number) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Origin": `http://127.0.0.1:${serverPort}`,
+          "Origin": "https://impresa.goitalia.eu",
         },
         body: JSON.stringify({
           email: body.email,
