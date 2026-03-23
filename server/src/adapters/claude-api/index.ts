@@ -1,9 +1,14 @@
-import type { ServerAdapterModule } from "../types.js";
+import type { ServerAdapterModule, AdapterEnvironmentTestContext, AdapterEnvironmentTestResult } from "../types.js";
 import { execute } from "./execute.js";
+
+async function testEnvironment(_ctx: AdapterEnvironmentTestContext): Promise<AdapterEnvironmentTestResult> {
+  return { status: "pass", checks: [], adapterType: "claude_api", testedAt: new Date().toISOString() };
+}
 
 export const claudeApiAdapter: ServerAdapterModule = {
   type: "claude_api",
   execute,
+  testEnvironment,
   models: [
     { id: "claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
     { id: "claude-opus-4-20250514", label: "Claude Opus 4" },

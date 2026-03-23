@@ -29,8 +29,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   }
 
   const agentName = ctx.agent.name || "Agent";
-  const agentCapabilities = ctx.agent.capabilities || "";
-  const agentTitle = (ctx.agent as Record<string, unknown>).title as string || "";
+  const agent = ctx.agent as unknown as Record<string, unknown>;
+  const agentCapabilities = (agent.capabilities as string) || "";
+  const agentTitle = (agent.title as string) || "";
   const model = (ctx.config.model as string) || "claude-sonnet-4-20250514";
 
   const taskTitle = (ctx.context.taskTitle as string) || "";
@@ -124,12 +125,11 @@ Istruzioni:
       usage: {
         inputTokens,
         outputTokens,
-        totalTokens: inputTokens + outputTokens,
       },
       provider: "anthropic",
       model: actualModel,
       costUsd: totalCostUsd,
-      billingType: "request",
+      billingType: "api",
       summary: responseText.slice(0, 500),
       resultJson: { responseText, inputTokens, outputTokens },
     };
