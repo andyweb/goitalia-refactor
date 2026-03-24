@@ -28,14 +28,15 @@ function encrypt(text: string): string {
   return iv.toString("hex") + ":" + encrypted;
 }
 
-async function getGmailToken(db: Db, companyId: string): Promise<{ access_token: string; email: string } | null> {
+async function getGmailToken(db: Db, companyId: string, accountIndex = 0): Promise<{ access_token: string; email: string } | null> {
   const secret = await db.select().from(companySecrets)
     .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "google_oauth_tokens")))
     .then((rows) => rows[0]);
   if (!secret?.description) return null;
 
   const decrypted = JSON.parse(decrypt(secret.description));
-  const tokenData = Array.isArray(decrypted) ? decrypted[0] : decrypted;
+  const accounts = Array.isArray(decrypted) ? decrypted : [decrypted];
+  const tokenData = accounts[accountIndex] || accounts[0];
   if (!tokenData) return null;
   
   // Refresh if expired
@@ -121,9 +122,10 @@ export function gmailRoutes(db: Db) {
     const maxResults = parseInt(req.query.maxResults as string) || 20;
     const pageToken = req.query.pageToken as string || "";
     const label = req.query.label as string || "INBOX";
+    const accountIdx = parseInt(req.query.account as string) || 0;
     if (!companyId) { res.status(400).json({ error: "companyId richiesto" }); return; }
 
-    const token = await getGmailToken(db, companyId);
+    const token = await getGmailToken(db, companyId, accountIdx);
     if (!token) { res.status(400).json({ error: "Google non connesso. Vai su Plugin per collegare il tuo account." }); return; }
 
     try {
@@ -451,6 +453,24 @@ Scrivi SOLO il testo della risposta, senza oggetto, senza "Gentile..." se non ne
     } catch {
       res.json({ count: 0 });
     }
+  });
+
+
+  // GET /gmail/accounts?companyId=xxx - List connected accounts
+  router.get("/gmail/accounts", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const companyId = req.query.companyId as string;
+    if (!companyId) { res.json({ accounts: [] }); return; }
+    const secret = await db.select().from(companySecrets)
+      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "google_oauth_tokens")))
+      .then((rows) => rows[0]);
+    if (!secret?.description) { res.json({ accounts: [] }); return; }
+    try {
+      const decrypted = JSON.parse(decrypt(secret.description));
+      const accounts = Array.isArray(decrypted) ? decrypted : [decrypted];
+      res.json({ accounts: accounts.map((a: any, i: number) => ({ index: i, email: a.email || "Account " + (i + 1) })) });
+    } catch { res.json({ accounts: [] }); }
   });
 
   return router;

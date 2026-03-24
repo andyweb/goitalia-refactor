@@ -31,6 +31,8 @@ export function MailPage() {
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [activeFilter, setActiveFilter] = useState("INBOX");
+  const [accounts, setAccounts] = useState<Array<{ index: number; email: string }>>([]);
+  const [selectedAccount, setSelectedAccount] = useState(-1); // -1 = all
 
   useEffect(() => {
     setBreadcrumbs([{ label: "Mail" }]);
@@ -42,7 +44,7 @@ export function MailPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/gmail/messages?companyId=" + selectedCompany.id + "&label=" + useFilter, { credentials: "include" });
+      const res = await fetch("/api/gmail/messages?companyId=" + selectedCompany.id + "&label=" + useFilter + (selectedAccount >= 0 ? "&account=" + selectedAccount : ""), { credentials: "include" });
       const data = await res.json();
       if (!res.ok) { setError(data.error); setLoading(false); return; }
       setMessages(data.messages || []);
@@ -66,7 +68,7 @@ export function MailPage() {
     setLoadingMore(false);
   };
 
-  useEffect(() => { fetchMail(activeFilter); }, [selectedCompany?.id, activeFilter]);
+  useEffect(() => { fetchMail(activeFilter); }, [selectedCompany?.id, activeFilter, selectedAccount]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
@@ -223,6 +225,32 @@ export function MailPage() {
           </button>
         ))}
       </div>
+
+      {/* Account selector */}
+      {accounts.length > 1 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Account:</span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setSelectedAccount(-1)}
+              className={"px-2.5 py-1 rounded-lg text-xs font-medium transition-all " + (selectedAccount === -1 ? "text-white" : "text-muted-foreground")}
+              style={selectedAccount === -1 ? { background: "rgba(66, 133, 244, 0.2)", border: "1px solid rgba(66, 133, 244, 0.3)" } : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              Tutti
+            </button>
+            {accounts.map((acc) => (
+              <button
+                key={acc.index}
+                onClick={() => setSelectedAccount(acc.index)}
+                className={"px-2.5 py-1 rounded-lg text-xs font-medium transition-all truncate max-w-[150px] " + (selectedAccount === acc.index ? "text-white" : "text-muted-foreground")}
+                style={selectedAccount === acc.index ? { background: "rgba(66, 133, 244, 0.2)", border: "1px solid rgba(66, 133, 244, 0.3)" } : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+              >
+                {acc.email}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Success toast */}
       {sendSuccess && (
