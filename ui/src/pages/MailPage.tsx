@@ -130,9 +130,15 @@ export function MailPage() {
       if (!res.ok) { setError(data.error); setSending(false); return; }
       setSendSuccess(replyDraft.to);
       setReplyDraft(null);
+      refreshBadge();
       setTimeout(() => setSendSuccess(null), 3000);
     } catch { setError("Errore invio"); }
     setSending(false);
+  };
+
+  const refreshBadge = () => {
+    // Dispatch custom event that sidebar listens to
+    window.dispatchEvent(new CustomEvent("mail-updated"));
   };
 
   const gmailAction = async (action: string, messageId: string, extra?: Record<string, unknown>) => {
@@ -147,12 +153,14 @@ export function MailPage() {
     await gmailAction("trash", id);
     setMessages((prev) => prev.filter((m) => m.id !== id));
     if (selectedMessage?.id === id) setSelectedMessage(null);
+    refreshBadge();
   };
 
   const archiveMessage = async (id: string) => {
     await gmailAction("archive", id);
     setMessages((prev) => prev.filter((m) => m.id !== id));
     if (selectedMessage?.id === id) setSelectedMessage(null);
+    refreshBadge();
   };
 
   const toggleStar = async (id: string) => {

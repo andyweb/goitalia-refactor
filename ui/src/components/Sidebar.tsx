@@ -70,7 +70,9 @@ export function Sidebar() {
     };
     fetchUnread();
     const interval = setInterval(fetchUnread, 30000);
-    return () => { clearInterval(interval); clearInterval(connectorInterval); };
+    const onMailUpdated = () => fetchUnread();
+    window.addEventListener("mail-updated", onMailUpdated);
+    return () => { clearInterval(interval); clearInterval(connectorInterval); window.removeEventListener("mail-updated", onMailUpdated); };
   }, [selectedCompanyId]);
 
   const isOnboarding = !!selectedCompanyId && (sidebarAgents ?? []).length > 0 && (sidebarAgents ?? []).every((a: any) => a.adapterType === "claude_api") && (sidebarAgents ?? []).filter((a: any) => a.role !== "ceo").length === 0;
