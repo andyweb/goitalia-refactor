@@ -103,8 +103,12 @@ export function Sidebar() {
     fetchUnread();
     const interval = setInterval(() => { fetchUnread(); fetchTgUnread(); fetchWaUnread(); }, 30000);
     const onMailUpdated = () => fetchUnread();
+    const onTgRead = () => { setTelegramUnread(0); setTimeout(fetchTgUnread, 2000); };
+    const onWaRead = () => { setWaUnread(0); setTimeout(fetchWaUnread, 2000); };
     window.addEventListener("mail-updated", onMailUpdated);
-    return () => { clearInterval(interval); clearInterval(connectorInterval); window.removeEventListener("mail-updated", onMailUpdated); };
+    window.addEventListener("telegram-read", onTgRead);
+    window.addEventListener("whatsapp-read", onWaRead);
+    return () => { clearInterval(interval); clearInterval(connectorInterval); window.removeEventListener("mail-updated", onMailUpdated); window.removeEventListener("telegram-read", onTgRead); window.removeEventListener("whatsapp-read", onWaRead); };
   }, [selectedCompanyId]);
 
   const isClaudeApi = !!selectedCompanyId && (sidebarAgents ?? []).length > 0 && (sidebarAgents ?? []).every((a: any) => a.adapterType === "claude_api");

@@ -289,10 +289,28 @@ export function telegramRoutes(db: Db) {
     const companyId = req.query.companyId as string;
     if (!companyId) { res.json({ count: 0 }); return; }
     try {
-      const rows = await db.execute(sql`SELECT COUNT(*) as count FROM telegram_messages WHERE company_id = ${companyId} AND direction = 'incoming' AND created_at > COALESCE((SELECT MAX(created_at) FROM telegram_messages WHERE company_id = ${companyId} AND direction = 'outgoing'), '2000-01-01')`);
+      const rows = await db.execute(sql`SELECT COUNT(*) as count FROM telegram_messages WHERE company_id = ${companyId} AND direction = 'incoming' AND created_at > COALESCE((SELECT last_read_at FROM read_markers WHERE company_id = ${companyId} AND user_id = ${actor.userId} AND channel = 'telegram' AND chat_id IS NULL), '2000-01-01')`);
       const count = (rows as any[])[0]?.count || 0;
       res.json({ count: parseInt(String(count)) });
     } catch { res.json({ count: 0 }); }
+  });
+
+  // POST /telegram/mark-read
+  router.post("/telegram/mark-read", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const { companyId, chatId } = req.body as { companyId: string; chatId?: string };
+    if (!companyId) { res.json({ ok: true }); return; }
+    try {
+      await db.execute(sql`INSERT INTO read_markers (company_id, user_id, channel, chat_id, last_read_at) VALUES (${companyId}, ${actor.userId}, 'telegram', ${chatId || null}, now()) ON CONFLICT (company_id, user_id, channel, chat_id) DO UPDATE SET last_read_at = now()`);
+    } catch (e) {
+      // Fallback: upsert without chat_id constraint
+      try {
+        await db.execute(sql`DELETE FROM read_markers WHERE company_id = ${companyId} AND user_id = ${actor.userId} AND channel = 'telegram'`);
+        await db.execute(sql`INSERT INTO read_markers (company_id, user_id, channel, last_read_at) VALUES (${companyId}, ${actor.userId}, 'telegram', now())`);
+      } catch {}
+    }
+    res.json({ ok: true });
   });
 
   // POST /telegram/generate-reply - AI reply to a message

@@ -66,6 +66,16 @@ export function WhatsAppPage() {
       .catch(() => {});
   }, [selectedCompany?.id]);
 
+  // Mark as read when page opens
+  useEffect(() => {
+    if (!selectedCompany?.id) return;
+    fetch("/api/whatsapp/mark-read", {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify({ companyId: selectedCompany.id }),
+    }).catch(() => {});
+    window.dispatchEvent(new CustomEvent("whatsapp-read"));
+  }, [selectedCompany?.id]);
+
   useEffect(() => { fetchMessages(); }, [selectedCompany?.id, selectedBot]);
   useEffect(() => { const i = setInterval(fetchMessages, 10000); return () => clearInterval(i); }, [selectedCompany?.id]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, selectedChat]);
