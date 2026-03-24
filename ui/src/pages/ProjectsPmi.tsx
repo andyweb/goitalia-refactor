@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { FolderOpen, Plus, Upload, File, FileText, Image, Video, Trash2, ExternalLink, X } from "lucide-react";
@@ -53,6 +54,7 @@ export function ProjectsPmi() {
   const [creating, setCreating] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => { setBreadcrumbs([{ label: "Progetti" }]); }, [setBreadcrumbs]);
 
@@ -104,6 +106,7 @@ export function ProjectsPmi() {
     await fetch("/api/pmi-projects/" + id + "?companyId=" + selectedCompany.id, { method: "DELETE", credentials: "include" });
     if (selectedProject?.id === id) { setSelectedProject(null); setFiles([]); }
     fetchProjects();
+    queryClient.invalidateQueries({ queryKey: ["pmi-projects"] });
   };
 
   const uploadFile = async (file: File) => {
