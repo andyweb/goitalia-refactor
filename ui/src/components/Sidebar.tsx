@@ -1,4 +1,4 @@
-import { FolderOpen,
+import {
   Inbox,
   CircleDot,
   LayoutDashboard,
@@ -21,21 +21,21 @@ import { FolderOpen,
   Key,
   LogOut,
 } from "lucide-react";
-import { FolderOpen, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FolderOpen, SidebarSection } from "./SidebarSection";
-import { FolderOpen, SidebarNavItem } from "./SidebarNavItem";
-import { FolderOpen, SidebarProjects } from "./SidebarProjects";
-import { FolderOpen, SidebarAgents } from "./SidebarAgents";
-import { FolderOpen, agentsApi } from "../api/agents";
-import { FolderOpen, useDialog } from "../context/DialogContext";
-import { FolderOpen, useCompany } from "../context/CompanyContext";
-import { FolderOpen, heartbeatsApi } from "../api/heartbeats";
-import { FolderOpen, authApi } from "../api/auth";
-import { FolderOpen, queryKeys } from "../lib/queryKeys";
-import { FolderOpen, useInboxBadge } from "../hooks/useInboxBadge";
-import { FolderOpen, PluginSlotOutlet } from "@/plugins/slots";
-import { FolderOpen, CompanyPatternIcon } from "./CompanyPatternIcon";
-import { FolderOpen, useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { SidebarSection } from "./SidebarSection";
+import { SidebarNavItem } from "./SidebarNavItem";
+import { SidebarProjects } from "./SidebarProjects";
+import { SidebarAgents } from "./SidebarAgents";
+import { agentsApi } from "../api/agents";
+import { useDialog } from "../context/DialogContext";
+import { useCompany } from "../context/CompanyContext";
+import { heartbeatsApi } from "../api/heartbeats";
+import { authApi } from "../api/auth";
+import { queryKeys } from "../lib/queryKeys";
+import { useInboxBadge } from "../hooks/useInboxBadge";
+import { PluginSlotOutlet } from "@/plugins/slots";
+import { CompanyPatternIcon } from "./CompanyPatternIcon";
+import { useState, useEffect } from "react";
 
 const chatPulseStyle = `
 @keyframes chatPulse {
