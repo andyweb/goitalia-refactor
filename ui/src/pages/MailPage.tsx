@@ -38,6 +38,15 @@ export function MailPage() {
     setBreadcrumbs([{ label: "Mail" }]);
   }, [setBreadcrumbs]);
 
+  // Fetch connected accounts
+  useEffect(() => {
+    if (!selectedCompany?.id) return;
+    fetch("/api/gmail/accounts?companyId=" + selectedCompany.id, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setAccounts(d.accounts || []))
+      .catch(() => {});
+  }, [selectedCompany?.id]);
+
   const fetchMail = async (filter?: string) => {
     if (!selectedCompany?.id) return;
     const useFilter = filter || activeFilter;
