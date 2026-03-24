@@ -74,13 +74,16 @@ export function TelegramPage() {
     const incoming = msgs.filter((m) => m.direction === "incoming");
     const last = msgs[msgs.length - 1];
     if (last) {
+      // Count unread: incoming messages after last outgoing
+      const lastOutIdx = msgs.map((m, i) => m.direction === "outgoing" ? i : -1).filter((i) => i >= 0).pop() ?? -1;
+      const unreadCount = msgs.slice(lastOutIdx + 1).filter((m) => m.direction === "incoming").length;
       threads.push({
         chatId,
         name: incoming[0]?.from_name || "Utente",
         username: incoming[0]?.from_username || "",
         lastMessage: last.message_text.slice(0, 60),
         lastTime: last.created_at,
-        unread: 0,
+        unread: unreadCount,
       });
     }
   }
@@ -165,7 +168,10 @@ export function TelegramPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium truncate">{thread.name}</span>
-                    <span className="text-[10px] text-muted-foreground shrink-0">{timeAgo(thread.lastTime)}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {thread.unread > 0 && <span className="min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-green-500 text-[10px] font-bold text-white px-1">{thread.unread}</span>}
+                      <span className="text-[10px] text-muted-foreground">{timeAgo(thread.lastTime)}</span>
+                    </div>
                   </div>
                   <div className="text-[11px] text-muted-foreground truncate">{thread.lastMessage}</div>
                 </div>

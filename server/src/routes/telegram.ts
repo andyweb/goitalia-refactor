@@ -260,6 +260,19 @@ export function telegramRoutes(db: Db) {
     }
   });
 
+  // GET /telegram/unread-count?companyId=xxx
+  router.get("/telegram/unread-count", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const companyId = req.query.companyId as string;
+    if (!companyId) { res.json({ count: 0 }); return; }
+    try {
+      const rows = await db.execute(sql`SELECT COUNT(*) as count FROM telegram_messages WHERE company_id = ${companyId} AND direction = 'incoming' AND created_at > COALESCE((SELECT MAX(created_at) FROM telegram_messages WHERE company_id = ${companyId} AND direction = 'outgoing'), '2000-01-01')`);
+      const count = (rows as any[])[0]?.count || 0;
+      res.json({ count: parseInt(String(count)) });
+    } catch { res.json({ count: 0 }); }
+  });
+
   // POST /telegram/generate-reply - AI reply to a message
   router.post("/telegram/generate-reply", async (req, res) => {
     const actor = req.actor as { type?: string; userId?: string } | undefined;

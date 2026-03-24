@@ -46,6 +46,7 @@ export function Sidebar() {
   const [mailUnread, setMailUnread] = useState(0);
   const [hasGoogle, setHasGoogle] = useState(false);
   const [hasTelegram, setHasTelegram] = useState(false);
+  const [telegramUnread, setTelegramUnread] = useState(0);
 
   useEffect(() => {
     if (!selectedCompanyId) return;
@@ -62,6 +63,15 @@ export function Sidebar() {
     checkConnectors();
     const connectorInterval = setInterval(checkConnectors, 10000);
 
+    const fetchTgUnread = () => {
+      if (!selectedCompanyId) return;
+      fetch("/api/telegram/unread-count?companyId=" + selectedCompanyId, { credentials: "include" })
+        .then((r) => r.json())
+        .then((d) => setTelegramUnread(d.count || 0))
+        .catch(() => {});
+    };
+    fetchTgUnread();
+
     const fetchUnread = () => {
       fetch("/api/gmail/unread-count?companyId=" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json())
@@ -69,7 +79,7 @@ export function Sidebar() {
         .catch(() => {});
     };
     fetchUnread();
-    const interval = setInterval(fetchUnread, 30000);
+    const interval = setInterval(() => { fetchUnread(); fetchTgUnread(); }, 30000);
     const onMailUpdated = () => fetchUnread();
     window.addEventListener("mail-updated", onMailUpdated);
     return () => { clearInterval(interval); clearInterval(connectorInterval); window.removeEventListener("mail-updated", onMailUpdated); };
@@ -165,7 +175,7 @@ export function Sidebar() {
           {hasGoogle && <SidebarNavItem to="/mail" label="Mail" icon={Mail} badge={mailUnread > 0 ? mailUnread : undefined} />}
           {hasGoogle && <SidebarNavItem to="/calendario" label="Calendario" icon={Calendar} />}
           {hasGoogle && <SidebarNavItem to="/documenti" label="Documenti" icon={HardDrive} />}
-          {hasTelegram && <SidebarNavItem to="/telegram" label="Telegram" icon={MessageSquare} />}
+          {hasTelegram && <SidebarNavItem to="/telegram" label="Telegram" icon={MessageSquare} badge={telegramUnread > 0 ? telegramUnread : undefined} />}
           {!isOnboarding && <SidebarNavItem to="/issues" label="Attività" icon={CircleDot} />}
           {!isOnboarding && <SidebarNavItem to="/goals" label="Obiettivi" icon={Target} />}
         </SidebarSection>
