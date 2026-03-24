@@ -90,6 +90,36 @@ export function PluginManager() {
       .catch(() => {});
   }, [selectedCompany?.id]);
 
+  // Poll WhatsApp status while QR is shown
+  useEffect(() => {
+    if (!waQrCode || !selectedCompany?.id) return;
+    const poll = setInterval(async () => {
+      try {
+        const r = await fetch("/api/whatsapp/status?companyId=" + selectedCompany.id, { credentials: "include" });
+        const d = await r.json();
+        if (d.connected) {
+          setWaStatus(d);
+          setWaQrCode(null);
+          clearInterval(poll);
+        }
+      } catch {}
+    }, 5000);
+    return () => clearInterval(poll);
+  }, [waQrCode, selectedCompany?.id]);
+
+  // Auto-refresh QR every 40 seconds while showing
+  useEffect(() => {
+    if (!waQrCode || !selectedCompany?.id) return;
+    const refresh = setInterval(async () => {
+      try {
+        const r = await fetch("/api/whatsapp/qr?companyId=" + selectedCompany.id, { credentials: "include" });
+        const d = await r.json();
+        if (d.qrCode) setWaQrCode(d.qrCode);
+      } catch {}
+    }, 40000);
+    return () => clearInterval(refresh);
+  }, [waQrCode, selectedCompany?.id]);
+
   const connectTelegram = async () => {
     if (!selectedCompany?.id || !telegramToken) return;
     setTelegramConnecting(true);
