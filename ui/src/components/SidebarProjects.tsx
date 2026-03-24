@@ -123,7 +123,7 @@ export function SidebarProjects() {
           {visibleProjects.map((project) => (
             <NavLink
               key={project.id}
-              to={"/progetti?project=" + project.id}
+              to={"/" + (selectedCompany?.issuePrefix || "") + "/progetti?project=" + project.id}
               onClick={() => { if (isMobile) setSidebarOpen(false); }}
               className={cn(
                 "flex items-center gap-2 px-3 py-1.5 mx-1 rounded-md text-[13px] no-underline transition-colors",
