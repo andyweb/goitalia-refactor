@@ -235,14 +235,28 @@ export function socialRoutes(db: Db) {
                     });
                     if (containerRes.ok) {
                       const container = await containerRes.json() as { id: string };
-                      // Publish
-                      const pubRes = await fetch("https://graph.facebook.com/v21.0/" + ig.id + "/media_publish", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ creation_id: container.id, access_token: meta.accessToken }),
-                      });
-                      results.push({ platform: "instagram:@" + igUsername, success: pubRes.ok, error: pubRes.ok ? undefined : await pubRes.text() });
-                    } else { results.push({ platform: "instagram:@" + igUsername, success: false, error: "Container creation failed" }); }
+                      // Wait for container to be ready (poll status)
+                      let ready = false;
+                      for (let attempt = 0; attempt < 10; attempt++) {
+                        await new Promise((r) => setTimeout(r, 2000));
+                        const statusRes = await fetch("https://graph.facebook.com/v21.0/" + container.id + "?fields=status_code&access_token=" + meta.accessToken);
+                        if (statusRes.ok) {
+                          const statusData = await statusRes.json() as { status_code?: string };
+                          if (statusData.status_code === "FINISHED") { ready = true; break; }
+                          if (statusData.status_code === "ERROR") break;
+                        }
+                      }
+                      if (ready) {
+                        const pubRes = await fetch("https://graph.facebook.com/v21.0/" + ig.id + "/media_publish", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ creation_id: container.id, access_token: meta.accessToken }),
+                        });
+                        results.push({ platform: "instagram:@" + igUsername, success: pubRes.ok, error: pubRes.ok ? undefined : await pubRes.text() });
+                      } else {
+                        results.push({ platform: "instagram:@" + igUsername, success: false, error: "Media non pronto dopo 20s" });
+                      }
+                    } else { results.push({ platform: "instagram:@" + igUsername, success: false, error: "Container creation failed: " + await containerRes.text() }); }
                   }
                 }
               }
@@ -255,7 +269,7 @@ export function socialRoutes(db: Db) {
     }
 
     // LinkedIn
-    if (targetPlatforms.includes("linkedin")) {
+    if (targetPlatforms.some((p) => p.startsWith("li_"))) {
       try {
         const liSecret = await db.select().from(companySecrets)
           .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "linkedin_tokens")))
