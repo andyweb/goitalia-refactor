@@ -34,6 +34,17 @@ export function ChatPage() {
   const otherAgents = (agents ?? []).filter((a) => a.role !== "ceo");
   const isOnboarding = otherAgents.length === 0 && !!ceoAgent && (ceoAgent as any).adapterType === "claude_api";
   const [autoStarted, setAutoStarted] = useState(false);
+
+  // Check for pre-filled message from URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const prefillMsg = params.get("msg");
+    if (prefillMsg && !isStreaming && selectedCompany?.id) {
+      setInput(prefillMsg);
+      // Clean URL
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [selectedCompany?.id]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
 
   useEffect(() => {

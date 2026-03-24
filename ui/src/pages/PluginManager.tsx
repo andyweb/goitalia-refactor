@@ -365,16 +365,21 @@ export function PluginManager() {
                     </button>
                   </div>
                 ))}
-                <button
-                  className="text-xs px-3 py-1.5 rounded-lg transition-all"
-                  style={{ background: "rgba(66, 133, 244, 0.15)", border: "1px solid rgba(66, 133, 244, 0.3)", color: "rgba(255,255,255,0.8)" }}
-                  onClick={() => {
-                    setGoogleLoading(true);
-                    window.location.href = "/api/oauth/google/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || "");
-                  }}
-                >
-                  + Aggiungi account
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="text-xs px-3 py-1.5 rounded-lg transition-all"
+                    style={{ background: "rgba(66, 133, 244, 0.15)", border: "1px solid rgba(66, 133, 244, 0.3)", color: "rgba(255,255,255,0.8)" }}
+                    onClick={() => {
+                      setGoogleLoading(true);
+                      window.location.href = "/api/oauth/google/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || "");
+                    }}
+                  >
+                    + Aggiungi account
+                  </button>
+                  <a href={"/" + (selectedCompany?.issuePrefix || "") + "/chat?msg=" + encodeURIComponent("Ho collegato Google Workspace. Crea un agente per gestire le email.")} className="text-xs px-3 py-1.5 rounded-lg transition-all no-underline" style={{ background: "linear-gradient(135deg, hsl(158 64% 42% / 0.2), hsl(158 64% 42% / 0.1))", border: "1px solid hsl(158 64% 42% / 0.3)", color: "rgba(255,255,255,0.8)" }}>
+                    Crea agente
+                  </a>
+                </div>
               </div>
             ) : (
               <button
@@ -440,11 +445,16 @@ export function PluginManager() {
                   </div>
                 ))}
                 {/* Per-bot list with toggle */}
-                <button
-                  className="text-xs px-3 py-1.5 rounded-lg transition-all mt-1"
-                  style={{ background: "rgba(0, 136, 204, 0.15)", border: "1px solid rgba(0, 136, 204, 0.3)", color: "rgba(255,255,255,0.8)" }}
-                  onClick={() => setShowTelegramForm(true)}
-                >+ Aggiungi bot</button>
+                <div className="flex items-center gap-2 mt-1">
+                  <button
+                    className="text-xs px-3 py-1.5 rounded-lg transition-all"
+                    style={{ background: "rgba(0, 136, 204, 0.15)", border: "1px solid rgba(0, 136, 204, 0.3)", color: "rgba(255,255,255,0.8)" }}
+                    onClick={() => setShowTelegramForm(true)}
+                  >+ Aggiungi bot</button>
+                  <a href={"/" + (selectedCompany?.issuePrefix || "") + "/chat?msg=" + encodeURIComponent("Ho collegato un bot Telegram. Crea un agente per rispondere ai messaggi del bot.")} className="text-xs px-3 py-1.5 rounded-lg transition-all no-underline" style={{ background: "linear-gradient(135deg, hsl(158 64% 42% / 0.2), hsl(158 64% 42% / 0.1))", border: "1px solid hsl(158 64% 42% / 0.3)", color: "rgba(255,255,255,0.8)" }}>
+                    Crea agente
+                  </a>
+                </div>
                 {showTelegramForm && (
                   <div className="space-y-2 mt-2">
                     <input className="w-full px-3 py-2 rounded-xl border border-white/10 bg-transparent text-xs outline-none" placeholder="Token da @BotFather: 123456:ABC-DEF..." value={telegramToken} onChange={(e) => setTelegramToken(e.target.value)} />
@@ -511,7 +521,12 @@ export function PluginManager() {
                     </div>
                   </div>
                 ))}
-                <button onClick={() => setShowWaForm(true)} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={{ background: "rgba(37, 211, 102, 0.15)", border: "1px solid rgba(37, 211, 102, 0.3)", color: "rgba(255,255,255,0.8)" }}>+ Aggiungi numero</button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setShowWaForm(true)} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={{ background: "rgba(37, 211, 102, 0.15)", border: "1px solid rgba(37, 211, 102, 0.3)", color: "rgba(255,255,255,0.8)" }}>+ Aggiungi numero</button>
+                  <a href={"/" + (selectedCompany?.issuePrefix || "") + "/chat?msg=" + encodeURIComponent("Ho collegato WhatsApp. Crea un agente per rispondere ai messaggi WhatsApp.")} className="text-xs px-3 py-1.5 rounded-lg transition-all no-underline" style={{ background: "linear-gradient(135deg, hsl(158 64% 42% / 0.2), hsl(158 64% 42% / 0.1))", border: "1px solid hsl(158 64% 42% / 0.3)", color: "rgba(255,255,255,0.8)" }}>
+                    Crea agente
+                  </a>
+                </div>
               </div>
             ) : waQrCode ? (
               <div className="space-y-3">
