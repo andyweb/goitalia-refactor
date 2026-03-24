@@ -181,10 +181,10 @@ export function Sidebar() {
         <SidebarSection label="Lavoro">
           <SidebarNavItem to="/chat" label="Chat" icon={MessageCircle} />
           {hasGoogle && <SidebarNavItem to="/mail" label="Mail" icon={Mail} badge={mailUnread > 0 ? mailUnread : undefined} />}
-          {hasGoogle && <SidebarNavItem to="/calendario" label="Calendario" icon={Calendar} />}
-          {hasGoogle && <SidebarNavItem to="/documenti" label="Documenti" icon={HardDrive} />}
           {hasWhatsApp && <SidebarNavItem to="/whatsapp" label="WhatsApp" icon={Phone} />}
           {hasTelegram && <SidebarNavItem to="/telegram" label="Telegram" icon={MessageSquare} badge={telegramUnread > 0 ? telegramUnread : undefined} />}
+          {hasGoogle && <SidebarNavItem to="/calendario" label="Calendario" icon={Calendar} />}
+          {hasGoogle && <SidebarNavItem to="/documenti" label="Documenti" icon={HardDrive} />}
           {!isOnboarding && !isClaudeApi && <SidebarNavItem to="/issues" label="Attività" icon={CircleDot} />}
           {!isOnboarding && !isClaudeApi && <SidebarNavItem to="/goals" label="Obiettivi" icon={Target} />}
         </SidebarSection>
