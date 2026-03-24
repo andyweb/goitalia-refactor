@@ -104,8 +104,8 @@ export async function createApp(
       bindHost: opts.bindHost,
     }),
   );
-  // Telegram webhooks — MUST be before auth middleware
-  app.use("/api", telegramWebhookRouterFn(db));
+  // Telegram webhooks on separate path (avoids all /api middleware)
+  app.use("/tg-hook", telegramWebhookRouterFn(db));
 
   app.use(
     actorMiddleware(db, {

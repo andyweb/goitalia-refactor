@@ -95,7 +95,7 @@ export function telegramRoutes(db: Db) {
 
       // Set webhook with bot index
       const botIndex = bots.findIndex((b) => b.username === botData.username);
-      const webhookUrl = (process.env.PAPERCLIP_AUTH_PUBLIC_BASE_URL || "https://impresa.goitalia.eu") + "/api/telegram/webhook/" + companyId + "/" + botIndex;
+      const webhookUrl = (process.env.PAPERCLIP_AUTH_PUBLIC_BASE_URL || "https://impresa.goitalia.eu") + "/tg-hook/telegram/webhook/" + companyId + "/" + botIndex;
       await fetch(TELEGRAM_API + token + "/setWebhook", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
