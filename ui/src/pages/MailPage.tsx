@@ -13,6 +13,7 @@ interface GmailMessage {
   body: string;
   date: string;
   isUnread: boolean;
+  isStarred: boolean;
 }
 
 export function MailPage() {
@@ -27,6 +28,8 @@ export function MailPage() {
   const [replyDraft, setReplyDraft] = useState<{ messageId: string; text: string; subject: string; to: string } | null>(null);
   const [sending, setSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState<string | null>(null);
+  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     setBreadcrumbs([{ label: "Mail" }]);
@@ -42,8 +45,23 @@ export function MailPage() {
       if (!res.ok) { setError(data.error); setLoading(false); return; }
       setMessages(data.messages || []);
       setEmail(data.email || "");
+      setNextPageToken(data.nextPageToken || null);
     } catch { setError("Errore di connessione"); }
     setLoading(false);
+  };
+
+  const loadMore = async () => {
+    if (!selectedCompany?.id || !nextPageToken) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch("/api/gmail/messages?companyId=" + selectedCompany.id + "&pageToken=" + nextPageToken, { credentials: "include" });
+      const data = await res.json();
+      if (res.ok) {
+        setMessages((prev) => [...prev, ...(data.messages || [])]);
+        setNextPageToken(data.nextPageToken || null);
+      }
+    } catch {}
+    setLoadingMore(false);
   };
 
   useEffect(() => { fetchMail(); }, [selectedCompany?.id]);
@@ -94,6 +112,33 @@ export function MailPage() {
       setTimeout(() => setSendSuccess(null), 3000);
     } catch { setError("Errore invio"); }
     setSending(false);
+  };
+
+  const gmailAction = async (action: string, messageId: string, extra?: Record<string, unknown>) => {
+    if (!selectedCompany?.id) return;
+    await fetch("/api/gmail/" + action, {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify({ companyId: selectedCompany.id, messageId, ...extra }),
+    });
+  };
+
+  const trashMessage = async (id: string) => {
+    await gmailAction("trash", id);
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+    if (selectedMessage?.id === id) setSelectedMessage(null);
+  };
+
+  const archiveMessage = async (id: string) => {
+    await gmailAction("archive", id);
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+    if (selectedMessage?.id === id) setSelectedMessage(null);
+  };
+
+  const toggleStar = async (id: string) => {
+    const msg = messages.find((m) => m.id === id);
+    if (!msg) return;
+    await gmailAction("star", id, { starred: !msg.isStarred });
+    setMessages((prev) => prev.map((m) => m.id === id ? { ...m, isStarred: !m.isStarred } : m));
   };
 
   const formatDate = (dateStr: string) => {
@@ -197,6 +242,7 @@ export function MailPage() {
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
+                      {msg.isStarred && <svg width="14" height="14" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" strokeWidth="2" className="shrink-0"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>}
                       {msg.isUnread && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />}
                       <span className={"text-sm truncate " + (msg.isUnread ? "font-semibold" : "font-normal")}>{formatFrom(msg.from)}</span>
                       <span className="text-xs text-muted-foreground ml-auto shrink-0">{formatDate(msg.date)}</span>
@@ -218,6 +264,17 @@ export function MailPage() {
                   <div className="text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto" style={{ color: "rgba(255,255,255,0.85)" }}>
                     {msg.body || msg.snippet}
                   </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => toggleStar(msg.id)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" title={msg.isStarred ? "Rimuovi preferito" : "Aggiungi ai preferiti"}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill={msg.isStarred ? "#fbbf24" : "none"} stroke={msg.isStarred ? "#fbbf24" : "currentColor"} strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </button>
+                    <button onClick={() => archiveMessage(msg.id)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-muted-foreground" title="Archivia">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
+                    </button>
+                    <button onClick={() => trashMessage(msg.id)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-red-400/70" title="Elimina">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </div>
                   <button
                     onClick={() => generateReply(msg)}
                     disabled={generatingReply === msg.id}
@@ -232,6 +289,18 @@ export function MailPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Load more */}
+      {nextPageToken && (
+        <button
+          onClick={loadMore}
+          disabled={loadingMore}
+          className="w-full py-3 rounded-xl text-sm font-medium transition-all"
+          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          {loadingMore ? "Caricamento..." : "Carica altre email"}
+        </button>
       )}
     </div>
   );

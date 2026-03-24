@@ -73,6 +73,7 @@ interface GmailMessage {
   body: string;
   date: string;
   isUnread: boolean;
+  isStarred: boolean;
 }
 
 function decodeBase64Url(str: string): string {
@@ -116,6 +117,7 @@ export function gmailRoutes(db: Db) {
 
     const companyId = req.query.companyId as string;
     const maxResults = parseInt(req.query.maxResults as string) || 20;
+    const pageToken = req.query.pageToken as string || "";
     if (!companyId) { res.status(400).json({ error: "companyId richiesto" }); return; }
 
     const token = await getGmailToken(db, companyId);
@@ -124,7 +126,7 @@ export function gmailRoutes(db: Db) {
     try {
       // Get message list
       const listRes = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&labelIds=INBOX`,
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&labelIds=INBOX${pageToken ? "&pageToken=" + pageToken : ""}`,
         { headers: { Authorization: "Bearer " + token.access_token } }
       );
       if (!listRes.ok) {
@@ -133,11 +135,11 @@ export function gmailRoutes(db: Db) {
         res.status(502).json({ error: "Errore lettura email" });
         return;
       }
-      const listData = await listRes.json() as { messages?: Array<{ id: string; threadId: string }> };
-      if (!listData.messages?.length) { res.json({ messages: [], email: token.email }); return; }
+      const listData = await listRes.json() as { messages?: Array<{ id: string; threadId: string }>; nextPageToken?: string };
+      if (!listData.messages?.length) { res.json({ messages: [], email: token.email, nextPageToken: null }); return; }
 
       // Get message details (batch, max 10 for speed)
-      const messageIds = listData.messages.slice(0, 10);
+      const messageIds = listData.messages;
       const messages: GmailMessage[] = [];
 
       for (const msg of messageIds) {
@@ -159,10 +161,11 @@ export function gmailRoutes(db: Db) {
           body: extractBody(msgData.payload).slice(0, 2000),
           date: extractHeader(headers, "Date"),
           isUnread: (msgData.labelIds || []).includes("UNREAD"),
+          isStarred: (msgData.labelIds || []).includes("STARRED"),
         });
       }
 
-      res.json({ messages, email: token.email });
+      res.json({ messages, email: token.email, nextPageToken: listData.nextPageToken || null });
     } catch (err) {
       console.error("Gmail error:", err);
       res.status(500).json({ error: "Errore nel recupero email" });
@@ -344,6 +347,72 @@ Scrivi SOLO il testo della risposta, senza oggetto, senza "Gentile..." se non ne
       console.error("Send email error:", err);
       res.status(500).json({ error: "Errore invio email" });
     }
+  });
+
+
+  // POST /gmail/trash - Move to trash
+  router.post("/gmail/trash", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const { companyId, messageId } = req.body;
+    const token = await getGmailToken(db, companyId);
+    if (!token) { res.status(400).json({ error: "Google non connesso" }); return; }
+    const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/trash`, {
+      method: "POST", headers: { Authorization: "Bearer " + token.access_token },
+    });
+    if (!r.ok) { res.status(502).json({ error: "Errore eliminazione" }); return; }
+    res.json({ success: true });
+  });
+
+  // POST /gmail/archive - Remove from inbox (archive)
+  router.post("/gmail/archive", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const { companyId, messageId } = req.body;
+    const token = await getGmailToken(db, companyId);
+    if (!token) { res.status(400).json({ error: "Google non connesso" }); return; }
+    const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`, {
+      method: "POST", headers: { Authorization: "Bearer " + token.access_token, "Content-Type": "application/json" },
+      body: JSON.stringify({ removeLabelIds: ["INBOX"] }),
+    });
+    if (!r.ok) { res.status(502).json({ error: "Errore archiviazione" }); return; }
+    res.json({ success: true });
+  });
+
+  // POST /gmail/star - Toggle star
+  router.post("/gmail/star", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const { companyId, messageId, starred } = req.body;
+    const token = await getGmailToken(db, companyId);
+    if (!token) { res.status(400).json({ error: "Google non connesso" }); return; }
+    const body = starred
+      ? { addLabelIds: ["STARRED"] }
+      : { removeLabelIds: ["STARRED"] };
+    const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`, {
+      method: "POST", headers: { Authorization: "Bearer " + token.access_token, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) { res.status(502).json({ error: "Errore preferiti" }); return; }
+    res.json({ success: true });
+  });
+
+  // POST /gmail/mark-read - Mark as read/unread
+  router.post("/gmail/mark-read", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const { companyId, messageId, read } = req.body;
+    const token = await getGmailToken(db, companyId);
+    if (!token) { res.status(400).json({ error: "Google non connesso" }); return; }
+    const body = read
+      ? { removeLabelIds: ["UNREAD"] }
+      : { addLabelIds: ["UNREAD"] };
+    const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`, {
+      method: "POST", headers: { Authorization: "Bearer " + token.access_token, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) { res.status(502).json({ error: "Errore" }); return; }
+    res.json({ success: true });
   });
 
   return router;
