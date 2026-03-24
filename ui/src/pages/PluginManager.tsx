@@ -336,6 +336,15 @@ export function PluginManager() {
                   style={{ background: "rgba(0, 136, 204, 0.15)", border: "1px solid rgba(0, 136, 204, 0.3)", color: "rgba(255,255,255,0.8)" }}
                   onClick={() => setShowTelegramForm(true)}
                 >+ Aggiungi bot</button>
+                {showTelegramForm && (
+                  <div className="space-y-2 mt-2">
+                    <input className="w-full px-3 py-2 rounded-xl border border-white/10 bg-transparent text-xs outline-none" placeholder="Token da @BotFather: 123456:ABC-DEF..." value={telegramToken} onChange={(e) => setTelegramToken(e.target.value)} />
+                    <div className="flex gap-2">
+                      <button onClick={connectTelegram} disabled={telegramConnecting || !telegramToken} className="px-3 py-1.5 rounded-xl text-xs font-medium disabled:opacity-40" style={{ background: "rgba(0, 136, 204, 0.2)", border: "1px solid rgba(0, 136, 204, 0.3)", color: "rgba(255,255,255,0.9)" }}>{telegramConnecting ? "Verifica..." : "Collega"}</button>
+                      <button onClick={() => setShowTelegramForm(false)} className="text-xs text-muted-foreground">Annulla</button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : showTelegramForm ? (
               <div className="space-y-2">
