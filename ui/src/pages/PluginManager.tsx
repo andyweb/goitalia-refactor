@@ -255,8 +255,8 @@ export function PluginManager() {
         </div>
         <div className={glass.card} style={glass.cardStyle}>
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(168, 85, 247, 0.15)", border: "1px solid rgba(168, 85, 247, 0.3)" }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a855f7" strokeWidth="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid rgba(34, 197, 94, 0.3)" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold">Trascrizione Vocali</div>
@@ -276,24 +276,24 @@ export function PluginManager() {
             </div>
           ) : showVoiceSetup ? (
             <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.15em]" style={{ color: "rgba(168, 85, 247, 0.8)" }}>Come ottenere la API key</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.15em]" style={{ color: "rgba(34, 197, 94, 0.8)" }}>Come ottenere la API key</p>
               <div className="space-y-2">
                 <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  <span className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0" style={{ background: "rgba(168, 85, 247, 0.2)", color: "rgba(168, 85, 247, 0.9)" }}>1</span>
+                  <span className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0" style={{ background: "rgba(34, 197, 94, 0.2)", color: "rgba(34, 197, 94, 0.9)" }}>1</span>
                   <div>
                     <p className="text-xs font-medium">Crea un account su OpenAI</p>
-                    <a href="https://platform.openai.com/signup" target="_blank" rel="noopener noreferrer" className="text-[11px] text-purple-400 hover:underline">platform.openai.com/signup</a>
+                    <a href="https://platform.openai.com/signup" target="_blank" rel="noopener noreferrer" className="text-[11px] text-green-400 hover:underline">platform.openai.com/signup</a>
                   </div>
                 </div>
                 <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  <span className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0" style={{ background: "rgba(168, 85, 247, 0.2)", color: "rgba(168, 85, 247, 0.9)" }}>2</span>
+                  <span className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0" style={{ background: "rgba(34, 197, 94, 0.2)", color: "rgba(34, 197, 94, 0.9)" }}>2</span>
                   <div>
                     <p className="text-xs font-medium">Vai su API Keys nel menu</p>
-                    <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-[11px] text-purple-400 hover:underline">platform.openai.com/api-keys</a>
+                    <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-[11px] text-green-400 hover:underline">platform.openai.com/api-keys</a>
                   </div>
                 </div>
                 <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  <span className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0" style={{ background: "rgba(168, 85, 247, 0.2)", color: "rgba(168, 85, 247, 0.9)" }}>3</span>
+                  <span className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0" style={{ background: "rgba(34, 197, 94, 0.2)", color: "rgba(34, 197, 94, 0.9)" }}>3</span>
                   <p className="text-xs font-medium">Clicca "Create new secret key", copia e incolla qui sotto</p>
                 </div>
               </div>
@@ -316,12 +316,12 @@ export function PluginManager() {
                     else { alert(d.error); }
                   } catch {}
                   setVoiceSaving(false);
-                }} disabled={voiceSaving || !openaiKey.startsWith("sk-")} className="px-4 py-2 rounded-xl text-xs font-medium disabled:opacity-40" style={{ background: "rgba(168, 85, 247, 0.2)", border: "1px solid rgba(168, 85, 247, 0.3)", color: "rgba(255,255,255,0.9)" }}>{voiceSaving ? "Verifica..." : "Attiva vocali"}</button>
+                }} disabled={voiceSaving || !openaiKey.startsWith("sk-")} className="px-4 py-2 rounded-xl text-xs font-medium disabled:opacity-40" style={{ background: "rgba(34, 197, 94, 0.2)", border: "1px solid rgba(34, 197, 94, 0.3)", color: "rgba(255,255,255,0.9)" }}>{voiceSaving ? "Verifica..." : "Attiva vocali"}</button>
                 <button onClick={() => setShowVoiceSetup(false)} className="text-xs text-muted-foreground">Annulla</button>
               </div>
             </div>
           ) : (
-            <button onClick={() => setShowVoiceSetup(true)} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all" style={{ background: "rgba(168, 85, 247, 0.2)", border: "1px solid rgba(168, 85, 247, 0.3)", color: "rgba(255,255,255,0.9)" }}>Attiva trascrizione vocali</button>
+            <button onClick={() => setShowVoiceSetup(true)} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all" style={{ background: "rgba(34, 197, 94, 0.2)", border: "1px solid rgba(34, 197, 94, 0.3)", color: "rgba(255,255,255,0.9)" }}>Attiva trascrizione vocali</button>
           )}
         </div>
       </div>
