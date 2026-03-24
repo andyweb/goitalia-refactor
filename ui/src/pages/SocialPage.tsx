@@ -56,12 +56,18 @@ export function SocialPage() {
       fd.append("platforms", JSON.stringify(Array.from(publishTargets)));
       if (publishImage) fd.append("image", publishImage);
       const res = await fetch("/api/social/publish", { method: "POST", credentials: "include", body: fd });
+      if (!res.ok) {
+        const errText = await res.text();
+        setPublishResult([{ platform: "server", success: false, error: res.status + ": " + errText }]);
+        setPublishing(false);
+        return;
+      }
       const data = await res.json();
       setPublishResult(data.results || []);
       if (data.results?.every((r: any) => r.success)) {
         setTimeout(() => { setShowPublish(false); setPublishText(""); setPublishImage(null); setPublishTargets(new Set()); setPublishResult(null); fetchPosts(); }, 2000);
       }
-    } catch { setPublishResult([{ platform: "all", success: false, error: "Errore di connessione" }]); }
+    } catch (err: any) { setPublishResult([{ platform: "all", success: false, error: err?.message || "Errore di connessione" }]); }
     setPublishing(false);
   };
 

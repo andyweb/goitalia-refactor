@@ -164,7 +164,9 @@ export function socialRoutes(db: Db) {
     const image = (req as any).file;
     if (!companyId || !text) { res.status(400).json({ error: "Testo richiesto" }); return; }
 
-    const targetPlatforms = JSON.parse(platforms || "[]") as string[];
+    let targetPlatforms: string[] = [];
+    try { targetPlatforms = JSON.parse(platforms || "[]"); } catch { targetPlatforms = []; }
+    console.log("[social/publish] targets:", targetPlatforms, "text:", text?.slice(0, 50), "hasImage:", !!image);
     const results: Array<{ platform: string; success: boolean; error?: string }> = [];
 
     // Facebook
