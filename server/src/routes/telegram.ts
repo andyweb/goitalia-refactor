@@ -209,13 +209,13 @@ export function telegramRoutes(db: Db) {
     try {
       const rows = botFilter !== undefined && botFilter !== "-1"
         ? await db.execute(sql`
-        SELECT id, chat_id, from_name, from_username, message_text, direction, created_at, bot_index 
+        SELECT id, chat_id, from_name, from_username, message_text, direction, created_at, bot_index, message_type, media_url 
         FROM telegram_messages 
         WHERE company_id = ${companyId} AND bot_index = ${botFilter}
         ORDER BY created_at DESC 
         LIMIT 200`)
         : await db.execute(sql`
-        SELECT id, chat_id, from_name, from_username, message_text, direction, created_at, bot_index 
+        SELECT id, chat_id, from_name, from_username, message_text, direction, created_at, bot_index, message_type, media_url 
         FROM telegram_messages 
         WHERE company_id = ${companyId} 
         ORDER BY created_at DESC 
