@@ -273,20 +273,22 @@ export function TelegramPage() {
             </div>
 
             {/* Input */}
-            <div className="pt-2 flex items-end gap-2">
+            <div className="glass-card p-3 flex items-end gap-2">
               <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx" onChange={(e) => { const f = e.target.files?.[0]; if (f) sendMedia(f); e.target.value = ""; }} />
-              <button onClick={() => fileInputRef.current?.click()} className="h-[52px] w-[40px] rounded-xl flex items-center justify-center shrink-0 text-muted-foreground hover:text-foreground transition-colors" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <Paperclip className="w-4 h-4" />
+              <button onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0 text-muted-foreground hover:text-foreground transition-colors" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <Paperclip className="h-4 w-4" />
               </button>
               <textarea
                 ref={inputRef}
-                className="flex-1 min-h-[52px] max-h-[150px] rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none resize-none"
+                className="flex-1 resize-none rounded-xl px-4 py-3 text-sm outline-none"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "hsl(0 0% 98%)", maxHeight: "120px" }}
                 placeholder="Scrivi un messaggio..."
+                rows={1}
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
               />
-              <button onClick={sendReply} disabled={sending || !replyText.trim()} className="h-[52px] w-[52px] rounded-2xl flex items-center justify-center shrink-0 disabled:opacity-30" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))" }}>
+              <button onClick={sendReply} disabled={sending || !replyText.trim()} className="h-11 w-11 rounded-xl flex items-center justify-center transition-all disabled:opacity-30" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", boxShadow: "0 4px 20px hsl(158 64% 42% / 0.3)" }}>
                 {sending ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <SendIcon className="w-4 h-4 text-white" />}
               </button>
             </div>
