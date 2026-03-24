@@ -251,6 +251,54 @@ export function whatsappRoutes(db: Db) {
   });
 
 
+
+  // POST /whatsapp/generate-reply
+  router.post("/whatsapp/generate-reply", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const { companyId, messageText, fromName, remoteJid } = req.body as { companyId: string; messageText: string; fromName: string; remoteJid?: string };
+    if (!companyId || !messageText) { res.status(400).json({ error: "Parametri mancanti" }); return; }
+
+    const apiKeySecret = await db.select().from(companySecrets)
+      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "claude_api_key")))
+      .then((rows) => rows[0]);
+    if (!apiKeySecret?.description) { res.status(400).json({ error: "API key Claude non configurata" }); return; }
+    let claudeKey: string;
+    try { claudeKey = decrypt(apiKeySecret.description); } catch { res.status(500).json({ error: "Errore decrypt" }); return; }
+
+    // Get conversation history
+    let history: Array<{ role: "user" | "assistant"; content: string }> = [];
+    if (remoteJid) {
+      try {
+        const rows = await db.execute(sql`SELECT message_text, direction FROM whatsapp_messages WHERE company_id = ${companyId} AND remote_jid = ${remoteJid} ORDER BY created_at ASC LIMIT 20`);
+        history = (rows as any[]).map((r: any) => ({
+          role: r.direction === "incoming" ? "user" as const : "assistant" as const,
+          content: r.message_text,
+        }));
+      } catch {}
+    }
+    if (history.length === 0) {
+      history = [{ role: "user", content: messageText }];
+    }
+
+    try {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": claudeKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1024,
+          system: "Sei un assistente di customer service professionale. Rispondi in italiano, in modo conciso e cordiale. Rispondi specificamente all'ultimo messaggio tenendo conto del contesto.",
+          messages: history,
+        }),
+      });
+      if (!r.ok) { res.status(502).json({ error: "Errore AI" }); return; }
+      const data = await r.json() as { content?: Array<{ text?: string }> };
+      const reply = data.content?.map((c) => c.text).join("") || "";
+      res.json({ reply });
+    } catch { res.status(500).json({ error: "Errore generazione risposta" }); }
+  });
+
   // POST /whatsapp/settings
   router.post("/whatsapp/settings", async (req, res) => {
     const actor = req.actor as { type?: string; userId?: string } | undefined;
@@ -420,6 +468,54 @@ export function whatsappWebhookRouter(db: Db) {
     }
   });
 
+
+
+  // POST /whatsapp/generate-reply
+  router.post("/whatsapp/generate-reply", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const { companyId, messageText, fromName, remoteJid } = req.body as { companyId: string; messageText: string; fromName: string; remoteJid?: string };
+    if (!companyId || !messageText) { res.status(400).json({ error: "Parametri mancanti" }); return; }
+
+    const apiKeySecret = await db.select().from(companySecrets)
+      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "claude_api_key")))
+      .then((rows) => rows[0]);
+    if (!apiKeySecret?.description) { res.status(400).json({ error: "API key Claude non configurata" }); return; }
+    let claudeKey: string;
+    try { claudeKey = decrypt(apiKeySecret.description); } catch { res.status(500).json({ error: "Errore decrypt" }); return; }
+
+    // Get conversation history
+    let history: Array<{ role: "user" | "assistant"; content: string }> = [];
+    if (remoteJid) {
+      try {
+        const rows = await db.execute(sql`SELECT message_text, direction FROM whatsapp_messages WHERE company_id = ${companyId} AND remote_jid = ${remoteJid} ORDER BY created_at ASC LIMIT 20`);
+        history = (rows as any[]).map((r: any) => ({
+          role: r.direction === "incoming" ? "user" as const : "assistant" as const,
+          content: r.message_text,
+        }));
+      } catch {}
+    }
+    if (history.length === 0) {
+      history = [{ role: "user", content: messageText }];
+    }
+
+    try {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": claudeKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1024,
+          system: "Sei un assistente di customer service professionale. Rispondi in italiano, in modo conciso e cordiale. Rispondi specificamente all'ultimo messaggio tenendo conto del contesto.",
+          messages: history,
+        }),
+      });
+      if (!r.ok) { res.status(502).json({ error: "Errore AI" }); return; }
+      const data = await r.json() as { content?: Array<{ text?: string }> };
+      const reply = data.content?.map((c) => c.text).join("") || "";
+      res.json({ reply });
+    } catch { res.status(500).json({ error: "Errore generazione risposta" }); }
+  });
 
   // POST /whatsapp/settings
   router.post("/whatsapp/settings", async (req, res) => {
