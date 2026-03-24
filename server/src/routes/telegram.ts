@@ -303,61 +303,48 @@ export function telegramWebhookRouter(db: Db) {
   router.post("/telegram/webhook/:companyId/:botIndex", async (req, res) => {
     const companyId = req.params.companyId;
     const update = req.body;
-    console.log("[telegram-webhook-public] Received for:", companyId, "text:", update?.message?.text);
-    
-    if (update?.message?.text) {
-      const msg = update.message;
-      try {
-        await db.execute(sql`INSERT INTO telegram_messages (company_id, chat_id, from_name, from_username, message_text, direction, telegram_message_id) VALUES (${companyId}, ${msg.chat.id}, ${msg.from?.first_name || ''}, ${msg.from?.username || ''}, ${msg.text}, 'incoming', ${msg.message_id})`);
-      } catch (err) { console.error("Webhook save error:", err); }
-
-      // Auto-reply
-      try {
-        const settingsRow = await db.select().from(companySecrets)
-          .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "telegram_settings")))
-          .then((rows) => rows[0]);
-        const settings = settingsRow?.description ? JSON.parse(settingsRow.description) : {};
-        
-        if (settings.autoReply) {
-          const token = await getTelegramToken(db, companyId);
-          const apiKeySecret = await db.select().from(companySecrets)
-            .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "claude_api_key")))
-            .then((rows) => rows[0]);
-          
-          if (token && apiKeySecret?.description) {
-            const claudeKey = decrypt(apiKeySecret.description);
-            const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "x-api-key": claudeKey, "anthropic-version": "2023-06-01" },
-              body: JSON.stringify({
-                model: "claude-haiku-4-20250414",
-                max_tokens: 512,
-                system: "Sei un assistente di customer service. Rispondi in italiano, in modo breve e cordiale. Max 2-3 frasi.",
-                messages: [{ role: "user", content: msg.text }],
-              }),
-            });
-            if (claudeRes.ok) {
-              const data = await claudeRes.json() as { content?: Array<{ text?: string }> };
-              const reply = (data.content || []).map((c: any) => c.text).join("") || "";
-              if (reply) {
-                await fetch("https://api.telegram.org/bot" + token + "/sendMessage", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ chat_id: msg.chat.id, text: reply }),
-                });
-                try {
-                  await db.execute(sql`INSERT INTO telegram_messages (company_id, chat_id, from_name, message_text, direction, telegram_message_id) VALUES (${companyId}, ${msg.chat.id}, 'Bot', ${reply}, 'outgoing', 0)`);
-                } catch {}
-              }
-            }
-          }
-        }
-      } catch (autoErr) { console.error("Auto-reply error:", autoErr); }
-    }
-    
+    console.log("[tg-wh] msg:", update?.message?.text, "from:", update?.message?.from?.first_name);
     res.json({ ok: true });
+    // Process async after response
+    if (!update?.message?.text) return;
+    const msg = update.message;
+    // Save incoming
+    try {
+      await db.execute(sql`INSERT INTO telegram_messages (company_id, chat_id, from_name, from_username, message_text, direction, telegram_message_id) VALUES (${companyId}, ${String(msg.chat.id)}, ${msg.from?.first_name || ''}, ${msg.from?.username || ''}, ${msg.text}, 'incoming', ${String(msg.message_id)})`);
+    } catch (e) { console.error("[tg-wh] save err:", e); }
+    // Auto-reply
+    try {
+      const sRow = await db.select().from(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "telegram_settings"))).then((r) => r[0]);
+      const s = sRow?.description ? JSON.parse(sRow.description) : {};
+      console.log("[tg-wh] autoReply:", s.autoReply);
+      if (!s.autoReply) return;
+      const tok = await getTelegramToken(db, companyId);
+      if (!tok) { console.log("[tg-wh] no token"); return; }
+      const keyRow = await db.select().from(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "claude_api_key"))).then((r) => r[0]);
+      let reply = "Grazie per il messaggio!";
+      if (keyRow?.description) {
+        const ck = decrypt(keyRow.description);
+        console.log("[tg-wh] calling claude...");
+        const cr = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-api-key": ck, "anthropic-version": "2023-06-01" },
+          body: JSON.stringify({ model: "claude-haiku-4-20250414", max_tokens: 512, system: "Sei un assistente. Rispondi in italiano, breve e cordiale.", messages: [{ role: "user", content: msg.text }] }),
+        });
+        console.log("[tg-wh] claude status:", cr.status);
+        if (cr.ok) {
+          const cd = await cr.json() as any;
+          reply = (cd.content || []).map((c: any) => c.text).join("") || reply;
+        } else { console.error("[tg-wh] claude err:", await cr.text()); }
+      }
+      console.log("[tg-wh] sending:", reply.substring(0, 50));
+      const sr = await fetch("https://api.telegram.org/bot" + tok + "/sendMessage", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: msg.chat.id, text: reply }),
+      });
+      console.log("[tg-wh] send status:", sr.status);
+      try { await db.execute(sql`INSERT INTO telegram_messages (company_id, chat_id, from_name, message_text, direction, telegram_message_id) VALUES (${companyId}, ${String(msg.chat.id)}, ${"Bot"}, ${reply}, ${"outgoing"}, ${"0"})`); } catch {}
+    } catch (e) { console.error("[tg-wh] auto-reply err:", e); }
   });
-
   router.post("/telegram/webhook/:companyId", async (req, res) => {
     const companyId = req.params.companyId;
     const update = req.body;
