@@ -72,14 +72,25 @@ export function whatsappRoutes(db: Db) {
         phoneNumber,
       }));
 
+      // Save as array (multi-number support)
       const existing = await db.select().from(companySecrets)
-        .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_session")))
+        .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
         .then((rows) => rows[0]);
 
+      let sessions: any[] = [];
+      if (existing?.description) {
+        try { const dec = JSON.parse(decrypt(existing.description)); sessions = Array.isArray(dec) ? dec : [dec]; } catch {}
+      }
+      const newSession = JSON.parse(decrypt(secretData));
+      // Replace if same phone, otherwise append
+      const idx = sessions.findIndex((s: any) => s.phoneNumber === phoneNumber);
+      if (idx >= 0) { sessions[idx] = newSession; } else { sessions.push(newSession); }
+      const encSessions = encrypt(JSON.stringify(sessions));
+
       if (existing) {
-        await db.update(companySecrets).set({ description: secretData, updatedAt: new Date() }).where(eq(companySecrets.id, existing.id));
+        await db.update(companySecrets).set({ description: encSessions, updatedAt: new Date() }).where(eq(companySecrets.id, existing.id));
       } else {
-        await db.insert(companySecrets).values({ id: crypto.randomUUID(), companyId, name: "whatsapp_session", provider: "encrypted", description: secretData });
+        await db.insert(companySecrets).values({ id: crypto.randomUUID(), companyId, name: "whatsapp_sessions", provider: "encrypted", description: encSessions });
       }
 
       // Connect session to get QR
@@ -124,7 +135,7 @@ export function whatsappRoutes(db: Db) {
     if (!companyId) { res.status(400).json({ error: "companyId richiesto" }); return; }
 
     const secret = await db.select().from(companySecrets)
-      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_session")))
+      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
       .then((rows) => rows[0]);
     if (!secret?.description) { res.json({ qrCode: null }); return; }
 
@@ -146,18 +157,23 @@ export function whatsappRoutes(db: Db) {
     if (!companyId) { res.json({ connected: false }); return; }
 
     const secret = await db.select().from(companySecrets)
-      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_session")))
+      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
       .then((rows) => rows[0]);
-    if (!secret?.description) { res.json({ connected: false }); return; }
+    if (!secret?.description) { res.json({ connected: false, numbers: [] }); return; }
 
     try {
-      const data = JSON.parse(decrypt(secret.description));
-      const r = await fetch(WASENDER_API + "/status", {
-        headers: { Authorization: "Bearer " + data.apiKey },
-      });
-      const status = await r.json() as { status?: string };
-      res.json({ connected: status.status === "connected", status: status.status, phoneNumber: data.phoneNumber });
-    } catch { res.json({ connected: false }); }
+      const dec = JSON.parse(decrypt(secret.description));
+      const sessions = Array.isArray(dec) ? dec : [dec];
+      const numbers = sessions.map((s: any) => ({ phoneNumber: s.phoneNumber, sessionId: s.sessionId }));
+      // Check first session status
+      if (sessions.length > 0) {
+        const r = await fetch(WASENDER_API + "/status", { headers: { Authorization: "Bearer " + sessions[0].apiKey } });
+        const status = await r.json() as { status?: string };
+        res.json({ connected: status.status === "connected", status: status.status, numbers });
+      } else {
+        res.json({ connected: false, numbers: [] });
+      }
+    } catch { res.json({ connected: false, numbers: [] }); }
   });
 
   // POST /whatsapp/disconnect?companyId=xxx
@@ -167,23 +183,28 @@ export function whatsappRoutes(db: Db) {
     const companyId = req.query.companyId as string || req.body?.companyId;
     if (!companyId) { res.json({ disconnected: true }); return; }
 
+    const phoneToRemove = req.query.phone as string || req.body?.phone || "";
     const secret = await db.select().from(companySecrets)
-      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_session")))
+      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
       .then((rows) => rows[0]);
 
     if (secret?.description) {
       try {
-        const data = JSON.parse(decrypt(secret.description));
-        await fetch(WASENDER_API + "/whatsapp-sessions/" + data.sessionId + "/disconnect", {
-          method: "POST", headers: { Authorization: "Bearer " + WASENDER_PAT },
-        }).catch(() => {});
-        await fetch(WASENDER_API + "/whatsapp-sessions/" + data.sessionId, {
-          method: "DELETE", headers: { Authorization: "Bearer " + WASENDER_PAT },
-        }).catch(() => {});
+        const dec = JSON.parse(decrypt(secret.description));
+        const sessions = Array.isArray(dec) ? dec : [dec];
+        const toRemove = phoneToRemove ? sessions.find((s: any) => s.phoneNumber === phoneToRemove) : sessions[0];
+        if (toRemove) {
+          await fetch(WASENDER_API + "/whatsapp-sessions/" + toRemove.sessionId + "/disconnect", { method: "POST", headers: { Authorization: "Bearer " + WASENDER_PAT } }).catch(() => {});
+          await fetch(WASENDER_API + "/whatsapp-sessions/" + toRemove.sessionId, { method: "DELETE", headers: { Authorization: "Bearer " + WASENDER_PAT } }).catch(() => {});
+        }
+        const filtered = phoneToRemove ? sessions.filter((s: any) => s.phoneNumber !== phoneToRemove) : [];
+        if (filtered.length > 0) {
+          await db.update(companySecrets).set({ description: encrypt(JSON.stringify(filtered)), updatedAt: new Date() }).where(eq(companySecrets.id, secret.id));
+        } else {
+          await db.delete(companySecrets).where(eq(companySecrets.id, secret.id));
+        }
       } catch {}
     }
-
-    await db.delete(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_session")));
     res.json({ disconnected: true });
   });
 
@@ -207,12 +228,15 @@ export function whatsappRoutes(db: Db) {
     if (!companyId || !to || !text) { res.status(400).json({ error: "Parametri mancanti" }); return; }
 
     const secret = await db.select().from(companySecrets)
-      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_session")))
+      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
       .then((rows) => rows[0]);
     if (!secret?.description) { res.status(400).json({ error: "WhatsApp non connesso" }); return; }
 
     try {
-      const data = JSON.parse(decrypt(secret.description));
+      const dec = JSON.parse(decrypt(secret.description));
+      const sessions = Array.isArray(dec) ? dec : [dec];
+      const data = sessions[0];
+      if (!data) { res.status(400).json({ error: "Nessuna sessione WhatsApp" }); return; }
       const r = await fetch(WASENDER_API + "/send-message", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + data.apiKey },
@@ -224,6 +248,42 @@ export function whatsappRoutes(db: Db) {
       } catch {}
       res.json({ sent: true });
     } catch { res.status(500).json({ error: "Errore invio" }); }
+  });
+
+
+  // POST /whatsapp/settings
+  router.post("/whatsapp/settings", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const { companyId, autoReply, phoneNumber } = req.body as { companyId: string; autoReply: boolean; phoneNumber?: string };
+    if (!companyId) { res.status(400).json({ error: "companyId richiesto" }); return; }
+    const existing = await db.select().from(companySecrets)
+      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_settings")))
+      .then((rows) => rows[0]);
+    let settings: Record<string, any> = {};
+    if (existing?.description) { try { settings = JSON.parse(existing.description); } catch {} }
+    if (!settings.numbers) settings.numbers = {};
+    if (phoneNumber) { settings.numbers[phoneNumber] = { autoReply }; }
+    const json = JSON.stringify(settings);
+    if (existing) {
+      await db.update(companySecrets).set({ description: json, updatedAt: new Date() }).where(eq(companySecrets.id, existing.id));
+    } else {
+      await db.insert(companySecrets).values({ id: crypto.randomUUID(), companyId, name: "whatsapp_settings", provider: "plain", description: json });
+    }
+    res.json({ ok: true });
+  });
+
+  // GET /whatsapp/settings?companyId=xxx
+  router.get("/whatsapp/settings", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const companyId = req.query.companyId as string;
+    if (!companyId) { res.json({ numbers: {} }); return; }
+    const row = await db.select().from(companySecrets)
+      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_settings")))
+      .then((rows) => rows[0]);
+    if (!row?.description) { res.json({ numbers: {} }); return; }
+    try { res.json(JSON.parse(row.description)); } catch { res.json({ numbers: {} }); }
   });
 
   return router;
@@ -251,6 +311,42 @@ export function whatsappWebhookRouter(db: Db) {
         } catch (err) { console.error("[wa-webhook] save error:", err); }
       }
     }
+  });
+
+
+  // POST /whatsapp/settings
+  router.post("/whatsapp/settings", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const { companyId, autoReply, phoneNumber } = req.body as { companyId: string; autoReply: boolean; phoneNumber?: string };
+    if (!companyId) { res.status(400).json({ error: "companyId richiesto" }); return; }
+    const existing = await db.select().from(companySecrets)
+      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_settings")))
+      .then((rows) => rows[0]);
+    let settings: Record<string, any> = {};
+    if (existing?.description) { try { settings = JSON.parse(existing.description); } catch {} }
+    if (!settings.numbers) settings.numbers = {};
+    if (phoneNumber) { settings.numbers[phoneNumber] = { autoReply }; }
+    const json = JSON.stringify(settings);
+    if (existing) {
+      await db.update(companySecrets).set({ description: json, updatedAt: new Date() }).where(eq(companySecrets.id, existing.id));
+    } else {
+      await db.insert(companySecrets).values({ id: crypto.randomUUID(), companyId, name: "whatsapp_settings", provider: "plain", description: json });
+    }
+    res.json({ ok: true });
+  });
+
+  // GET /whatsapp/settings?companyId=xxx
+  router.get("/whatsapp/settings", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const companyId = req.query.companyId as string;
+    if (!companyId) { res.json({ numbers: {} }); return; }
+    const row = await db.select().from(companySecrets)
+      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_settings")))
+      .then((rows) => rows[0]);
+    if (!row?.description) { res.json({ numbers: {} }); return; }
+    try { res.json(JSON.parse(row.description)); } catch { res.json({ numbers: {} }); }
   });
 
   return router;

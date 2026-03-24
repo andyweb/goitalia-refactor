@@ -59,7 +59,8 @@ export function PluginManager() {
   const [telegramToken, setTelegramToken] = useState("");
   const [telegramConnecting, setTelegramConnecting] = useState(false);
   const [showTelegramForm, setShowTelegramForm] = useState(false);
-  const [waStatus, setWaStatus] = useState<{ connected: boolean; status?: string; phoneNumber?: string } | null>(null);
+  const [waStatus, setWaStatus] = useState<{ connected: boolean; status?: string; numbers?: Array<{ phoneNumber: string }> } | null>(null);
+  const [waAutoReply, setWaAutoReply] = useState<Record<string, boolean>>({});
   const [waPhone, setWaPhone] = useState("");
   const [waConnecting, setWaConnecting] = useState(false);
   const [waQrCode, setWaQrCode] = useState<string | null>(null);
@@ -80,6 +81,10 @@ export function PluginManager() {
       .then((r) => r.json())
       .then((d) => setTelegramStatus(d))
       .catch(() => setTelegramStatus({ connected: false }));
+    fetch("/api/whatsapp/settings?companyId=" + selectedCompany.id, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { const m: Record<string, boolean> = {}; for (const [k, v] of Object.entries(d.numbers || {})) { m[k] = (v as any).autoReply || false; } setWaAutoReply(m); })
+      .catch(() => {});
     fetch("/api/whatsapp/status?companyId=" + selectedCompany.id, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => setWaStatus(d))
@@ -391,17 +396,38 @@ export function PluginManager() {
                 <div className="text-xs text-muted-foreground">Rispondi ai clienti su WhatsApp</div>
               </div>
             </div>
-            {waStatus?.connected ? (
+            {waStatus?.connected && waStatus.numbers?.length ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Connesso</span>
-                  <span className="text-xs text-muted-foreground">{waStatus.phoneNumber}</span>
                 </div>
-                <button className="text-xs text-red-400/70 hover:text-red-400" onClick={async () => {
-                  await fetch("/api/whatsapp/disconnect?companyId=" + selectedCompany?.id, { method: "POST", credentials: "include" });
-                  setWaStatus({ connected: false });
-                  setWaQrCode(null);
-                }}>Disconnetti</button>
+                {waStatus.numbers.map((num) => (
+                  <div key={num.phoneNumber} className="flex items-center justify-between py-1.5 text-xs">
+                    <span className="text-muted-foreground">{num.phoneNumber}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] text-muted-foreground">{waAutoReply[num.phoneNumber] ? "Auto" : "Manuale"}</span>
+                      <button
+                        onClick={async () => {
+                          const newVal = !waAutoReply[num.phoneNumber];
+                          setWaAutoReply({ ...waAutoReply, [num.phoneNumber]: newVal });
+                          await fetch("/api/whatsapp/settings", {
+                            method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+                            body: JSON.stringify({ companyId: selectedCompany?.id, autoReply: newVal, phoneNumber: num.phoneNumber }),
+                          });
+                        }}
+                        className={"relative inline-flex h-4 w-7 items-center rounded-full transition-colors " + (waAutoReply[num.phoneNumber] ? "bg-green-600" : "bg-white/10")}
+                      >
+                        <span className={"inline-block h-3 w-3 rounded-full bg-white transition-transform " + (waAutoReply[num.phoneNumber] ? "translate-x-3.5" : "translate-x-0.5")} />
+                      </button>
+                      <button className="text-red-400/50 hover:text-red-400 transition-colors" onClick={async () => {
+                        await fetch("/api/whatsapp/disconnect?companyId=" + selectedCompany?.id + "&phone=" + encodeURIComponent(num.phoneNumber), { method: "POST", credentials: "include" });
+                        const newNums = (waStatus.numbers || []).filter((n) => n.phoneNumber !== num.phoneNumber);
+                        setWaStatus(newNums.length > 0 ? { connected: true, numbers: newNums } : { connected: false });
+                      }} title="Disconnetti">✕</button>
+                    </div>
+                  </div>
+                ))}
+                <button onClick={() => setShowWaForm(true)} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={{ background: "rgba(37, 211, 102, 0.15)", border: "1px solid rgba(37, 211, 102, 0.3)", color: "rgba(255,255,255,0.8)" }}>+ Aggiungi numero</button>
               </div>
             ) : waQrCode ? (
               <div className="space-y-3">
