@@ -37,7 +37,7 @@ export function ExecutionWorkspaceDetail() {
   if (!workspace) return null;
 
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="space-y-4">
       <div className="space-y-1">
         <div className="text-xs text-muted-foreground">Execution workspace</div>
         <h1 className="text-2xl font-semibold">{workspace.name}</h1>

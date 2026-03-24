@@ -609,7 +609,7 @@ export function RoutineDetail() {
       : "text-muted-foreground";
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="space-y-6">
       {/* Header: editable title + actions */}
       <div className="flex items-start gap-4">
         <textarea

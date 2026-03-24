@@ -63,7 +63,7 @@ export function ClaudeKeyPage() {
   };
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="h-12 w-12 rounded-2xl flex items-center justify-center" style={{ background: "hsl(158 64% 42% / 0.15)" }}>
