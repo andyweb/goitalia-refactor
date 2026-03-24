@@ -34,7 +34,8 @@ async function getToken(db: Db, companyId: string): Promise<string | null> {
     .then((rows) => rows[0]);
   if (!secret?.description) return null;
   const decrypted = JSON.parse(decrypt(secret.description));
-  const tokenData = Array.isArray(decrypted) ? decrypted[0] : decrypted;
+  const accounts = Array.isArray(decrypted) ? decrypted : [decrypted];
+  const tokenData = accounts[0];
   if (!tokenData) return null;
   if (tokenData.expires_at && tokenData.expires_at < Date.now() && tokenData.refresh_token) {
     const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -46,7 +47,8 @@ async function getToken(db: Db, companyId: string): Promise<string | null> {
       const t = await res.json() as { access_token: string; expires_in: number };
       tokenData.access_token = t.access_token;
       tokenData.expires_at = Date.now() + t.expires_in * 1000;
-      await db.update(companySecrets).set({ description: encrypt(JSON.stringify(tokenData)), updatedAt: new Date() }).where(eq(companySecrets.id, secret.id));
+      accounts[0] = tokenData;
+      await db.update(companySecrets).set({ description: encrypt(JSON.stringify(accounts)), updatedAt: new Date() }).where(eq(companySecrets.id, secret.id));
     }
   }
   return tokenData.access_token;

@@ -55,8 +55,9 @@ async function getGmailToken(db: Db, companyId: string, accountIndex = 0): Promi
       const newTokens = await res.json() as { access_token: string; expires_in: number };
       tokenData.access_token = newTokens.access_token;
       tokenData.expires_at = Date.now() + newTokens.expires_in * 1000;
-      // Save updated tokens
-      const encrypted = encrypt(JSON.stringify(tokenData));
+      // Save updated tokens — preserve full array
+      accounts[accountIndex] = tokenData;
+      const encrypted = encrypt(JSON.stringify(accounts));
       await db.update(companySecrets)
         .set({ description: encrypted, updatedAt: new Date() })
         .where(eq(companySecrets.id, secret.id));

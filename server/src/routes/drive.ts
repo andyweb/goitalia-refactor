@@ -47,7 +47,8 @@ async function getToken(db: Db, companyId: string, accountIndex = 0): Promise<st
       const t = await res.json() as { access_token: string; expires_in: number };
       tokenData.access_token = t.access_token;
       tokenData.expires_at = Date.now() + t.expires_in * 1000;
-      await db.update(companySecrets).set({ description: encrypt(JSON.stringify(tokenData)), updatedAt: new Date() }).where(eq(companySecrets.id, secret.id));
+      accounts[accountIndex || 0] = tokenData;
+      await db.update(companySecrets).set({ description: encrypt(JSON.stringify(accounts)), updatedAt: new Date() }).where(eq(companySecrets.id, secret.id));
     }
   }
   return tokenData.access_token;
