@@ -223,8 +223,8 @@ export function PluginManager() {
   const rowBg = { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" } as React.CSSProperties;
   const greenDot = <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />;
   const toggleBtn = (active: boolean, onClick: () => void) => (
-    <button onClick={onClick} className={"relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 " + (active ? "bg-green-600" : "bg-white/10")}>
-      <span className={"inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform " + (active ? "translate-x-4" : "translate-x-0.5")} />
+    <button onClick={onClick} style={{ width: "36px", height: "20px", minWidth: "36px" }} className={"relative inline-flex items-center rounded-full transition-colors shrink-0 " + (active ? "bg-green-600" : "bg-white/10")}>
+      <span style={{ width: "14px", height: "14px" }} className={"inline-block rounded-full bg-white transition-transform " + (active ? "translate-x-[18px]" : "translate-x-0.5")} />
     </button>
   );
   const actionRow = "flex items-center gap-2 pt-2";
@@ -344,9 +344,9 @@ export function PluginManager() {
                               body: JSON.stringify({ companyId: selectedCompany?.id, autoReply: newVal, botUsername: bot.username }),
                             });
                           }}
-                          className={"relative inline-flex h-4 w-7 items-center rounded-full transition-colors " + (telegramAutoReply[bot.username] ? "bg-green-600" : "bg-white/10")}
+                          style={{ width: "36px", height: "20px", minWidth: "36px" }} className={"relative inline-flex items-center rounded-full transition-colors " + (telegramAutoReply[bot.username] ? "bg-green-600" : "bg-white/10")}
                         >
-                          <span className={"inline-block h-3 w-3 rounded-full bg-white transition-transform " + (telegramAutoReply[bot.username] ? "translate-x-3.5" : "translate-x-0.5")} />
+                          <span style={{ width: "14px", height: "14px" }} className={"inline-block rounded-full bg-white transition-transform " + (telegramAutoReply[bot.username] ? "translate-x-[18px]" : "translate-x-0.5")} />
                         </button>
                         <button className="text-red-400/50 hover:text-red-400 transition-colors" onClick={async () => {
                           await fetch("/api/telegram/disconnect?companyId=" + selectedCompany?.id + "&bot=" + bot.username, { method: "POST", credentials: "include" });
@@ -420,9 +420,9 @@ export function PluginManager() {
                               body: JSON.stringify({ companyId: selectedCompany?.id, autoReply: newVal, phoneNumber: num.phoneNumber }),
                             });
                           }}
-                          className={"relative inline-flex h-4 w-7 items-center rounded-full transition-colors " + (waAutoReply[num.phoneNumber] ? "bg-green-600" : "bg-white/10")}
+                          style={{ width: "36px", height: "20px", minWidth: "36px" }} className={"relative inline-flex items-center rounded-full transition-colors " + (waAutoReply[num.phoneNumber] ? "bg-green-600" : "bg-white/10")}
                         >
-                          <span className={"inline-block h-3 w-3 rounded-full bg-white transition-transform " + (waAutoReply[num.phoneNumber] ? "translate-x-3.5" : "translate-x-0.5")} />
+                          <span style={{ width: "14px", height: "14px" }} className={"inline-block rounded-full bg-white transition-transform " + (waAutoReply[num.phoneNumber] ? "translate-x-[18px]" : "translate-x-0.5")} />
                         </button>
                         <button className="text-red-400/50 hover:text-red-400 transition-colors" onClick={async () => {
                           await fetch("/api/whatsapp/disconnect?companyId=" + selectedCompany?.id + "&phone=" + encodeURIComponent(num.phoneNumber), { method: "POST", credentials: "include" });
