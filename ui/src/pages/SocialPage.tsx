@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
-import { RefreshCw, Download, Share2, ExternalLink, Plus, X, ImageIcon, Loader2 } from "lucide-react";
+import { Download, Share2, ExternalLink, Plus, X, ImageIcon, Loader2 } from "lucide-react";
 
 interface SocialPost {
   id: string;
@@ -112,6 +112,13 @@ export function SocialPage() {
 
   useEffect(() => { fetchPosts(); }, [selectedCompany?.id, filter]);
 
+  // Auto-refresh every 60s
+  useEffect(() => {
+    if (!selectedCompany?.id) return;
+    const interval = setInterval(() => fetchPosts(), 60000);
+    return () => clearInterval(interval);
+  }, [selectedCompany?.id, filter]);
+
   const formatDate = (d: string) => {
     try { return new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
     catch { return ""; }
@@ -142,9 +149,6 @@ export function SocialPage() {
         </div>
         <button onClick={() => setShowPublish(true)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))" }}>
           <Plus className="w-3.5 h-3.5" /> Crea post
-        </button>
-        <button onClick={fetchPosts} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
-          <RefreshCw className="w-3.5 h-3.5" /> Aggiorna
         </button>
       </div>
 

@@ -221,13 +221,6 @@ export function MailPage() {
           <h1 className="text-xl font-semibold">Mail</h1>
           {false && <span>{email}</span>}
         </div>
-        <button
-          onClick={() => fetchMail()}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all"
-          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
-        >
-          <RefreshCw className="w-3.5 h-3.5" /> Aggiorna
-        </button>
       </div>
 
       {/* Account selector */}
