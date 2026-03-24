@@ -96,7 +96,7 @@ export function TelegramPage() {
     try {
       const res = await fetch("/api/telegram/generate-reply", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-        body: JSON.stringify({ companyId: selectedCompany.id, messageText: msg.message_text, fromName: msg.from_name }),
+        body: JSON.stringify({ companyId: selectedCompany.id, messageText: msg.message_text, fromName: msg.from_name, chatId: msg.chat_id }),
       });
       const data = await res.json();
       if (res.ok) { setReplyText(data.reply); inputRef.current?.focus(); }
