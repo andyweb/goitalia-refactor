@@ -359,6 +359,63 @@ export function whatsappWebhookRouter(db: Db) {
         try {
           await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction) VALUES (${companyId}, ${remoteJid}, ${fromName}, ${text}, ${"incoming"})`);
         } catch (err) { console.error("[wa-webhook] save error:", err); }
+
+        // Auto-reply
+        try {
+          const settingsRow = await db.select().from(companySecrets)
+            .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_settings")))
+            .then((r) => r[0]);
+          const settings = settingsRow?.description ? JSON.parse(settingsRow.description) : {};
+          
+          // Check if any number has autoReply enabled
+          let isAutoReply = false;
+          if (settings.numbers) {
+            for (const [, v] of Object.entries(settings.numbers)) {
+              if ((v as any).autoReply) { isAutoReply = true; break; }
+            }
+          }
+          
+          if (isAutoReply) {
+            const waSecret = await db.select().from(companySecrets)
+              .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
+              .then((r) => r[0]);
+            const claudeSecret = await db.select().from(companySecrets)
+              .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "claude_api_key")))
+              .then((r) => r[0]);
+            
+            if (waSecret?.description && claudeSecret?.description) {
+              const sessions = JSON.parse(decrypt(waSecret.description));
+              const session = Array.isArray(sessions) ? sessions[0] : sessions;
+              const claudeKey = decrypt(claudeSecret.description);
+              
+              const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-api-key": claudeKey, "anthropic-version": "2023-06-01" },
+                body: JSON.stringify({
+                  model: "claude-sonnet-4-20250514",
+                  max_tokens: 512,
+                  system: "Sei un assistente di customer service. Rispondi in italiano, breve e cordiale. Max 2-3 frasi.",
+                  messages: [{ role: "user", content: text }],
+                }),
+              });
+              
+              if (claudeRes.ok) {
+                const data = await claudeRes.json() as { content?: Array<{ text?: string }> };
+                const reply = (data.content || []).map((c: any) => c.text).join("") || "";
+                if (reply && session?.apiKey) {
+                  await fetch("https://www.wasenderapi.com/api/send-message", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.apiKey },
+                    body: JSON.stringify({ to: remoteJid.replace("@s.whatsapp.net", ""), text: reply }),
+                  });
+                  try {
+                    await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction) VALUES (${companyId}, ${remoteJid}, ${"Bot"}, ${reply}, ${"outgoing"})`);
+                  } catch {}
+                }
+              }
+            }
+          }
+        } catch (err) { console.error("[wa-webhook] auto-reply error:", err); }
       }
     }
   });
