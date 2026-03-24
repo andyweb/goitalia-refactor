@@ -231,15 +231,23 @@ export function telegramRoutes(db: Db) {
     if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
     const companyId = req.query.companyId as string;
     const limit = parseInt(req.query.limit as string) || 50;
+    const botFilter = req.query.bot as string;
     if (!companyId) { res.json({ messages: [] }); return; }
 
     try {
-      const rows = await db.execute(sql`
-        SELECT id, chat_id, from_name, from_username, message_text, direction, created_at 
+      const rows = botFilter !== undefined && botFilter !== "-1"
+        ? await db.execute(sql`
+        SELECT id, chat_id, from_name, from_username, message_text, direction, created_at, bot_index 
+        FROM telegram_messages 
+        WHERE company_id = ${companyId} AND bot_index = ${botFilter}
+        ORDER BY created_at DESC 
+        LIMIT 200`)
+        : await db.execute(sql`
+        SELECT id, chat_id, from_name, from_username, message_text, direction, created_at, bot_index 
         FROM telegram_messages 
         WHERE company_id = ${companyId} 
         ORDER BY created_at DESC 
-        LIMIT ${limit}
+        LIMIT 200
       `);
       res.json({ messages: rows || [] });
     } catch { res.json({ messages: [] }); }
@@ -337,7 +345,8 @@ export function telegramWebhookRouter(db: Db) {
     const msg = update.message;
     // Save incoming
     try {
-      await db.execute(sql`INSERT INTO telegram_messages (company_id, chat_id, from_name, from_username, message_text, direction, telegram_message_id) VALUES (${companyId}, ${String(msg.chat.id)}, ${msg.from?.first_name || ''}, ${msg.from?.username || ''}, ${msg.text}, 'incoming', ${String(msg.message_id)})`);
+      const botIdx = parseInt((req.params as any).botIndex || '0') || 0;
+      await db.execute(sql`INSERT INTO telegram_messages (company_id, chat_id, from_name, from_username, message_text, direction, telegram_message_id, bot_index) VALUES (${companyId}, ${String(msg.chat.id)}, ${msg.from?.first_name || ''}, ${msg.from?.username || ''}, ${msg.text}, 'incoming', ${String(msg.message_id)}, ${String(botIdx)})`);
     } catch (e) { console.error("[tg-wh] save err:", e); }
     // Auto-reply
     try {

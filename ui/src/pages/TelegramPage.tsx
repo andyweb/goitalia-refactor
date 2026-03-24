@@ -12,6 +12,7 @@ interface TgMessage {
   message_text: string;
   direction: "incoming" | "outgoing";
   created_at: string;
+  bot_index: number;
 }
 
 interface ChatThread {
@@ -46,7 +47,7 @@ export function TelegramPage() {
     if (!selectedCompany?.id) return;
     if (isFirstLoad.current) { setLoading(true); isFirstLoad.current = false; }
     try {
-      const res = await fetch("/api/telegram/messages?companyId=" + selectedCompany.id + "&limit=200", { credentials: "include" });
+      const res = await fetch("/api/telegram/messages?companyId=" + selectedCompany.id + "&limit=200" + (selectedBot >= 0 ? "&bot=" + selectedBot : ""), { credentials: "include" });
       const data = await res.json();
       if (!res.ok) { setError(data.error); } else { setMessages((data.messages || []).reverse()); }
     } catch { if (messages.length === 0) setError("Errore connessione"); }
@@ -65,7 +66,7 @@ export function TelegramPage() {
       .catch(() => {});
   }, [selectedCompany?.id]);
 
-  useEffect(() => { fetchMessages(); }, [selectedCompany?.id]);
+  useEffect(() => { fetchMessages(); }, [selectedCompany?.id, selectedBot]);
   useEffect(() => { const i = setInterval(fetchMessages, 10000); return () => clearInterval(i); }, [selectedCompany?.id]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, selectedChat]);
 
