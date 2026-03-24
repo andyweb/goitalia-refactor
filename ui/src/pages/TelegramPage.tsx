@@ -99,7 +99,7 @@ export function TelegramPage() {
 
   useEffect(() => { fetchMessages(); }, [selectedCompany?.id, selectedBot]);
   useEffect(() => { const i = setInterval(fetchMessages, 10000); return () => clearInterval(i); }, [selectedCompany?.id]);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, selectedChat]);
+  useEffect(() => { setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }, [messages, selectedChat]);
 
   // Build chat threads
   const threads: ChatThread[] = [];
