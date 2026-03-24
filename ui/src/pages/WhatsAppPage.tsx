@@ -256,7 +256,7 @@ export function WhatsAppPage() {
                       {msg.media_url && msg.message_type === "video" && (
                         <video src={msg.media_url} controls className="max-w-[240px] rounded-lg mb-1" />
                       )}
-                      <div className="text-sm">{msg.message_text}</div>
+                      {(!msg.media_url || (msg.message_text && msg.message_text !== "[Immagine]" && msg.message_text !== "[Video]" && msg.message_text !== "[Documento]")) && <div className="text-sm">{msg.message_text}</div>}
                         <div className={"text-[10px] mt-0.5 " + (isOut ? "text-green-400/50" : "text-muted-foreground/50")}>{formatTime(msg.created_at)}</div>
                         {!isOut && !autoReply && (
                           <button onClick={() => generateReply(msg)} disabled={generating === msg.id} className="flex items-center gap-1 mt-1 px-2 py-0.5 rounded-lg text-[10px] transition-all" style={{ background: "rgba(251, 191, 36, 0.1)", border: "1px solid rgba(251, 191, 36, 0.2)" }}>
