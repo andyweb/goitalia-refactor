@@ -44,9 +44,22 @@ export function Sidebar() {
     enabled: !!selectedCompanyId,
   });
   const [mailUnread, setMailUnread] = useState(0);
+  const [hasGoogle, setHasGoogle] = useState(false);
+  const [hasTelegram, setHasTelegram] = useState(false);
 
   useEffect(() => {
     if (!selectedCompanyId) return;
+    // Check Google connection
+    fetch("/api/oauth/google/status?companyId=" + selectedCompanyId, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setHasGoogle(d.connected || false))
+      .catch(() => setHasGoogle(false));
+    // Check Telegram connection
+    fetch("/api/telegram/status?companyId=" + selectedCompanyId, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setHasTelegram(d.connected || false))
+      .catch(() => setHasTelegram(false));
+
     const fetchUnread = () => {
       fetch("/api/gmail/unread-count?companyId=" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json())
@@ -145,10 +158,10 @@ export function Sidebar() {
         {/* Lavoro */}
         <SidebarSection label="Lavoro">
           <SidebarNavItem to="/chat" label="Chat" icon={MessageCircle} />
-          <SidebarNavItem to="/mail" label="Mail" icon={Mail} badge={mailUnread > 0 ? mailUnread : undefined} />
-          <SidebarNavItem to="/calendario" label="Calendario" icon={Calendar} />
-          <SidebarNavItem to="/documenti" label="Documenti" icon={HardDrive} />
-          <SidebarNavItem to="/telegram" label="Telegram" icon={MessageSquare} />
+          {hasGoogle && <SidebarNavItem to="/mail" label="Mail" icon={Mail} badge={mailUnread > 0 ? mailUnread : undefined} />}
+          {hasGoogle && <SidebarNavItem to="/calendario" label="Calendario" icon={Calendar} />}
+          {hasGoogle && <SidebarNavItem to="/documenti" label="Documenti" icon={HardDrive} />}
+          {hasTelegram && <SidebarNavItem to="/telegram" label="Telegram" icon={MessageSquare} />}
           {!isOnboarding && <SidebarNavItem to="/issues" label="Attività" icon={CircleDot} />}
           {!isOnboarding && <SidebarNavItem to="/goals" label="Obiettivi" icon={Target} />}
         </SidebarSection>
