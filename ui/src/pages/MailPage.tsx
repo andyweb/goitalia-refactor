@@ -170,6 +170,12 @@ export function MailPage() {
     setMessages((prev) => prev.map((m) => m.id === id ? { ...m, isStarred: !m.isStarred } : m));
   };
 
+  const markAsRead = async (msg: GmailMessage) => {
+    if (!msg.isUnread || !selectedCompany?.id) return;
+    setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, isUnread: false } : m));
+    await gmailAction("mark-read", msg.id, { read: true });
+    refreshBadge();
+  };
   const changeFilter = (filter: string) => {
     setActiveFilter(filter);
     setMessages([]);
@@ -321,7 +327,7 @@ export function MailPage() {
             <div key={msg.id}>
               <button
                 className="w-full text-left px-4 py-3 hover:bg-white/5 transition-colors"
-                onClick={() => setSelectedMessage(selectedMessage?.id === msg.id ? null : msg)}
+                onClick={() => { const expanding = selectedMessage?.id !== msg.id; setSelectedMessage(expanding ? msg : null); if (expanding) markAsRead(msg); }}
               >
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">

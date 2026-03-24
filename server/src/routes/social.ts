@@ -108,6 +108,45 @@ export function socialRoutes(db: Db) {
       }
     }
 
+    // LinkedIn posts
+    if (!platform || platform === "linkedin") {
+      const liSecret = await db.select().from(companySecrets)
+        .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "linkedin_tokens")))
+        .then((rows) => rows[0]);
+
+      if (liSecret?.description) {
+        try {
+          const li = JSON.parse(decrypt(liSecret.description));
+          // Get posts from LinkedIn
+          const r = await fetch(`https://api.linkedin.com/v2/ugcPosts?q=authors&authors=List(urn%3Ali%3Aperson%3A${li.sub})&count=20`, {
+            headers: { Authorization: "Bearer " + li.accessToken, "X-Restli-Protocol-Version": "2.0.0" },
+          });
+          if (r.ok) {
+            const data = await r.json() as { elements?: any[] };
+            for (const post of (data.elements || [])) {
+              const text = post.specificContent?.["com.linkedin.ugc.ShareContent"]?.shareCommentary?.text || "";
+              const media = post.specificContent?.["com.linkedin.ugc.ShareContent"]?.shareMediaCategory;
+              let mediaUrl = "";
+              const mediaItems = post.specificContent?.["com.linkedin.ugc.ShareContent"]?.media || [];
+              if (mediaItems.length > 0) {
+                mediaUrl = mediaItems[0].originalUrl || mediaItems[0].thumbnails?.[0]?.url || "";
+              }
+              posts.push({
+                id: "li_" + post.id,
+                platform: "linkedin",
+                type: media === "VIDEO" ? "video" : media === "IMAGE" ? "image" : "text",
+                text,
+                mediaUrl: mediaUrl || undefined,
+                permalink: `https://www.linkedin.com/feed/update/${post.id}`,
+                timestamp: new Date(post.created?.time || Date.now()).toISOString(),
+                accountName: li.name || "LinkedIn",
+              });
+            }
+          }
+        } catch (err) { console.error("LinkedIn fetch error:", err); }
+      }
+    }
+
     // Sort by timestamp desc
     posts.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
