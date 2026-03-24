@@ -187,6 +187,16 @@ async function executeChatTool(
 export function chatRoutes(db: Db) {
   const router = Router();
 
+  async function saveChatMessage(companyId: string, userId: string, role: string, msgContent: string) {
+    try {
+      await db.execute(
+        sql`INSERT INTO chat_messages (company_id, user_id, role, content) VALUES (${companyId}, ${userId}, ${role}, ${msgContent})`
+      );
+    } catch (e) {
+      console.error("Chat save error:", e);
+    }
+  }
+
   // GET /chat/history?companyId=xxx&limit=50 - Load chat history
   router.get("/chat/history", async (req, res) => {
     const actor = req.actor as { type?: string; userId?: string } | undefined;
@@ -306,7 +316,7 @@ Usa i tool per eseguire le richieste, non limitarti a descrivere cosa faresti.`;
 
       // Save user message to DB
       if (actor.userId) {
-        try { await db.execute(sql`INSERT INTO chat_messages (company_id, user_id, role, content) VALUES (${companyId}, ${actor.userId}, 'user', ${message})`); } catch (e) { console.error("Chat save error:", e); }
+        await saveChatMessage(companyId, actor.userId, "user", message);
       }
 
       // Multi-turn tool loop
@@ -391,7 +401,7 @@ Usa i tool per eseguire le richieste, non limitarti a descrivere cosa faresti.`;
 
       // Save assistant response to DB
       if (actor?.userId && finalText) {
-        try { await db.execute(sql`INSERT INTO chat_messages (company_id, user_id, role, content) VALUES (${companyId}, ${actor.userId}, 'assistant', ${finalText})`); } catch (e) { console.error("Chat save error:", e); }
+        await saveChatMessage(companyId, actor.userId, "assistant", finalText);
       }
 
       res.write("data: [DONE]\n\n");
