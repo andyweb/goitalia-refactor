@@ -1,0 +1,255 @@
+import { useState, useEffect, useRef } from "react";
+import { useCompany } from "../context/CompanyContext";
+import { useBreadcrumbs } from "../context/BreadcrumbContext";
+import { FolderOpen, Plus, Upload, File, FileText, Image, Video, Trash2, ExternalLink, X } from "lucide-react";
+
+interface PmiProject {
+  id: string;
+  name: string;
+  description?: string;
+  storage_type: string;
+  drive_folder_id?: string;
+  created_at: string;
+}
+
+interface ProjectFile {
+  id: string;
+  name: string;
+  mimeType?: string;
+  size?: number;
+  createdAt: string;
+  source: string;
+  webViewLink?: string;
+  storageRef?: string;
+}
+
+const fileIcon = (mime?: string) => {
+  if (!mime) return <File className="w-4 h-4" />;
+  if (mime.startsWith("image/")) return <Image className="w-4 h-4 text-pink-400" />;
+  if (mime.startsWith("video/")) return <Video className="w-4 h-4 text-blue-400" />;
+  if (mime.includes("pdf") || mime.includes("document") || mime.includes("text")) return <FileText className="w-4 h-4 text-amber-400" />;
+  return <File className="w-4 h-4 text-muted-foreground" />;
+};
+
+const formatSize = (bytes?: number) => {
+  if (!bytes) return "";
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / 1024 / 1024).toFixed(1) + " MB";
+};
+
+export function ProjectsPmi() {
+  const { selectedCompany } = useCompany();
+  const { setBreadcrumbs } = useBreadcrumbs();
+  const [projects, setProjects] = useState<PmiProject[]>([]);
+  const [selectedProject, setSelectedProject] = useState<PmiProject | null>(null);
+  const [files, setFiles] = useState<ProjectFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setBreadcrumbs([{ label: "Progetti" }]); }, [setBreadcrumbs]);
+
+  const fetchProjects = async () => {
+    if (!selectedCompany?.id) return;
+    try {
+      const r = await fetch("/api/pmi-projects?companyId=" + selectedCompany.id, { credentials: "include" });
+      const d = await r.json();
+      setProjects(d.projects || []);
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchProjects(); }, [selectedCompany?.id]);
+
+  const fetchFiles = async (project: PmiProject) => {
+    if (!selectedCompany?.id) return;
+    try {
+      const r = await fetch("/api/pmi-projects/" + project.id + "/files?companyId=" + selectedCompany.id, { credentials: "include" });
+      const d = await r.json();
+      setFiles(d.files || []);
+    } catch {}
+  };
+
+  useEffect(() => { if (selectedProject) fetchFiles(selectedProject); }, [selectedProject]);
+
+  const createProject = async () => {
+    if (!selectedCompany?.id || !newName.trim()) return;
+    setCreating(true);
+    try {
+      const r = await fetch("/api/pmi-projects", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ companyId: selectedCompany.id, name: newName, description: newDesc }),
+      });
+      if (r.ok) { setShowNewForm(false); setNewName(""); setNewDesc(""); fetchProjects(); }
+    } catch {}
+    setCreating(false);
+  };
+
+  const deleteProject = async (id: string) => {
+    if (!selectedCompany?.id) return;
+    await fetch("/api/pmi-projects/" + id + "?companyId=" + selectedCompany.id, { method: "DELETE", credentials: "include" });
+    if (selectedProject?.id === id) { setSelectedProject(null); setFiles([]); }
+    fetchProjects();
+  };
+
+  const uploadFile = async (file: File) => {
+    if (!selectedCompany?.id || !selectedProject) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("companyId", selectedCompany.id);
+      await fetch("/api/pmi-projects/" + selectedProject.id + "/upload", { method: "POST", credentials: "include", body: fd });
+      fetchFiles(selectedProject);
+    } catch {}
+    setUploading(false);
+  };
+
+  const formatDate = (d: string) => {
+    try { return new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }); }
+    catch { return ""; }
+  };
+
+  if (loading) return <div className="p-6 text-sm text-muted-foreground">Caricamento...</div>;
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-120px)]">
+      <div className="flex items-center justify-between pb-4">
+        <div className="flex items-center gap-3">
+          <FolderOpen className="w-5 h-5" />
+          <h1 className="text-xl font-semibold">Progetti</h1>
+        </div>
+        <button onClick={() => setShowNewForm(true)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))" }}>
+          <Plus className="w-3.5 h-3.5" /> Nuovo progetto
+        </button>
+      </div>
+
+      {/* New project form */}
+      {showNewForm && (
+        <div className="glass-card p-4 mb-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Nuovo progetto</h3>
+            <button onClick={() => setShowNewForm(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+          <input className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }} placeholder="Nome progetto" value={newName} onChange={(e) => setNewName(e.target.value)} />
+          <input className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }} placeholder="Descrizione (opzionale)" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} />
+          <p className="text-[10px] text-muted-foreground">
+            {selectedCompany?.id ? "I file verranno salvati su Google Drive se connesso, altrimenti in locale." : ""}
+          </p>
+          <button onClick={createProject} disabled={creating || !newName.trim()} className="px-4 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-30" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))" }}>
+            {creating ? "Creazione..." : "Crea progetto"}
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-1 gap-3 min-h-0">
+        {/* Project list */}
+        <div className="w-72 shrink-0 glass-card overflow-hidden flex flex-col">
+          <div className="px-3 py-2.5 border-b border-white/5 text-xs font-medium text-muted-foreground">
+            {projects.length} Progetti
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {projects.length === 0 ? (
+              <div className="p-4 text-xs text-muted-foreground text-center">Nessun progetto. Creane uno!</div>
+            ) : projects.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setSelectedProject(p)}
+                className={"w-full text-left px-3 py-2.5 border-b border-white/5 transition-colors " + (selectedProject?.id === p.id ? "bg-white/10" : "hover:bg-white/5")}
+              >
+                <div className="flex items-center gap-2">
+                  <FolderOpen className="w-4 h-4 text-amber-400 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium truncate">{p.name}</div>
+                    <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                      <span>{p.storage_type === "drive" ? "Google Drive" : "Locale"}</span>
+                      <span>&middot;</span>
+                      <span>{formatDate(p.created_at)}</span>
+                    </div>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* File area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {!selectedProject ? (
+            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+              Seleziona un progetto
+            </div>
+          ) : (
+            <>
+              {/* Project header */}
+              <div className="flex items-center justify-between pb-3">
+                <div>
+                  <h2 className="text-sm font-semibold">{selectedProject.name}</h2>
+                  {selectedProject.description && <p className="text-xs text-muted-foreground">{selectedProject.description}</p>}
+                  <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                    {selectedProject.storage_type === "drive" ? (
+                      <><span className="w-1.5 h-1.5 rounded-full bg-blue-400" /> Google Drive</>
+                    ) : (
+                      <><span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Storage locale</>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="file" ref={fileInputRef} className="hidden" multiple onChange={(e) => { Array.from(e.target.files || []).forEach(uploadFile); e.target.value = ""; }} />
+                  <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: "rgba(66, 133, 244, 0.15)", border: "1px solid rgba(66, 133, 244, 0.3)", color: "rgba(255,255,255,0.8)" }}>
+                    <Upload className="w-3.5 h-3.5" /> {uploading ? "Caricamento..." : "Carica file"}
+                  </button>
+                  <button onClick={() => deleteProject(selectedProject.id)} className="p-1.5 rounded-lg text-red-400/50 hover:text-red-400 hover:bg-red-500/10 transition-all" title="Elimina progetto">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Drop zone + file list */}
+              <div
+                className="flex-1 glass-card overflow-y-auto"
+                onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = "hsl(158 64% 42%)"; }}
+                onDragLeave={(e) => { e.currentTarget.style.borderColor = ""; }}
+                onDrop={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = ""; Array.from(e.dataTransfer.files).forEach(uploadFile); }}
+              >
+                {files.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-2">
+                    <Upload className="w-10 h-10 opacity-30" />
+                    <p className="text-sm">Trascina file qui o usa il bottone "Carica file"</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-white/5">
+                    {files.map((f) => (
+                      <div key={f.id} className="px-4 py-2.5 flex items-center gap-3 hover:bg-white/5 transition-colors">
+                        {fileIcon(f.mimeType)}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm truncate">{f.name}</div>
+                          <div className="text-[10px] text-muted-foreground">{formatSize(f.size)} &middot; {formatDate(f.createdAt)}</div>
+                        </div>
+                        {f.webViewLink && (
+                          <a href={f.webViewLink} target="_blank" rel="noopener noreferrer" className="p-1 text-muted-foreground hover:text-foreground">
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                        {f.source === "local" && (
+                          <a href={"/api/pmi-projects/" + selectedProject.id + "/files/" + f.id + "/download"} className="p-1 text-muted-foreground hover:text-foreground no-underline">
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

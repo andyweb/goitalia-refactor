@@ -18,6 +18,7 @@ import { gmailRoutes } from "./routes/gmail.js";
 import { calendarRoutes } from "./routes/calendar.js";
 import { driveRoutes } from "./routes/drive.js";
 import { telegramRoutes, telegramWebhookRouter as telegramWebhookRouterFn } from "./routes/telegram.js";
+import { projectsPmiRoutes } from "./routes/projects-pmi.js";
 import { whatsappRoutes, whatsappWebhookRouter } from "./routes/whatsapp.js";
 import { voiceRoutes } from "./routes/voice.js";
 import { metaRoutes } from "./routes/meta.js";
@@ -190,6 +191,7 @@ app.use(express.json({
   api.use(calendarRoutes(db));
   api.use(driveRoutes(db));
   api.use(telegramRoutes(db));
+  api.use(projectsPmiRoutes(db));
   api.use(whatsappRoutes(db));
   api.use(voiceRoutes(db));
   api.use(metaRoutes(db));

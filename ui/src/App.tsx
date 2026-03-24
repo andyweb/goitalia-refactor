@@ -46,6 +46,7 @@ import { PluginSettings } from "./pages/PluginSettings";
 import { PluginPage } from "./pages/PluginPage";
 import { RunTranscriptUxLab } from "./pages/RunTranscriptUxLab";
 import { OrgChart } from "./pages/OrgChart";
+import { ProjectsPmi } from "./pages/ProjectsPmi";
 import { NewAgent } from "./pages/NewAgent";
 import { AuthPage } from "./pages/Auth";
 import { BoardClaimPage } from "./pages/BoardClaim";
@@ -149,6 +150,7 @@ function boardRoutes() {
       <Route path="plugins" element={<PluginManager />} />
       <Route path="plugins/:pluginId" element={<PluginSettings />} />
       <Route path="org" element={<OrgChart />} />
+      <Route path="progetti" element={<ProjectsPmi />} />
       <Route path="agents" element={<Navigate to="/agents/all" replace />} />
       <Route path="agents/all" element={<Agents />} />
       <Route path="agents/active" element={<Agents />} />
