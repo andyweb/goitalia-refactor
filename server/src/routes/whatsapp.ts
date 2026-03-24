@@ -484,33 +484,39 @@ export function whatsappWebhookRouter(db: Db) {
       let messageType = "text";
       let mediaUrl = "";
       
-      if (!text && (msg.message?.imageMessage || msg.message?.videoMessage || msg.message?.documentMessage || msg.messageType === "image" || msg.messageType === "video" || msg.messageType === "document")) {
+      if (msg.message?.imageMessage || msg.message?.videoMessage || msg.message?.documentMessage || msg.messageType === "image" || msg.messageType === "video" || msg.messageType === "document") {
         messageType = msg.message?.imageMessage ? "image" : msg.message?.videoMessage ? "video" : "document";
         const caption = msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || "";
         if (caption) text = caption;
         
-        // Try to get media URL via WaSender decrypt-media
-        try {
-          const waSecret = await db.select().from(companySecrets)
-            .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
-            .then((r: any) => r[0]);
-          if (waSecret?.description) {
-            const sessions = JSON.parse(decrypt(waSecret.description));
-            const session = Array.isArray(sessions) ? sessions[0] : sessions;
-            if (session?.apiKey) {
-              const decryptRes = await fetch("https://www.wasenderapi.com/api/decrypt-media", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.apiKey },
-                body: JSON.stringify({ messageKeys: msg.key }),
-              });
-              if (decryptRes.ok) {
-                const decData = await decryptRes.json() as { data?: { url?: string } };
-                if (decData.data?.url) mediaUrl = decData.data.url;
+        // Get media URL directly from WaSender payload
+        mediaUrl = msg.message?.imageMessage?.url || msg.message?.videoMessage?.url || msg.message?.documentMessage?.url || "";
+        
+        // If no direct URL, try decrypt-media API
+        if (!mediaUrl) {
+          try {
+            const waSecret = await db.select().from(companySecrets)
+              .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
+              .then((r: any) => r[0]);
+            if (waSecret?.description) {
+              const sessions = JSON.parse(decrypt(waSecret.description));
+              const session = Array.isArray(sessions) ? sessions[0] : sessions;
+              if (session?.apiKey) {
+                const decryptRes = await fetch("https://www.wasenderapi.com/api/decrypt-media", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.apiKey },
+                  body: JSON.stringify({ messageKeys: msg.key }),
+                });
+                if (decryptRes.ok) {
+                  const decData = await decryptRes.json() as { data?: { url?: string } };
+                  if (decData.data?.url) mediaUrl = decData.data.url;
+                }
               }
             }
-          }
-        } catch (err) { console.error("[wa-webhook] media decrypt error:", err); }
+          } catch (err) { console.error("[wa-webhook] media decrypt error:", err); }
+        }
         
+        console.log("[wa-webhook] media:", messageType, "url:", mediaUrl?.substring(0, 80), "caption:", caption);
         if (!text) text = messageType === "image" ? "[Immagine]" : messageType === "video" ? "[Video]" : "[Documento]";
       }
       
