@@ -215,26 +215,6 @@ export function MailPage() {
         </button>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex items-center gap-1">
-        {[
-          { id: "INBOX", label: "Inbox" },
-          { id: "STARRED", label: "Preferiti" },
-          { id: "SENT", label: "Inviate" },
-          { id: "ARCHIVE", label: "Archiviate" },
-          { id: "TRASH", label: "Cestino" },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => changeFilter(tab.id)}
-            className={"px-3 py-1.5 rounded-lg text-xs font-medium transition-all " + (activeFilter === tab.id ? "text-white" : "text-muted-foreground hover:text-foreground")}
-            style={activeFilter === tab.id ? { background: "linear-gradient(135deg, hsl(158 64% 42% / 0.2), hsl(158 64% 42% / 0.1))", border: "1px solid hsl(158 64% 42% / 0.3)" } : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
       {/* Account selector */}
       {accounts.length > 1 && (
         <div className="flex items-center gap-2">
@@ -260,6 +240,26 @@ export function MailPage() {
           </div>
         </div>
       )}
+
+      {/* Filter tabs */}
+      <div className="flex items-center gap-1">
+        {[
+          { id: "INBOX", label: "Inbox" },
+          { id: "STARRED", label: "Preferiti" },
+          { id: "SENT", label: "Inviate" },
+          { id: "ARCHIVE", label: "Archiviate" },
+          { id: "TRASH", label: "Cestino" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => changeFilter(tab.id)}
+            className={"px-3 py-1.5 rounded-lg text-xs font-medium transition-all " + (activeFilter === tab.id ? "text-white" : "text-muted-foreground hover:text-foreground")}
+            style={activeFilter === tab.id ? { background: "linear-gradient(135deg, hsl(158 64% 42% / 0.2), hsl(158 64% 42% / 0.1))", border: "1px solid hsl(158 64% 42% / 0.3)" } : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
       {/* Success toast */}
       {sendSuccess && (
