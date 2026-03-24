@@ -20,6 +20,7 @@ import { driveRoutes } from "./routes/drive.js";
 import { telegramRoutes, telegramWebhookRouter as telegramWebhookRouterFn } from "./routes/telegram.js";
 import { whatsappRoutes, whatsappWebhookRouter } from "./routes/whatsapp.js";
 import { voiceRoutes } from "./routes/voice.js";
+import { metaRoutes } from "./routes/meta.js";
 import { companySkillRoutes } from "./routes/company-skills.js";
 import { agentRoutes } from "./routes/agents.js";
 import { projectRoutes } from "./routes/projects.js";
@@ -161,6 +162,7 @@ export async function createApp(
   api.use(telegramRoutes(db));
   api.use(whatsappRoutes(db));
   api.use(voiceRoutes(db));
+  api.use(metaRoutes(db));
   api.use("/companies", companyRoutes(db, opts.storageService));
   api.use(companySkillRoutes(db));
   api.use(agentRoutes(db));
