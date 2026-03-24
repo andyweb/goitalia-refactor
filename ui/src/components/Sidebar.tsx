@@ -91,6 +91,7 @@ export function Sidebar() {
     return () => { clearInterval(interval); clearInterval(connectorInterval); window.removeEventListener("mail-updated", onMailUpdated); };
   }, [selectedCompanyId]);
 
+  const isClaudeApi = !!selectedCompanyId && (sidebarAgents ?? []).length > 0 && (sidebarAgents ?? []).every((a: any) => a.adapterType === "claude_api");
   const isOnboarding = !!selectedCompanyId && (sidebarAgents ?? []).length > 0 && (sidebarAgents ?? []).every((a: any) => a.adapterType === "claude_api") && (sidebarAgents ?? []).filter((a: any) => a.role !== "ceo").length === 0;
   const inboxBadge = useInboxBadge(selectedCompanyId);
   const queryClient = useQueryClient();
@@ -148,7 +149,8 @@ export function Sidebar() {
         {/* Top items */}
         <div className="flex flex-col gap-0.5">
           {!isOnboarding && <SidebarNavItem to="/dashboard" label="Dashboard" icon={LayoutDashboard} liveCount={liveRunCount} />}
-          {!isOnboarding && <SidebarNavItem
+          {!isOnboarding && <SidebarNavItem to="/org" label="Organigramma" icon={Share2} />}
+          {!isOnboarding && !isClaudeApi && <SidebarNavItem
             to="/inbox"
             label="Inbox"
             icon={Inbox}
@@ -156,7 +158,7 @@ export function Sidebar() {
             badgeTone={inboxBadge.failedRuns > 0 ? "danger" : "default"}
             alert={inboxBadge.failedRuns > 0}
           />}
-          {!isOnboarding && <button
+          {!isOnboarding && !isClaudeApi && <button
             onClick={() => openNewIssue()}
             className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors rounded-lg"
             style={{ color: "hsl(158 64% 52%)" }}
@@ -183,14 +185,11 @@ export function Sidebar() {
           {hasGoogle && <SidebarNavItem to="/documenti" label="Documenti" icon={HardDrive} />}
           {hasWhatsApp && <SidebarNavItem to="/whatsapp" label="WhatsApp" icon={Phone} />}
           {hasTelegram && <SidebarNavItem to="/telegram" label="Telegram" icon={MessageSquare} badge={telegramUnread > 0 ? telegramUnread : undefined} />}
-          {!isOnboarding && <SidebarNavItem to="/issues" label="Attività" icon={CircleDot} />}
-          {!isOnboarding && <SidebarNavItem to="/goals" label="Obiettivi" icon={Target} />}
+          {!isOnboarding && !isClaudeApi && <SidebarNavItem to="/issues" label="Attività" icon={CircleDot} />}
+          {!isOnboarding && !isClaudeApi && <SidebarNavItem to="/goals" label="Obiettivi" icon={Target} />}
         </SidebarSection>
 
-        {/* Automazione */}
-        {!isOnboarding && <SidebarSection label="Automazione">
-          <SidebarNavItem to="/org" label="Organigramma" icon={Share2} />
-        </SidebarSection>}
+
 
         {/* Projects */}
         {!isOnboarding && <SidebarProjects />}
