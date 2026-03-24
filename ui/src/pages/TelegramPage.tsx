@@ -31,7 +31,7 @@ export function TelegramPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedChat, setSelectedChat] = useState<number | null>(null);
   const [replyText, setReplyText] = useState("");
-  const [generating, setGenerating] = useState(false);
+  const [generating, setGenerating] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [autoReply, setAutoReply] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -91,7 +91,7 @@ export function TelegramPage() {
 
   const generateReply = async (msg: TgMessage) => {
     if (!selectedCompany?.id) return;
-    setGenerating(true);
+    setGenerating(msg.id);
     setSelectedChat(msg.chat_id);
     try {
       const res = await fetch("/api/telegram/generate-reply", {
@@ -101,7 +101,7 @@ export function TelegramPage() {
       const data = await res.json();
       if (res.ok) { setReplyText(data.reply); inputRef.current?.focus(); }
     } catch {}
-    setGenerating(false);
+    setGenerating(null);
   };
 
   const sendReply = async () => {
@@ -210,8 +210,8 @@ export function TelegramPage() {
                         <div className="text-sm">{msg.message_text}</div>
                         <div className={"text-[10px] mt-0.5 " + (isOut ? "text-green-400/50" : "text-muted-foreground/50")}>{formatTime(msg.created_at)}</div>
                         {!isOut && !autoReply && (
-                          <button onClick={() => generateReply(msg)} disabled={generating} className="flex items-center gap-1 mt-1 px-2 py-0.5 rounded-lg text-[10px] transition-all" style={{ background: "rgba(251, 191, 36, 0.1)", border: "1px solid rgba(251, 191, 36, 0.2)" }}>
-                            {generating ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Sparkles className="w-2.5 h-2.5" />}
+                          <button onClick={() => generateReply(msg)} disabled={generating === msg.id} className="flex items-center gap-1 mt-1 px-2 py-0.5 rounded-lg text-[10px] transition-all" style={{ background: "rgba(251, 191, 36, 0.1)", border: "1px solid rgba(251, 191, 36, 0.2)" }}>
+                            {generating === msg.id ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Sparkles className="w-2.5 h-2.5" />}
                             Genera risposta AI
                           </button>
                         )}
