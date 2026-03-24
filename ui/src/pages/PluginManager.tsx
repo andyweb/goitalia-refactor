@@ -334,6 +334,7 @@ export function PluginManager() {
                       {miniTg}
                       <span className="flex-1 truncate">@{bot.username}</span>
                       <div className="flex items-center gap-2 shrink-0">
+                        <a href={"/" + (selectedCompany?.issuePrefix || "") + "/chat?msg=" + encodeURIComponent("Ho collegato il bot Telegram @" + bot.username + ". Crea un agente dedicato per rispondere ai messaggi di questo bot.")} className="text-[10px] px-2 py-0.5 rounded-md no-underline shrink-0" style={{ background: "hsl(158 64% 42% / 0.12)", border: "1px solid hsl(158 64% 42% / 0.2)", color: "hsl(158 64% 62%)" }}>Crea agente</a>
                         <button
                           onClick={async () => {
                             const newVal = !telegramAutoReply[bot.username];
@@ -357,7 +358,6 @@ export function PluginManager() {
                   ))}
                   <div className={actionRow}>
                     {actionBtn("+ Aggiungi bot", () => setShowTelegramForm(true))}
-                    {agentBtn("Ho collegato un bot Telegram. Crea un agente per rispondere ai messaggi del bot.")}
                   </div>
                   {showTelegramForm && (
                     <div className="space-y-2 mt-2">
@@ -410,6 +410,7 @@ export function PluginManager() {
                       {miniWa}
                       <span className="flex-1 truncate">{num.phoneNumber}</span>
                       <div className="flex items-center gap-2 shrink-0">
+                        <a href={"/" + (selectedCompany?.issuePrefix || "") + "/chat?msg=" + encodeURIComponent("Ho collegato WhatsApp " + num.phoneNumber + ". Crea un agente dedicato per rispondere ai messaggi di questo numero.")} className="text-[10px] px-2 py-0.5 rounded-md no-underline shrink-0" style={{ background: "hsl(158 64% 42% / 0.12)", border: "1px solid hsl(158 64% 42% / 0.2)", color: "hsl(158 64% 62%)" }}>Crea agente</a>
                         <button
                           onClick={async () => {
                             const newVal = !waAutoReply[num.phoneNumber];
@@ -433,7 +434,6 @@ export function PluginManager() {
                   ))}
                   <div className={actionRow}>
                     {actionBtn("+ Aggiungi numero", () => setShowWaForm(true))}
-                    {agentBtn("Ho collegato WhatsApp. Crea un agente per rispondere ai messaggi WhatsApp.")}
                   </div>
                   {showWaForm && (
                     <div className="space-y-2 mt-2">
@@ -533,12 +533,12 @@ export function PluginManager() {
                       <span className="flex-1 truncate">{p.name}</span>
                     </div>
                   ))}
-                  <div className={actionRow}>
+                  <div className="flex items-center justify-between pt-2">
                     {agentBtn("Ho collegato Instagram e Facebook. Crea un agente per gestire i social media.")}
-                    <button className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-all shrink-0" onClick={async () => {
+                    <button className="flex items-center gap-1 text-[10px] text-red-400/60 hover:text-red-400 transition-all" onClick={async () => {
                       await fetch("/api/oauth/meta/disconnect?companyId=" + selectedCompany?.id, { method: "POST", credentials: "include" });
                       setMetaStatus({ connected: false });
-                    }} title="Disconnetti">{xIcon}</button>
+                    }}>{xIcon} <span>Disconnetti</span></button>
                   </div>
                 </>
               ) : (
@@ -595,7 +595,7 @@ export function PluginManager() {
             </div>
             <div className="flex-1 text-left min-w-0">
               <div className="text-sm font-medium">Vocali AI</div>
-              <div className="text-xs text-muted-foreground">Trascrizione vocali via OpenAI Whisper</div>
+              <div className="text-xs text-muted-foreground">Trascrivi vocali WhatsApp e Telegram in testo</div>
             </div>
             <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-medium border shrink-0", isVoiceConnected ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-amber-500/20 text-amber-400 border-amber-500/30")}>
               {isVoiceConnected ? "Connesso" : "Non connesso"}
@@ -604,64 +604,36 @@ export function PluginManager() {
           </button>
           {expandedConnector === "voice" && (
             <div className="px-4 pb-3 space-y-2 border-t border-white/5">
+              <p className="text-xs text-muted-foreground pt-1">Trascrive automaticamente i messaggi vocali ricevuti su WhatsApp e Telegram in testo, usando OpenAI Whisper.</p>
               {isVoiceConnected ? (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between py-1.5 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">OpenAI Whisper</span>
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Attivo</span>
-                    </div>
-                    <button className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-all" onClick={async () => { await fetch("/api/voice/key?companyId=" + selectedCompany?.id, { method: "DELETE", credentials: "include" }); setVoiceEnabled(false); }} title="Disattiva">{xIcon}</button>
-                  </div>
-                </div>
-              ) : showVoiceSetup ? (
-                <div className="space-y-3 mt-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.15em]" style={{ color: "rgba(34, 197, 94, 0.8)" }}>Come ottenere la API key</p>
-                  <div className="space-y-2">
-                    <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                      <span className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0" style={{ background: "rgba(34, 197, 94, 0.2)", color: "rgba(34, 197, 94, 0.9)" }}>1</span>
-                      <div>
-                        <p className="text-xs font-medium">Crea un account su OpenAI</p>
-                        <a href="https://platform.openai.com/signup" target="_blank" rel="noopener noreferrer" className="text-[11px] text-green-400 hover:underline">platform.openai.com/signup</a>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                      <span className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0" style={{ background: "rgba(34, 197, 94, 0.2)", color: "rgba(34, 197, 94, 0.9)" }}>2</span>
-                      <div>
-                        <p className="text-xs font-medium">Vai su API Keys nel menu</p>
-                        <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-[11px] text-green-400 hover:underline">platform.openai.com/api-keys</a>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                      <span className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0" style={{ background: "rgba(34, 197, 94, 0.2)", color: "rgba(34, 197, 94, 0.9)" }}>3</span>
-                      <p className="text-xs font-medium">Clicca "Create new secret key", copia e incolla qui sotto</p>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-muted-foreground mb-1.5 block">API Key OpenAI *</label>
-                    <input type="password" className="w-full px-3 py-2.5 rounded-xl border border-white/10 bg-transparent text-xs outline-none" placeholder="sk-..." value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} />
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">Costo trascrizione: ~$0.006 al minuto (~0.36 cent per un vocale di 1 minuto)</p>
-                  <div className="flex gap-2">
-                    <button onClick={async () => {
-                      if (!openaiKey.startsWith("sk-")) return;
-                      setVoiceSaving(true);
-                      try {
-                        const r = await fetch("/api/voice/save-key", {
-                          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-                          body: JSON.stringify({ companyId: selectedCompany?.id, apiKey: openaiKey }),
-                        });
-                        const d = await r.json();
-                        if (r.ok) { setVoiceEnabled(true); setShowVoiceSetup(false); setOpenaiKey(""); }
-                        else { alert(d.error); }
-                      } catch {}
-                      setVoiceSaving(false);
-                    }} disabled={voiceSaving || !openaiKey.startsWith("sk-")} className="px-4 py-2 rounded-xl text-xs font-medium disabled:opacity-40" style={{ background: "rgba(34, 197, 94, 0.2)", border: "1px solid rgba(34, 197, 94, 0.3)", color: "rgba(255,255,255,0.9)" }}>{voiceSaving ? "Verifica..." : "Attiva vocali"}</button>
-                    <button onClick={() => setShowVoiceSetup(false)} className="text-xs text-muted-foreground">Annulla</button>
+                  <div className={row} style={rowBg}>
+                    {greenDot}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+                    <span className="flex-1 text-xs">OpenAI Whisper — Attivo</span>
+                    <button className="flex items-center gap-1 text-[10px] text-red-400/60 hover:text-red-400 transition-all" onClick={async () => { await fetch("/api/voice/key?companyId=" + selectedCompany?.id, { method: "DELETE", credentials: "include" }); setVoiceEnabled(false); }}>{xIcon} <span>Disattiva</span></button>
                   </div>
                 </div>
               ) : (
-                <button onClick={() => setShowVoiceSetup(true)} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2" style={{ background: "rgba(66, 133, 244, 0.2)", border: "1px solid rgba(66, 133, 244, 0.3)", color: "rgba(255,255,255,0.9)" }}>Attiva trascrizione vocali</button>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[11px] text-muted-foreground mb-1.5 block">API Key OpenAI</label>
+                    <input type="password" className="w-full px-3 py-2.5 rounded-xl border border-white/10 bg-transparent text-xs outline-none" placeholder="sk-..." value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} />
+                    <p className="text-[10px] text-muted-foreground mt-1">Ottieni la key da <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">platform.openai.com/api-keys</a> · Costo: ~$0.006/min</p>
+                  </div>
+                  <button onClick={async () => {
+                    if (!openaiKey.startsWith("sk-")) return;
+                    setVoiceSaving(true);
+                    try {
+                      const r = await fetch("/api/voice/save-key", {
+                        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+                        body: JSON.stringify({ companyId: selectedCompany?.id, apiKey: openaiKey }),
+                      });
+                      if (r.ok) { setVoiceEnabled(true); setOpenaiKey(""); }
+                    } catch {}
+                    setVoiceSaving(false);
+                  }} disabled={voiceSaving || !openaiKey.startsWith("sk-")} className="px-4 py-2 rounded-xl text-xs font-medium disabled:opacity-40 transition-all" style={{ background: "rgba(66, 133, 244, 0.15)", border: "1px solid rgba(66, 133, 244, 0.3)", color: "rgba(255,255,255,0.9)" }}>{voiceSaving ? "Verifica..." : "Attiva trascrizione vocali"}</button>
+                </div>
               )}
             </div>
           )}
