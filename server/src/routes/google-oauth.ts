@@ -42,7 +42,7 @@ function decrypt(text: string): string {
 }
 
 // Temporary state store for OAuth flow
-const oauthStates = new Map<string, { companyId: string; userId: string; expiresAt: number }>();
+const oauthStates = new Map<string, { companyId: string; userId: string; prefix: string; expiresAt: number }>();
 
 export function googleOAuthRoutes(db: Db) {
   const router = Router();
@@ -56,7 +56,8 @@ export function googleOAuthRoutes(db: Db) {
     if (!companyId) { res.status(400).json({ error: "companyId richiesto" }); return; }
 
     const state = crypto.randomBytes(32).toString("hex");
-    oauthStates.set(state, { companyId, userId: actor.userId, expiresAt: Date.now() + 600000 }); // 10min
+    const companyPrefix = (req.query.prefix as string) || "";
+    oauthStates.set(state, { companyId, userId: actor.userId, prefix: companyPrefix, expiresAt: Date.now() + 600000 }); // 10min
 
     const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     authUrl.searchParams.set("client_id", GOOGLE_CLIENT_ID);
@@ -75,12 +76,12 @@ export function googleOAuthRoutes(db: Db) {
     const { code, state, error } = req.query as Record<string, string>;
 
     if (error) {
-      res.redirect("/?error=google_oauth_denied");
+      res.redirect("/plugins?error=google_oauth_denied");
       return;
     }
 
     if (!code || !state) {
-      res.redirect("/?error=google_oauth_invalid");
+      res.redirect("/plugins?error=google_oauth_invalid");
       return;
     }
 
@@ -88,7 +89,7 @@ export function googleOAuthRoutes(db: Db) {
     oauthStates.delete(state);
 
     if (!stateData || stateData.expiresAt < Date.now()) {
-      res.redirect("/?error=google_oauth_expired");
+      res.redirect("/plugins?error=google_oauth_expired");
       return;
     }
 
@@ -108,7 +109,7 @@ export function googleOAuthRoutes(db: Db) {
 
       if (!tokenRes.ok) {
         console.error("Google token exchange failed:", await tokenRes.text());
-        res.redirect("/?error=google_oauth_token_failed");
+        res.redirect("/plugins?error=google_oauth_token_failed");
         return;
       }
 
@@ -155,7 +156,8 @@ export function googleOAuthRoutes(db: Db) {
       }
 
       // Redirect back to plugins page with success
-      res.redirect("/?google_connected=true");
+      const prefix = stateData.prefix || "";
+      res.redirect(prefix ? "/" + prefix + "/plugins?google_connected=true" : "/?google_connected=true");
     } catch (err) {
       console.error("Google OAuth error:", err);
       res.redirect("/?error=google_oauth_error");
