@@ -20,7 +20,8 @@ import {
   ShieldCheck,
   Key,
   LogOut,
-, FolderOpen } from "lucide-react";
+  FolderOpen,
+} from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarNavItem } from "./SidebarNavItem";
