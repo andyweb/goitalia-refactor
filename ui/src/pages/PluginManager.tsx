@@ -59,7 +59,7 @@ export function PluginManager() {
   const [telegramToken, setTelegramToken] = useState("");
   const [telegramConnecting, setTelegramConnecting] = useState(false);
   const [showTelegramForm, setShowTelegramForm] = useState(false);
-  const [telegramAutoReply, setTelegramAutoReply] = useState(false);
+  const [telegramAutoReply, setTelegramAutoReply] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!selectedCompany?.id) return;
@@ -77,7 +77,7 @@ export function PluginManager() {
       .catch(() => setTelegramStatus({ connected: false }));
     fetch("/api/telegram/settings?companyId=" + selectedCompany.id, { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => setTelegramAutoReply(d.autoReply || false))
+      .then((d) => { const bots = d.bots || {}; const map: Record<string, boolean> = {}; for (const [k, v] of Object.entries(bots)) { map[k] = (v as any).autoReply || false; } setTelegramAutoReply(map); })
       .catch(() => {});
   }, [selectedCompany?.id]);
 
@@ -284,50 +284,34 @@ export function PluginManager() {
                   <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Connesso</span>
                 </div>
                 {telegramStatus.bots.map((bot) => (
-                  <div key={bot.username} className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">@{bot.username} — {bot.name}</span>
-                    <button className="text-red-400/50 hover:text-red-400 transition-colors" onClick={async () => {
-                      await fetch("/api/telegram/disconnect?companyId=" + selectedCompany?.id + "&bot=" + bot.username, { method: "POST", credentials: "include" });
-                      const newBots = (telegramStatus.bots || []).filter((b) => b.username !== bot.username);
-                      setTelegramStatus(newBots.length > 0 ? { connected: true, bots: newBots } : { connected: false });
-                    }} title="Disconnetti">✕</button>
+                  <div key={bot.username} className="flex items-center justify-between py-1.5 text-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-muted-foreground truncate">@{bot.username}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] text-muted-foreground">{telegramAutoReply[bot.username] ? "Auto" : "Manuale"}</span>
+                      <button
+                        onClick={async () => {
+                          const newVal = !telegramAutoReply[bot.username];
+                          setTelegramAutoReply({ ...telegramAutoReply, [bot.username]: newVal });
+                          await fetch("/api/telegram/settings", {
+                            method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+                            body: JSON.stringify({ companyId: selectedCompany?.id, autoReply: newVal, botUsername: bot.username }),
+                          });
+                        }}
+                        className={"relative inline-flex h-4 w-7 items-center rounded-full transition-colors " + (telegramAutoReply[bot.username] ? "bg-green-600" : "bg-white/10")}
+                      >
+                        <span className={"inline-block h-3 w-3 rounded-full bg-white transition-transform " + (telegramAutoReply[bot.username] ? "translate-x-3.5" : "translate-x-0.5")} />
+                      </button>
+                      <button className="text-red-400/50 hover:text-red-400 transition-colors" onClick={async () => {
+                        await fetch("/api/telegram/disconnect?companyId=" + selectedCompany?.id + "&bot=" + bot.username, { method: "POST", credentials: "include" });
+                        const newBots = (telegramStatus.bots || []).filter((b) => b.username !== bot.username);
+                        setTelegramStatus(newBots.length > 0 ? { connected: true, bots: newBots } : { connected: false });
+                      }} title="Disconnetti">✕</button>
+                    </div>
                   </div>
                 ))}
-                {/* Auto-reply toggle */}
-                <div className="flex items-center justify-between py-2">
-                  <div>
-                    <div className="text-xs font-medium">Risposta automatica</div>
-                    <div className="text-[10px] text-muted-foreground">{telegramAutoReply ? "L'AI risponde automaticamente" : "Risposte con approvazione manuale"}</div>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      const newVal = !telegramAutoReply;
-                      setTelegramAutoReply(newVal);
-                      await fetch("/api/telegram/settings", {
-                        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-                        body: JSON.stringify({ companyId: selectedCompany?.id, autoReply: newVal }),
-                      });
-                    }}
-                    className={"relative inline-flex h-5 w-9 items-center rounded-full transition-colors " + (telegramAutoReply ? "bg-green-600" : "bg-white/10")}
-                  >
-                    <span className={"inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform " + (telegramAutoReply ? "translate-x-4.5" : "translate-x-0.5")} />
-                  </button>
-                </div>
-                {!telegramAutoReply && (
-                  <div className="rounded-xl px-3 py-2.5 text-xs space-y-1.5" style={{ background: "rgba(66, 133, 244, 0.08)", border: "1px solid rgba(66, 133, 244, 0.2)" }}>
-                    <div className="text-blue-300 font-medium">Vuoi attivare le risposte automatiche?</div>
-                    <div className="text-muted-foreground">Prima crea un agente Telegram dalla chat col Direttore AI. L'agente gestirà le risposte automatiche con il tono e lo stile che preferisci.</div>
-                    <a href={"/" + (selectedCompany?.issuePrefix || "") + "/chat"} className="inline-flex items-center gap-1.5 px-3 py-1.5 mt-1 rounded-lg text-xs font-medium transition-all" style={{ background: "rgba(66, 133, 244, 0.15)", border: "1px solid rgba(66, 133, 244, 0.3)", color: "rgba(255,255,255,0.9)" }}>
-                      Vai alla Chat col Direttore
-                    </a>
-                  </div>
-                )}
-                {telegramAutoReply && (
-                  <div className="rounded-xl px-3 py-2 text-xs" style={{ background: "rgba(34, 197, 94, 0.08)", border: "1px solid rgba(34, 197, 94, 0.2)" }}>
-                    <span className="text-green-400">Attivo</span>
-                    <span className="text-muted-foreground"> — L'AI risponde automaticamente ai messaggi del bot</span>
-                  </div>
-                )}
+                {/* Per-bot list with toggle */}
                 <button
                   className="text-xs px-3 py-1.5 rounded-lg transition-all mt-1"
                   style={{ background: "rgba(0, 136, 204, 0.15)", border: "1px solid rgba(0, 136, 204, 0.3)", color: "rgba(255,255,255,0.8)" }}

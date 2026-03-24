@@ -184,12 +184,26 @@ export function telegramRoutes(db: Db) {
   router.post("/telegram/settings", async (req, res) => {
     const actor = req.actor as { type?: string; userId?: string } | undefined;
     if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
-    const { companyId, autoReply } = req.body as { companyId: string; autoReply: boolean };
+    const { companyId, autoReply, botUsername } = req.body as { companyId: string; autoReply: boolean; botUsername?: string };
     if (!companyId) { res.status(400).json({ error: "companyId richiesto" }); return; }
     const existing = await db.select().from(companySecrets)
       .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "telegram_settings")))
       .then((rows) => rows[0]);
-    const settings = JSON.stringify({ autoReply });
+    // Per-bot settings: { bots: { "username1": { autoReply: true }, "username2": { autoReply: false } } }
+    let currentSettings: Record<string, any> = {};
+    if (existing?.description) { try { currentSettings = JSON.parse(existing.description); } catch {} }
+    // Migrate old format
+    if (typeof currentSettings.autoReply === "boolean" && !currentSettings.bots) {
+      currentSettings = { bots: {} };
+    }
+    if (!currentSettings.bots) currentSettings.bots = {};
+    if (botUsername) {
+      currentSettings.bots[botUsername] = { autoReply };
+    } else {
+      // Legacy: set for all
+      currentSettings.autoReply = autoReply;
+    }
+    const settings = JSON.stringify(currentSettings);
     if (existing) {
       await db.update(companySecrets).set({ description: settings, updatedAt: new Date() }).where(eq(companySecrets.id, existing.id));
     } else {
@@ -207,8 +221,8 @@ export function telegramRoutes(db: Db) {
     const row = await db.select().from(companySecrets)
       .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "telegram_settings")))
       .then((rows) => rows[0]);
-    if (!row?.description) { res.json({ autoReply: false }); return; }
-    try { res.json(JSON.parse(row.description)); } catch { res.json({ autoReply: false }); }
+    if (!row?.description) { res.json({ autoReply: false, bots: {} }); return; }
+    try { res.json(JSON.parse(row.description)); } catch { res.json({ autoReply: false, bots: {} }); }
   });
 
   // GET /telegram/messages?companyId=xxx&limit=50
@@ -329,8 +343,25 @@ export function telegramWebhookRouter(db: Db) {
     try {
       const sRow = await db.select().from(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "telegram_settings"))).then((r) => r[0]);
       const s = sRow?.description ? JSON.parse(sRow.description) : {};
-      console.log("[tg-wh] autoReply:", s.autoReply);
-      if (!s.autoReply) return;
+      // Check per-bot or global autoReply
+      let isAutoReply = false;
+      if (s.bots) {
+        // Get bot username for this webhook
+        try {
+          const botsSecret = await db.select().from(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "telegram_bots"))).then((r) => r[0]);
+          if (botsSecret?.description) {
+            const bots = JSON.parse(decrypt(botsSecret.description));
+            const botArr = Array.isArray(bots) ? bots : [bots];
+            const botIdx = parseInt((req.params as any).botIndex || "0") || 0;
+            const botUser = botArr[botIdx]?.username || "";
+            isAutoReply = s.bots[botUser]?.autoReply === true;
+          }
+        } catch {}
+      } else {
+        isAutoReply = s.autoReply === true;
+      }
+      console.log("[tg-wh] autoReply:", isAutoReply);
+      if (!isAutoReply) return;
       const tok = await getTelegramToken(db, companyId);
       if (!tok) { console.log("[tg-wh] no token"); return; }
       const keyRow = await db.select().from(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "claude_api_key"))).then((r) => r[0]);

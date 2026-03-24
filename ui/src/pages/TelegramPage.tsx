@@ -34,6 +34,8 @@ export function TelegramPage() {
   const [generating, setGenerating] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [autoReply, setAutoReply] = useState(false);
+  const [bots, setBots] = useState<Array<{ username: string; name: string }>>([]);
+  const [selectedBot, setSelectedBot] = useState(-1); // -1 = all
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -53,6 +55,10 @@ export function TelegramPage() {
 
   useEffect(() => {
     if (!selectedCompany?.id) return;
+    fetch("/api/telegram/status?companyId=" + selectedCompany.id, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setBots(d.bots || []))
+      .catch(() => {});
     fetch("/api/telegram/settings?companyId=" + selectedCompany.id, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => setAutoReply(d.autoReply || false))
