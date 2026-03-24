@@ -162,7 +162,7 @@ export function SidebarAgents() {
 
       {/* Popup: go to chat to create agent */}
       {showAgentPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowAgentPopup(false)}>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ left: 0, top: 0, right: 0, bottom: 0 }} onClick={() => setShowAgentPopup(false)}>
           <div className="absolute inset-0 bg-black/50" />
           <div className="relative glass-card p-6 mx-4 max-w-sm space-y-4 text-center" onClick={(e) => e.stopPropagation()} style={{ background: "linear-gradient(135deg, rgba(20,30,40,0.98), rgba(15,25,35,0.98))", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "1rem" }}>
             <div className="w-12 h-12 mx-auto rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))" }}>
