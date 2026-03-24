@@ -2515,6 +2515,8 @@ function AgentConnectorsTab({ companyId }: { companyId?: string }) {
               { key: "gmail", name: "Gmail", desc: "Email" },
               { key: "calendar", name: "Calendar", desc: "Eventi" },
               { key: "drive", name: "Drive", desc: "File e documenti" },
+              { key: "sheets", name: "Sheets", desc: "Fogli di calcolo" },
+              { key: "docs", name: "Docs", desc: "Documenti" },
             ].map((svc) => (
               <div key={svc.key} className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                 <div className="flex items-center gap-2">
