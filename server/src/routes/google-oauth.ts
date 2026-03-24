@@ -108,7 +108,7 @@ export function googleOAuthRoutes(db: Db) {
         headers: { Authorization: "Bearer " + tokens.access_token },
       });
       const userInfo = await userInfoRes.json() as { email?: string };
-      console.log("[google-oauth] userInfo:", JSON.stringify(userInfo));
+      console.info("[google-oauth] userInfo:", JSON.stringify(userInfo));
 
       // Save encrypted tokens — support multiple accounts
       const newAccount = {

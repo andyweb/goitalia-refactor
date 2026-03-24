@@ -398,7 +398,7 @@ export function whatsappWebhookRouter(db: Db) {
   router.post("/:companyId", async (req, res) => {
     const companyId = req.params.companyId;
     const event = req.body;
-    console.log("[wa-webhook]", companyId, event?.event, event?.data?.messages?.messageBody?.substring(0, 30));
+    console.info("[wa-webhook]", companyId, event?.event, event?.data?.messages?.messageBody?.substring(0, 30));
     res.json({ ok: true });
 
     if (event?.event === "messages.received" && event?.data?.messages) {

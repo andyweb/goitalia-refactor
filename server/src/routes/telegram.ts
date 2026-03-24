@@ -456,7 +456,7 @@ export function telegramWebhookRouter(db: Db) {
         if (whisperRes.ok) {
           const result = await whisperRes.json() as { text?: string };
           const transcription = result.text || "[vocale non comprensibile]";
-          console.log("[tg-wh] Transcribed voice:", transcription.substring(0, 50));
+          console.info("[tg-wh] Transcribed voice:", transcription.substring(0, 50));
           
           // Save transcribed message
           try {
@@ -497,39 +497,39 @@ export function telegramWebhookRouter(db: Db) {
       } else {
         isAutoReply = s.autoReply === true;
       }
-      console.log("[tg-wh] autoReply:", isAutoReply);
+      console.info("[tg-wh] autoReply:", isAutoReply);
       if (!isAutoReply) return;
       const tok = await getTelegramToken(db, companyId);
-      if (!tok) { console.log("[tg-wh] no token"); return; }
+      if (!tok) { console.info("[tg-wh] no token"); return; }
       const keyRow = await db.select().from(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "claude_api_key"))).then((r) => r[0]);
       let reply = "Grazie per il messaggio!";
       if (keyRow?.description) {
         const ck = decrypt(keyRow.description);
-        console.log("[tg-wh] calling claude...");
+        console.info("[tg-wh] calling claude...");
         const cr = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-api-key": ck, "anthropic-version": "2023-06-01" },
           body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 512, system: "Sei un assistente. Rispondi in italiano, breve e cordiale.", messages: [{ role: "user", content: msg.text }] }),
         });
-        console.log("[tg-wh] claude status:", cr.status);
+        console.info("[tg-wh] claude status:", cr.status);
         if (cr.ok) {
           const cd = await cr.json() as any;
           reply = (cd.content || []).map((c: any) => c.text).join("") || reply;
         } else { console.error("[tg-wh] claude err:", await cr.text()); }
       }
-      console.log("[tg-wh] sending:", reply.substring(0, 50));
+      console.info("[tg-wh] sending:", reply.substring(0, 50));
       const sr = await fetch("https://api.telegram.org/bot" + tok + "/sendMessage", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chat_id: msg.chat.id, text: reply }),
       });
-      console.log("[tg-wh] send status:", sr.status);
+      console.info("[tg-wh] send status:", sr.status);
       try { await db.execute(sql`INSERT INTO telegram_messages (company_id, chat_id, from_name, message_text, direction, telegram_message_id) VALUES (${companyId}, ${String(msg.chat.id)}, ${"Bot"}, ${reply}, ${"outgoing"}, ${"0"})`); } catch {}
     } catch (e) { console.error("[tg-wh] auto-reply err:", e); }
   });
   router.post("/telegram/webhook/:companyId", async (req, res) => {
     const companyId = req.params.companyId;
     const update = req.body;
-    console.log("[telegram-webhook-noidx] Received:", companyId, update?.message?.text);
+    console.info("[telegram-webhook-noidx] Received:", companyId, update?.message?.text);
     if (update?.message?.text) {
       const msg = update.message;
       try {

@@ -264,7 +264,7 @@ export function chatRoutes(db: Db) {
       let apiKey: string;
       try {
         apiKey = decryptSecret(secret.description);
-        console.log("[chat] decrypt OK, key starts with:", apiKey.substring(0, 10));
+        console.info("[chat] decrypt OK, key starts with:", apiKey.substring(0, 10));
       } catch (decErr) {
         console.error("[chat] decrypt FAILED:", decErr);
         console.error("[chat] BETTER_AUTH_SECRET set:", !!process.env.BETTER_AUTH_SECRET);

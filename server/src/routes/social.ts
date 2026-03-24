@@ -154,7 +154,7 @@ export function socialRoutes(db: Db) {
 
     let targetPlatforms: string[] = [];
     try { targetPlatforms = JSON.parse(platforms || "[]"); } catch { targetPlatforms = []; }
-    console.log("[social/publish] targets:", targetPlatforms, "text:", text?.slice(0, 50), "hasImage:", !!image);
+    console.info("[social/publish] targets:", targetPlatforms, "text:", text?.slice(0, 50), "hasImage:", !!image);
     const results: Array<{ platform: string; success: boolean; error?: string }> = [];
 
     // Facebook
@@ -321,7 +321,7 @@ export function socialRoutes(db: Db) {
             body: JSON.stringify(body),
           });
           const respText = r.ok ? "" : await r.text();
-          console.log("[linkedin] publish status:", r.status, respText || "OK");
+          console.info("[linkedin] publish status:", r.status, respText || "OK");
           results.push({ platform: "linkedin", success: r.ok || r.status === 201, error: (r.ok || r.status === 201) ? undefined : respText });
         }
       } catch (err) { results.push({ platform: "linkedin", success: false, error: String(err) }); }
