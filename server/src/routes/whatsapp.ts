@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import type { Db } from "@goitalia/db";
 import { companySecrets, agents } from "@goitalia/db";
 import { eq, and, sql } from "drizzle-orm";
@@ -253,6 +254,47 @@ export function whatsappRoutes(db: Db) {
 
 
 
+
+  // POST /whatsapp/send-media - Send image/file via WhatsApp
+  const waUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
+  router.post("/whatsapp/send-media", waUpload.single("file"), async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const { companyId, remoteJid, caption } = req.body as { companyId: string; remoteJid?: string; caption?: string };
+    const file = (req as any).file;
+    if (!companyId || !remoteJid || !file) { res.status(400).json({ error: "Parametri mancanti" }); return; }
+    const recipient = remoteJid.replace("@s.whatsapp.net", "").replace("@g.us", "");
+
+    const secret = await db.select().from(companySecrets)
+      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
+      .then((rows) => rows[0]);
+    if (!secret?.description) { res.status(400).json({ error: "WhatsApp non connesso" }); return; }
+
+    try {
+      const dec = JSON.parse(decrypt(secret.description));
+      const sessions = Array.isArray(dec) ? dec : [dec];
+      const data = sessions[0];
+      if (!data) { res.status(400).json({ error: "Nessuna sessione" }); return; }
+
+      // WaSender send-media API
+      const formData = new FormData();
+      formData.append("to", recipient);
+      formData.append("media", new Blob([file.buffer], { type: file.mimetype }), file.originalname);
+      if (caption) formData.append("caption", caption);
+
+      const r = await fetch(WASENDER_API + "/send-media", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + data.apiKey },
+        body: formData,
+      });
+      if (!r.ok) { const err = await r.text(); console.error("WA send-media error:", err); res.status(502).json({ error: "Errore invio media" }); return; }
+      try {
+        const msgText = caption ? "[Allegato] " + caption : "[Allegato: " + file.originalname + "]";
+        await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction) VALUES (${companyId}, ${remoteJid}, Bot, ${msgText}, outgoing)`);
+      } catch {}
+      res.json({ sent: true });
+    } catch (err) { console.error("WA send-media:", err); res.status(500).json({ error: "Errore invio" }); }
+  });
 
   // GET /whatsapp/unread-count?companyId=xxx
   router.get("/whatsapp/unread-count", async (req, res) => {

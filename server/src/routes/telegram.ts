@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import type { Db } from "@goitalia/db";
 import { companySecrets, agents } from "@goitalia/db";
 import { eq, and, sql } from "drizzle-orm";
@@ -300,6 +301,48 @@ export function telegramRoutes(db: Db) {
       const count = (rows as any[])[0]?.count || 0;
       res.json({ count: parseInt(String(count)) });
     } catch { res.json({ count: 0 }); }
+  });
+
+  // POST /telegram/send-media - Send image/file via Telegram
+  const tgUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+  router.post("/telegram/send-media", tgUpload.single("file"), async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const { companyId, chatId, caption, botIndex } = req.body as { companyId: string; chatId: string; caption?: string; botIndex?: string };
+    const file = (req as any).file;
+    if (!companyId || !chatId || !file) { res.status(400).json({ error: "Parametri mancanti" }); return; }
+
+    const secret = await db.select().from(companySecrets)
+      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "telegram_bots")))
+      .then((rows) => rows[0]);
+    if (!secret?.description) { res.status(400).json({ error: "Telegram non connesso" }); return; }
+
+    try {
+      const bots = JSON.parse(decrypt(secret.description));
+      const botArr = Array.isArray(bots) ? bots : [bots];
+      const bot = botArr[parseInt(botIndex || "0")] || botArr[0];
+      if (!bot?.token) { res.status(400).json({ error: "Bot non trovato" }); return; }
+
+      const isImage = file.mimetype.startsWith("image/");
+      const endpoint = isImage ? "sendPhoto" : "sendDocument";
+      const fieldName = isImage ? "photo" : "document";
+
+      const formData = new FormData();
+      formData.append("chat_id", chatId);
+      formData.append(fieldName, new Blob([file.buffer], { type: file.mimetype }), file.originalname);
+      if (caption) formData.append("caption", caption);
+
+      const r = await fetch("https://api.telegram.org/bot" + bot.token + "/" + endpoint, {
+        method: "POST",
+        body: formData,
+      });
+      if (!r.ok) { const err = await r.text(); console.error("TG send-media error:", err); res.status(502).json({ error: "Errore invio media" }); return; }
+      try {
+        const msgText = caption ? "[Allegato] " + caption : "[Allegato: " + file.originalname + "]";
+        await db.execute(sql`INSERT INTO telegram_messages (company_id, chat_id, from_name, message_text, direction, bot_index) VALUES (${companyId}, ${parseInt(chatId)}, Bot, ${msgText}, outgoing, ${parseInt(botIndex || "0")})`);
+      } catch {}
+      res.json({ sent: true });
+    } catch (err) { console.error("TG send-media:", err); res.status(500).json({ error: "Errore invio" }); }
   });
 
   // POST /telegram/mark-read

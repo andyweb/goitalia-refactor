@@ -4,7 +4,7 @@ import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { agentsApi } from "../api/agents";
 import { queryKeys } from "../lib/queryKeys";
-import { Send, Bot, User, Loader2 } from "lucide-react";
+import { Send, Paperclip, Bot, User, Loader2 } from "lucide-react";
 import { MarkdownBody } from "../components/MarkdownBody";
 
 interface ChatMessage {
@@ -22,6 +22,7 @@ export function ChatPage() {
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const { data: agents } = useQuery({
@@ -363,6 +364,10 @@ export function ChatPage() {
 
       {/* Input */}
       <div className="glass-card p-3 flex items-end gap-2">
+        <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setInput((prev) => prev + (prev ? "\n" : "") + "[Allegato: " + f.name + "]"); } e.target.value = ""; }} />
+        <button onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0 text-muted-foreground hover:text-foreground transition-colors" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} disabled={isStreaming}>
+          <Paperclip className="h-4 w-4" />
+        </button>
         <textarea
           ref={inputRef}
           value={input}

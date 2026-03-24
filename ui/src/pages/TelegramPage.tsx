@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
-import { Send as SendIcon, Sparkles, Loader2, RefreshCw, User, Bot } from "lucide-react";
+import { Send as SendIcon, Sparkles, Loader2, RefreshCw, User, Bot, Paperclip } from "lucide-react";
 import { MarkdownBody } from "../components/MarkdownBody";
 
 interface TgMessage {
@@ -39,6 +39,23 @@ export function TelegramPage() {
   const [selectedBot, setSelectedBot] = useState(-1); // -1 = all
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const sendMedia = async (file: File) => {
+    if (!selectedCompany?.id || !selectedChat) return;
+    setSending(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("companyId", selectedCompany.id);
+      fd.append("chatId", String(selectedChat));
+      if (replyText.trim()) fd.append("caption", replyText);
+      await fetch("/api/telegram/send-media", { method: "POST", credentials: "include", body: fd });
+      setReplyText("");
+      fetchMessages();
+    } catch {}
+    setSending(false);
+  };
   const readChatsRef = useRef<Set<number>>(new Set());
   const [, forceRender] = useState(0);
 
@@ -249,6 +266,10 @@ export function TelegramPage() {
 
             {/* Input */}
             <div className="pt-2 flex items-end gap-2">
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx" onChange={(e) => { const f = e.target.files?.[0]; if (f) sendMedia(f); e.target.value = ""; }} />
+              <button onClick={() => fileInputRef.current?.click()} className="h-[52px] w-[40px] rounded-xl flex items-center justify-center shrink-0 text-muted-foreground hover:text-foreground transition-colors" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <Paperclip className="w-4 h-4" />
+              </button>
               <textarea
                 ref={inputRef}
                 className="flex-1 min-h-[52px] max-h-[150px] rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none resize-none"
