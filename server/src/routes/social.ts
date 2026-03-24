@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import type { Db } from "@goitalia/db";
 import { companySecrets } from "@goitalia/db";
 import { eq, and } from "drizzle-orm";
@@ -151,6 +152,138 @@ export function socialRoutes(db: Db) {
     posts.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     res.json({ posts });
+  });
+
+
+  // POST /social/publish - Publish a post to selected platforms
+  const socialUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+  router.post("/social/publish", socialUpload.single("image"), async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const { companyId, text, platforms } = req.body as { companyId: string; text: string; platforms: string };
+    const image = (req as any).file;
+    if (!companyId || !text) { res.status(400).json({ error: "Testo richiesto" }); return; }
+
+    const targetPlatforms = JSON.parse(platforms || "[]") as string[];
+    const results: Array<{ platform: string; success: boolean; error?: string }> = [];
+
+    // Facebook
+    if (targetPlatforms.some((p) => p.startsWith("fb_"))) {
+      try {
+        const metaSecret = await db.select().from(companySecrets)
+          .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "meta_tokens")))
+          .then((rows) => rows[0]);
+        if (metaSecret?.description) {
+          const meta = JSON.parse(decrypt(metaSecret.description));
+          for (const p of targetPlatforms.filter((t) => t.startsWith("fb_"))) {
+            const pageId = p.replace("fb_", "");
+            const page = (meta.pages || []).find((pg: any) => pg.id === pageId);
+            if (page) {
+              const token = page.accessToken || meta.accessToken;
+              if (image) {
+                // Photo post
+                const fd = new FormData();
+                fd.append("source", new Blob([image.buffer], { type: image.mimetype }), image.originalname);
+                fd.append("caption", text);
+                fd.append("access_token", token);
+                const r = await fetch("https://graph.facebook.com/v21.0/" + pageId + "/photos", { method: "POST", body: fd });
+                results.push({ platform: "facebook:" + page.name, success: r.ok, error: r.ok ? undefined : await r.text() });
+              } else {
+                // Text post
+                const r = await fetch("https://graph.facebook.com/v21.0/" + pageId + "/feed?message=" + encodeURIComponent(text) + "&access_token=" + token, { method: "POST" });
+                results.push({ platform: "facebook:" + page.name, success: r.ok, error: r.ok ? undefined : await r.text() });
+              }
+            }
+          }
+        }
+      } catch (err) { results.push({ platform: "facebook", success: false, error: String(err) }); }
+    }
+
+    // Instagram (requires image URL - we publish to FB page first then IG)
+    if (targetPlatforms.some((p) => p.startsWith("ig_"))) {
+      try {
+        const metaSecret = await db.select().from(companySecrets)
+          .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "meta_tokens")))
+          .then((rows) => rows[0]);
+        if (metaSecret?.description) {
+          const meta = JSON.parse(decrypt(metaSecret.description));
+          for (const p of targetPlatforms.filter((t) => t.startsWith("ig_"))) {
+            const igUsername = p.replace("ig_", "");
+            const ig = (meta.instagram || []).find((i: any) => i.username === igUsername);
+            if (ig && image) {
+              // Instagram requires a public image URL - upload to FB page first
+              const page = (meta.pages || []).find((pg: any) => pg.id === ig.pageId) || (meta.pages || [])[0];
+              if (page) {
+                // Upload photo unpublished to get URL
+                const fd = new FormData();
+                fd.append("source", new Blob([image.buffer], { type: image.mimetype }), image.originalname);
+                fd.append("published", "false");
+                fd.append("access_token", page.accessToken || meta.accessToken);
+                const uploadRes = await fetch("https://graph.facebook.com/v21.0/" + page.id + "/photos", { method: "POST", body: fd });
+                if (uploadRes.ok) {
+                  const uploadData = await uploadRes.json() as { id: string };
+                  // Get the image URL
+                  const photoRes = await fetch("https://graph.facebook.com/v21.0/" + uploadData.id + "?fields=images&access_token=" + (page.accessToken || meta.accessToken));
+                  const photoData = await photoRes.json() as { images?: Array<{ source: string }> };
+                  const imageUrl = photoData.images?.[0]?.source;
+                  if (imageUrl) {
+                    // Create IG media container
+                    const containerRes = await fetch("https://graph.facebook.com/v21.0/" + ig.id + "/media", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ image_url: imageUrl, caption: text, access_token: meta.accessToken }),
+                    });
+                    if (containerRes.ok) {
+                      const container = await containerRes.json() as { id: string };
+                      // Publish
+                      const pubRes = await fetch("https://graph.facebook.com/v21.0/" + ig.id + "/media_publish", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ creation_id: container.id, access_token: meta.accessToken }),
+                      });
+                      results.push({ platform: "instagram:@" + igUsername, success: pubRes.ok, error: pubRes.ok ? undefined : await pubRes.text() });
+                    } else { results.push({ platform: "instagram:@" + igUsername, success: false, error: "Container creation failed" }); }
+                  }
+                }
+              }
+            } else if (!image) {
+              results.push({ platform: "instagram:@" + igUsername, success: false, error: "Instagram richiede un'immagine" });
+            }
+          }
+        }
+      } catch (err) { results.push({ platform: "instagram", success: false, error: String(err) }); }
+    }
+
+    // LinkedIn
+    if (targetPlatforms.includes("linkedin")) {
+      try {
+        const liSecret = await db.select().from(companySecrets)
+          .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "linkedin_tokens")))
+          .then((rows) => rows[0]);
+        if (liSecret?.description) {
+          const li = JSON.parse(decrypt(liSecret.description));
+          const body: any = {
+            author: "urn:li:person:" + li.sub,
+            lifecycleState: "PUBLISHED",
+            specificContent: {
+              "com.linkedin.ugc.ShareContent": {
+                shareCommentary: { text },
+                shareMediaCategory: "NONE",
+              },
+            },
+            visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" },
+          };
+          const r = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + li.accessToken, "Content-Type": "application/json", "X-Restli-Protocol-Version": "2.0.0" },
+            body: JSON.stringify(body),
+          });
+          results.push({ platform: "linkedin", success: r.ok, error: r.ok ? undefined : await r.text() });
+        }
+      } catch (err) { results.push({ platform: "linkedin", success: false, error: String(err) }); }
+    }
+
+    res.json({ results });
   });
 
   return router;

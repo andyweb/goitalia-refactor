@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
-import { RefreshCw, Download, Share2, ExternalLink } from "lucide-react";
+import { RefreshCw, Download, Share2, ExternalLink, Plus, X, ImageIcon, Loader2 } from "lucide-react";
 
 interface SocialPost {
   id: string;
@@ -37,6 +37,37 @@ export function SocialPage() {
   const [filter, setFilter] = useState("all");
   const [accounts, setAccounts] = useState<Array<{ id: string; platform: string; name: string; icon: string }>>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showPublish, setShowPublish] = useState(false);
+  const [publishText, setPublishText] = useState("");
+  const [publishImage, setPublishImage] = useState<File | null>(null);
+  const [publishTargets, setPublishTargets] = useState<Set<string>>(new Set());
+  const [publishing, setPublishing] = useState(false);
+  const [publishResult, setPublishResult] = useState<Array<{ platform: string; success: boolean; error?: string }> | null>(null);
+  const fileInputRef = { current: null as HTMLInputElement | null };
+
+  const handlePublish = async () => {
+    if (!selectedCompany?.id || !publishText.trim()) return;
+    setPublishing(true);
+    setPublishResult(null);
+    try {
+      const fd = new FormData();
+      fd.append("companyId", selectedCompany.id);
+      fd.append("text", publishText);
+      fd.append("platforms", JSON.stringify(Array.from(publishTargets)));
+      if (publishImage) fd.append("image", publishImage);
+      const res = await fetch("/api/social/publish", { method: "POST", credentials: "include", body: fd });
+      const data = await res.json();
+      setPublishResult(data.results || []);
+      if (data.results?.every((r: any) => r.success)) {
+        setTimeout(() => { setShowPublish(false); setPublishText(""); setPublishImage(null); setPublishTargets(new Set()); setPublishResult(null); fetchPosts(); }, 2000);
+      }
+    } catch { setPublishResult([{ platform: "all", success: false, error: "Errore di connessione" }]); }
+    setPublishing(false);
+  };
+
+  const toggleTarget = (id: string) => {
+    setPublishTargets((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  };
 
   useEffect(() => { setBreadcrumbs([{ label: "Social" }]); }, [setBreadcrumbs]);
 
@@ -109,6 +140,9 @@ export function SocialPage() {
           <Share2 className="w-5 h-5" />
           <h1 className="text-xl font-semibold">Social</h1>
         </div>
+        <button onClick={() => setShowPublish(true)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))" }}>
+          <Plus className="w-3.5 h-3.5" /> Crea post
+        </button>
         <button onClick={fetchPosts} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
           <RefreshCw className="w-3.5 h-3.5" /> Aggiorna
         </button>
@@ -135,6 +169,65 @@ export function SocialPage() {
           </button>
         ))}
       </div>
+
+
+      {/* Publish modal */}
+      {showPublish && (
+        <div className="glass-card p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Crea nuovo post</h3>
+            <button onClick={() => { setShowPublish(false); setPublishResult(null); }}><X className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+          <textarea
+            value={publishText}
+            onChange={(e) => setPublishText(e.target.value)}
+            placeholder="Scrivi il testo del post..."
+            rows={3}
+            className="w-full rounded-xl px-3 py-2 text-sm outline-none resize-none"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}
+          />
+          <div className="flex items-center gap-2">
+            <input type="file" ref={(el) => { fileInputRef.current = el; }} className="hidden" accept="image/*" onChange={(e) => { setPublishImage(e.target.files?.[0] || null); }} />
+            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <ImageIcon className="w-3.5 h-3.5" /> {publishImage ? publishImage.name : "Aggiungi immagine"}
+            </button>
+            {publishImage && <button onClick={() => setPublishImage(null)} className="text-xs text-red-400">Rimuovi</button>}
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground mb-1.5">Pubblica su:</div>
+            <div className="flex flex-wrap gap-1.5">
+              {accounts.map((acc) => (
+                <button
+                  key={acc.id}
+                  onClick={() => toggleTarget(acc.id)}
+                  className={"flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all " + (publishTargets.has(acc.id) ? "text-white ring-1 ring-green-500" : "text-muted-foreground")}
+                  style={publishTargets.has(acc.id) ? { background: "rgba(34, 197, 94, 0.15)" } : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                >
+                  {platformIcons[acc.icon]} {acc.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          {publishResult && (
+            <div className="space-y-1">
+              {publishResult.map((r, i) => (
+                <div key={i} className={"text-xs px-2 py-1 rounded " + (r.success ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400")}>
+                  {r.platform}: {r.success ? "Pubblicato!" : r.error || "Errore"}
+                </div>
+              ))}
+            </div>
+          )}
+          <button
+            onClick={handlePublish}
+            disabled={publishing || !publishText.trim() || publishTargets.size === 0}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-30"
+            style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))" }}
+          >
+            {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+            {publishing ? "Pubblicazione..." : "Pubblica"}
+          </button>
+        </div>
+      )}
 
       {/* Posts grid */}
       {filtered.length === 0 ? (
