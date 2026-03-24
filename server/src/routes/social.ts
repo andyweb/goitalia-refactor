@@ -278,23 +278,63 @@ export function socialRoutes(db: Db) {
           .then((rows) => rows[0]);
         if (liSecret?.description) {
           const li = JSON.parse(decrypt(liSecret.description));
-          const body: any = {
-            author: "urn:li:person:" + li.sub,
-            lifecycleState: "PUBLISHED",
-            specificContent: {
-              "com.linkedin.ugc.ShareContent": {
-                shareCommentary: { text },
-                shareMediaCategory: "NONE",
-              },
-            },
-            visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" },
+          // Use LinkedIn Posts API (v2)
+          const authorUrn = "urn:li:person:" + li.sub;
+          const liHeaders = {
+            Authorization: "Bearer " + li.accessToken,
+            "Content-Type": "application/json",
+            "LinkedIn-Version": "202401",
+            "X-Restli-Protocol-Version": "2.0.0",
           };
-          const r = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+
+          let imageUrn = "";
+          if (image) {
+            // Step 1: Initialize image upload
+            const initRes = await fetch("https://api.linkedin.com/rest/images?action=initializeUpload", {
+              method: "POST",
+              headers: liHeaders,
+              body: JSON.stringify({ initializeUploadRequest: { owner: authorUrn } }),
+            });
+            if (initRes.ok) {
+              const initData = await initRes.json() as { value?: { uploadUrl?: string; image?: string } };
+              const uploadUrl = initData.value?.uploadUrl;
+              imageUrn = initData.value?.image || "";
+              if (uploadUrl) {
+                // Step 2: Upload binary image
+                await fetch(uploadUrl, {
+                  method: "PUT",
+                  headers: { Authorization: "Bearer " + li.accessToken, "Content-Type": image.mimetype },
+                  body: image.buffer,
+                });
+              }
+            }
+          }
+
+          const body: any = {
+            author: authorUrn,
+            commentary: text,
+            visibility: "PUBLIC",
+            distribution: { feedDistribution: "MAIN_FEED", targetEntities: [], thirdPartyDistributionChannels: [] },
+            lifecycleState: "PUBLISHED",
+          };
+          if (imageUrn) {
+            body.content = {
+              media: { title: "Post", id: imageUrn },
+            };
+          }
+          const r = await fetch("https://api.linkedin.com/rest/posts", {
             method: "POST",
-            headers: { Authorization: "Bearer " + li.accessToken, "Content-Type": "application/json", "X-Restli-Protocol-Version": "2.0.0" },
+            headers: {
+              Authorization: "Bearer " + li.accessToken,
+              "Content-Type": "application/json",
+              "LinkedIn-Version": "202401",
+              "X-Restli-Protocol-Version": "2.0.0",
+            },
             body: JSON.stringify(body),
           });
-          results.push({ platform: "linkedin", success: r.ok, error: r.ok ? undefined : await r.text() });
+          const respText = r.ok ? "" : await r.text();
+          console.log("[linkedin] publish status:", r.status, respText || "OK");
+          results.push({ platform: "linkedin", success: r.ok || r.status === 201, error: (r.ok || r.status === 201) ? undefined : respText });
         }
       } catch (err) { results.push({ platform: "linkedin", success: false, error: String(err) }); }
     }
