@@ -151,7 +151,18 @@ export function TelegramPage() {
   let lastDate = "";
 
   return (
-    <div className="flex h-[calc(100vh-120px)] gap-3">
+    <div className="flex flex-col h-[calc(100vh-120px)]">
+      {/* Bot selector */}
+      {bots.length > 1 && (
+        <div className="flex items-center gap-2 pb-3">
+          <span className="text-xs text-muted-foreground">Bot:</span>
+          <button onClick={() => setSelectedBot(-1)} className={"px-2.5 py-1 rounded-lg text-xs font-medium transition-all " + (selectedBot === -1 ? "text-white" : "text-muted-foreground")} style={selectedBot === -1 ? { background: "rgba(0, 136, 204, 0.2)", border: "1px solid rgba(0, 136, 204, 0.3)" } : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>Tutti</button>
+          {bots.map((b, i) => (
+            <button key={b.username} onClick={() => setSelectedBot(i)} className={"px-2.5 py-1 rounded-lg text-xs font-medium transition-all truncate max-w-[120px] " + (selectedBot === i ? "text-white" : "text-muted-foreground")} style={selectedBot === i ? { background: "rgba(0, 136, 204, 0.2)", border: "1px solid rgba(0, 136, 204, 0.3)" } : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>@{b.username}</button>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-1 gap-3 min-h-0">
       {/* Chat list */}
       <div className="w-72 shrink-0 glass-card overflow-hidden flex flex-col">
         <div className="px-3 py-2.5 border-b border-white/5 text-xs font-medium text-muted-foreground flex items-center justify-between">
@@ -240,6 +251,7 @@ export function TelegramPage() {
           </>
         )}
       </div>
+    </div>
     </div>
   );
 }
