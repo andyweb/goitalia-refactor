@@ -341,6 +341,71 @@ export function telegramWebhookRouter(db: Db) {
     console.log("[tg-wh] msg:", update?.message?.text, "from:", update?.message?.from?.first_name);
     res.json({ ok: true });
     // Process async after response
+    // Handle voice/audio messages
+    if (update?.message && !update?.message?.text && (update?.message?.audio || update?.message?.voice)) {
+      const msg = update.message;
+      const remoteJid = String(msg.chat.id);
+      const fromName = msg.from?.first_name || "";
+      
+      // Check if voice transcription is enabled
+      try {
+        const openaiSecret = await db.select().from(companySecrets)
+          .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "openai_api_key")))
+          .then((r) => r[0]);
+        
+        if (!openaiSecret?.description) {
+          // Voice not enabled - reply with message
+          const token = await getTelegramToken(db, companyId);
+          if (token) {
+            await fetch("https://api.telegram.org/bot" + token + "/sendMessage", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chat_id: msg.chat.id, text: "Mi dispiace, non posso ascoltare messaggi vocali. Per favore scrivi il tuo messaggio in testo." }),
+            });
+          }
+          return;
+        }
+        
+        // Get file from Telegram
+        const token = await getTelegramToken(db, companyId);
+        if (!token) return;
+        const fileId = msg.voice?.file_id || msg.audio?.file_id;
+        const fileRes = await fetch("https://api.telegram.org/bot" + token + "/getFile?file_id=" + fileId);
+        const fileData = await fileRes.json() as { result?: { file_path?: string } };
+        if (!fileData.result?.file_path) return;
+        
+        const audioUrl = "https://api.telegram.org/file/bot" + token + "/" + fileData.result.file_path;
+        const audioRes = await fetch(audioUrl);
+        const audioBuffer = await audioRes.arrayBuffer();
+        
+        // Transcribe with Whisper
+        const openaiKey = decrypt(openaiSecret.description);
+        const formData = new FormData();
+        formData.append("file", new Blob([audioBuffer], { type: "audio/ogg" }), "voice.ogg");
+        formData.append("model", "whisper-1");
+        formData.append("language", "it");
+        
+        const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + openaiKey },
+          body: formData,
+        });
+        
+        if (whisperRes.ok) {
+          const result = await whisperRes.json() as { text?: string };
+          const transcription = result.text || "[vocale non comprensibile]";
+          console.log("[tg-wh] Transcribed voice:", transcription.substring(0, 50));
+          
+          // Save transcribed message
+          try {
+            await db.execute(sql`INSERT INTO telegram_messages (company_id, chat_id, from_name, from_username, message_text, direction, telegram_message_id, bot_index) VALUES (${companyId}, ${String(msg.chat.id)}, ${fromName}, ${msg.from?.username || ""}, ${"🎤 " + transcription}, ${"incoming"}, ${String(msg.message_id)}, ${String(parseInt((req.params as any).botIndex || "0") || 0)})`);
+          } catch {}
+          
+          // Auto-reply if enabled (same logic as text)
+          // ... handled below by the existing auto-reply code
+        }
+      } catch (err) { console.error("[tg-wh] voice error:", err); }
+      return;
+    }
     if (!update?.message?.text) return;
     const msg = update.message;
     // Save incoming

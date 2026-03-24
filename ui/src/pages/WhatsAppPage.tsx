@@ -35,7 +35,7 @@ export function WhatsAppPage() {
   const [generating, setGenerating] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [autoReply, setAutoReply] = useState(false);
-  const [bots, setBots] = useState<Array<{ username: string; name: string }>>([]);
+  const [numbers, setNumbers] = useState<Array<{ phoneNumber: string }>>([]);
   const [selectedBot, setSelectedBot] = useState(-1); // -1 = all
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -58,7 +58,7 @@ export function WhatsAppPage() {
     if (!selectedCompany?.id) return;
     fetch("/api/whatsapp/status?companyId=" + selectedCompany.id, { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => setBots(d.bots || []))
+      .then((d) => setNumbers(d.numbers || []))
       .catch(() => {});
     fetch("/api/whatsapp/settings?companyId=" + selectedCompany.id, { credentials: "include" })
       .then((r) => r.json())
@@ -154,12 +154,12 @@ export function WhatsAppPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-120px)]">
       {/* Bot selector */}
-      {bots.length > 1 && (
+      {numbers.length > 1 && (
         <div className="flex items-center gap-2 pb-3">
           <span className="text-xs text-muted-foreground">Bot:</span>
-          <button onClick={() => setSelectedBot(-1)} className={"px-2.5 py-1 rounded-lg text-xs font-medium transition-all " + (selectedBot === -1 ? "text-white" : "text-muted-foreground")} style={selectedBot === -1 ? { background: "rgba(0, 136, 204, 0.2)", border: "1px solid rgba(0, 136, 204, 0.3)" } : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>Tutti</button>
-          {bots.map((b, i) => (
-            <button key={b.username} onClick={() => setSelectedBot(i)} className={"px-2.5 py-1 rounded-lg text-xs font-medium transition-all truncate max-w-[120px] " + (selectedBot === i ? "text-white" : "text-muted-foreground")} style={selectedBot === i ? { background: "rgba(0, 136, 204, 0.2)", border: "1px solid rgba(0, 136, 204, 0.3)" } : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>@{b.username}</button>
+          <button onClick={() => setSelectedBot(-1)} className={"px-2.5 py-1 rounded-lg text-xs font-medium transition-all " + (selectedBot === -1 ? "text-white" : "text-muted-foreground")} style={selectedBot === -1 ? { background: "rgba(37, 211, 102, 0.2)", border: "1px solid rgba(37, 211, 102, 0.3)" } : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>Tutti</button>
+          {numbers.map((n, i) => (
+            <button key={n.phoneNumber} onClick={() => setSelectedBot(i)} className={"px-2.5 py-1 rounded-lg text-xs font-medium transition-all truncate max-w-[120px] " + (selectedBot === i ? "text-white" : "text-muted-foreground")} style={selectedBot === i ? { background: "rgba(37, 211, 102, 0.2)", border: "1px solid rgba(37, 211, 102, 0.3)" } : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>{n.phoneNumber}</button>
           ))}
         </div>
       )}

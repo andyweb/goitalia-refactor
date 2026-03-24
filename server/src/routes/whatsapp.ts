@@ -303,7 +303,57 @@ export function whatsappWebhookRouter(db: Db) {
       const msg = event.data.messages;
       const remoteJid = msg.key?.remoteJid || "";
       const fromName = msg.pushName || msg.key?.cleanedSenderPn || "";
-      const text = msg.messageBody || msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
+      let text = msg.messageBody || msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
+      
+      // Handle voice messages
+      if (!text && (msg.message?.audioMessage || msg.messageType === "audio")) {
+        try {
+          const openaiSecret = await db.select().from(companySecrets)
+            .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "openai_api_key")))
+            .then((r: any) => r[0]);
+          
+          if (!openaiSecret?.description) {
+            // Voice not enabled - save placeholder
+            text = "[Messaggio vocale - trascrizione non attiva]";
+          } else {
+            // Get audio URL via WaSender decrypt-media
+            const waSecret = await db.select().from(companySecrets)
+              .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
+              .then((r: any) => r[0]);
+            if (waSecret?.description) {
+              const sessions = JSON.parse(decrypt(waSecret.description));
+              const session = Array.isArray(sessions) ? sessions[0] : sessions;
+              if (session?.apiKey) {
+                const decryptRes = await fetch("https://www.wasenderapi.com/api/decrypt-media", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.apiKey },
+                  body: JSON.stringify({ messageKeys: msg.key }),
+                });
+                if (decryptRes.ok) {
+                  const decData = await decryptRes.json() as { data?: { url?: string } };
+                  if (decData.data?.url) {
+                    const audioRes = await fetch(decData.data.url);
+                    const audioBuffer = await audioRes.arrayBuffer();
+                    const openaiKey = decrypt(openaiSecret.description);
+                    const formData = new FormData();
+                    formData.append("file", new Blob([audioBuffer], { type: "audio/ogg" }), "voice.ogg");
+                    formData.append("model", "whisper-1");
+                    formData.append("language", "it");
+                    const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+                      method: "POST", headers: { Authorization: "Bearer " + openaiKey }, body: formData,
+                    });
+                    if (whisperRes.ok) {
+                      const result = await whisperRes.json() as { text?: string };
+                      text = "🎤 " + (result.text || "[vocale non comprensibile]");
+                    }
+                  }
+                }
+              }
+            }
+            if (!text) text = "[Messaggio vocale - errore trascrizione]";
+          }
+        } catch (err) { console.error("[wa-webhook] voice error:", err); text = "[Messaggio vocale]"; }
+      }
       
       if (text) {
         try {
