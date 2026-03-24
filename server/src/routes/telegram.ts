@@ -328,7 +328,7 @@ export function telegramWebhookRouter(db: Db) {
         const cr = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-api-key": ck, "anthropic-version": "2023-06-01" },
-          body: JSON.stringify({ model: "claude-haiku-4-20250414", max_tokens: 512, system: "Sei un assistente. Rispondi in italiano, breve e cordiale.", messages: [{ role: "user", content: msg.text }] }),
+          body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 512, system: "Sei un assistente. Rispondi in italiano, breve e cordiale.", messages: [{ role: "user", content: msg.text }] }),
         });
         console.log("[tg-wh] claude status:", cr.status);
         if (cr.ok) {

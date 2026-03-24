@@ -33,6 +33,7 @@ export function TelegramPage() {
   const [replyText, setReplyText] = useState("");
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
+  const [autoReply, setAutoReply] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -49,6 +50,14 @@ export function TelegramPage() {
     } catch { if (messages.length === 0) setError("Errore connessione"); }
     setLoading(false);
   };
+
+  useEffect(() => {
+    if (!selectedCompany?.id) return;
+    fetch("/api/telegram/settings?companyId=" + selectedCompany.id, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setAutoReply(d.autoReply || false))
+      .catch(() => {});
+  }, [selectedCompany?.id]);
 
   useEffect(() => { fetchMessages(); }, [selectedCompany?.id]);
   useEffect(() => { const i = setInterval(fetchMessages, 10000); return () => clearInterval(i); }, [selectedCompany?.id]);
@@ -80,15 +89,14 @@ export function TelegramPage() {
   const chatMessages = selectedChat ? (chatMap.get(selectedChat) || []) : [];
   const selectedThread = threads.find((t) => t.chatId === selectedChat);
 
-  const generateReply = async () => {
-    if (!selectedCompany?.id || !selectedChat) return;
-    const lastIncoming = [...chatMessages].reverse().find((m) => m.direction === "incoming");
-    if (!lastIncoming) return;
+  const generateReply = async (msg: TgMessage) => {
+    if (!selectedCompany?.id) return;
     setGenerating(true);
+    setSelectedChat(msg.chat_id);
     try {
       const res = await fetch("/api/telegram/generate-reply", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-        body: JSON.stringify({ companyId: selectedCompany.id, messageText: lastIncoming.message_text, fromName: lastIncoming.from_name }),
+        body: JSON.stringify({ companyId: selectedCompany.id, messageText: msg.message_text, fromName: msg.from_name }),
       });
       const data = await res.json();
       if (res.ok) { setReplyText(data.reply); inputRef.current?.focus(); }
@@ -184,12 +192,7 @@ export function TelegramPage() {
                 <div className="text-sm font-medium">{selectedThread?.name}</div>
                 {selectedThread?.username && <div className="text-xs text-muted-foreground">@{selectedThread.username}</div>}
               </div>
-              <div className="ml-auto">
-                <button onClick={generateReply} disabled={generating} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs" style={{ background: "rgba(251, 191, 36, 0.15)", border: "1px solid rgba(251, 191, 36, 0.3)" }}>
-                  {generating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                  Genera risposta AI
-                </button>
-              </div>
+
             </div>
 
             {/* Messages */}
@@ -206,6 +209,12 @@ export function TelegramPage() {
                       <div className={"max-w-[70%] px-3 py-2 rounded-2xl " + (isOut ? "rounded-br-sm bg-green-500/15 border border-green-500/20" : "rounded-bl-sm bg-white/5 border border-white/8")}>
                         <div className="text-sm">{msg.message_text}</div>
                         <div className={"text-[10px] mt-0.5 " + (isOut ? "text-green-400/50" : "text-muted-foreground/50")}>{formatTime(msg.created_at)}</div>
+                        {!isOut && !autoReply && (
+                          <button onClick={() => generateReply(msg)} disabled={generating} className="flex items-center gap-1 mt-1 px-2 py-0.5 rounded-lg text-[10px] transition-all" style={{ background: "rgba(251, 191, 36, 0.1)", border: "1px solid rgba(251, 191, 36, 0.2)" }}>
+                            {generating ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Sparkles className="w-2.5 h-2.5" />}
+                            Genera risposta AI
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
