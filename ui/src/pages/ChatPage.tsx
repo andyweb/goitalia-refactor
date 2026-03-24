@@ -34,6 +34,7 @@ export function ChatPage() {
   const otherAgents = (agents ?? []).filter((a) => a.role !== "ceo");
   const isOnboarding = otherAgents.length === 0 && !!ceoAgent && (ceoAgent as any).adapterType === "claude_api";
   const [autoStarted, setAutoStarted] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
 
   useEffect(() => {
     setBreadcrumbs([{ label: "Chat" }]);
@@ -41,7 +42,7 @@ export function ChatPage() {
 
   // Auto-start onboarding conversation
   useEffect(() => {
-    if (isOnboarding && !autoStarted && ceoAgent && messages.length === 0 && !isStreaming) {
+    if (isOnboarding && !autoStarted && ceoAgent && messages.length === 0 && !isStreaming && historyLoaded) {
       setAutoStarted(true);
       // Simulate sending a start message
       const startMsg: ChatMessage = {
@@ -112,7 +113,7 @@ export function ChatPage() {
         setIsStreaming(false);
       }).catch(() => { setIsStreaming(false); });
     }
-  }, [isOnboarding, autoStarted, ceoAgent, messages.length, isStreaming, selectedCompanyId]);
+  }, [isOnboarding, autoStarted, ceoAgent, messages.length, isStreaming, selectedCompanyId, historyLoaded]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
