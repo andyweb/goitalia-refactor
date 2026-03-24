@@ -2417,6 +2417,7 @@ function AgentConnectorsTab({ companyId }: { companyId?: string }) {
   const [telegramStatus, setTelegramStatus] = useState<{ connected: boolean; bots?: Array<{ username: string; name: string }> } | null>(null);
   const [whatsappStatus, setWhatsappStatus] = useState<{ connected: boolean; numbers?: Array<{ phoneNumber: string }> } | null>(null);
   const [metaStatus, setMetaStatus] = useState<{ connected: boolean; instagram?: Array<{ id: string; username: string; pageName: string }>; pages?: Array<{ id: string; name: string }> } | null>(null);
+  const [linkedinStatus, setLinkedinStatus] = useState<{ connected: boolean; name?: string; email?: string; picture?: string } | null>(null);
   const { selectedCompany } = useCompany();
   const [agentConnectors, setAgentConnectors] = useState<Record<string, boolean>>({});
   const [savingConnectors, setSavingConnectors] = useState(false);
@@ -2480,6 +2481,10 @@ function AgentConnectorsTab({ companyId }: { companyId?: string }) {
     fetch("/api/oauth/meta/status?companyId=" + companyId, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => setMetaStatus(d))
+      .catch(() => {});
+    fetch("/api/oauth/linkedin/status?companyId=" + companyId, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setLinkedinStatus(d))
       .catch(() => {});
   }, [companyId]);
 
@@ -2674,6 +2679,45 @@ function AgentConnectorsTab({ companyId }: { companyId?: string }) {
                 </div>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      <div className="glass-card p-4 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(0, 119, 181, 0.15)", border: "1px solid rgba(0, 119, 181, 0.3)" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#0077B5"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-semibold">LinkedIn</div>
+            {linkedinStatus?.connected ? (
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Connesso</span>
+                <span className="text-xs text-muted-foreground">{linkedinStatus.name}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">Non connesso</span>
+                <a href={"/" + (selectedCompany?.issuePrefix || "") + "/plugins"} className="text-xs text-blue-400 hover:underline">Collega da Plugin</a>
+              </div>
+            )}
+          </div>
+        </div>
+        {linkedinStatus?.connected && (
+          <div className="space-y-1.5 pt-2">
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <div className="flex items-center gap-2">
+                <span className={"w-2 h-2 rounded-full shrink-0 " + (agentConnectors.linkedin !== false ? "bg-green-500" : "bg-white/20")} />
+                <div className="text-xs font-medium">LinkedIn</div>
+                <div className="text-[10px] text-muted-foreground">Post e profilo</div>
+              </div>
+              <button
+                onClick={() => toggleConnector("linkedin")}
+                className={"relative inline-flex h-4 w-7 items-center rounded-full transition-colors " + (agentConnectors.linkedin !== false ? "bg-green-600" : "bg-white/10")}
+              >
+                <span className={"inline-block h-3 w-3 rounded-full bg-white transition-transform " + (agentConnectors.linkedin !== false ? "translate-x-3.5" : "translate-x-0.5")} />
+              </button>
+            </div>
           </div>
         )}
       </div>
