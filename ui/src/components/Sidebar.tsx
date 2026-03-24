@@ -7,6 +7,8 @@ import {
   Target,
   MessageCircle,
   Mail,
+  Calendar,
+  HardDrive,
   Share2,
   Plus,
   ChevronDown,
@@ -128,6 +130,8 @@ export function Sidebar() {
         <SidebarSection label="Lavoro">
           <SidebarNavItem to="/chat" label="Chat" icon={MessageCircle} />
           <SidebarNavItem to="/mail" label="Mail" icon={Mail} />
+          <SidebarNavItem to="/calendario" label="Calendario" icon={Calendar} />
+          <SidebarNavItem to="/documenti" label="Documenti" icon={HardDrive} />
           {!isOnboarding && <SidebarNavItem to="/issues" label="Attività" icon={CircleDot} />}
           {!isOnboarding && <SidebarNavItem to="/goals" label="Obiettivi" icon={Target} />}
         </SidebarSection>

@@ -118,6 +118,7 @@ export function gmailRoutes(db: Db) {
     const companyId = req.query.companyId as string;
     const maxResults = parseInt(req.query.maxResults as string) || 20;
     const pageToken = req.query.pageToken as string || "";
+    const label = req.query.label as string || "INBOX";
     if (!companyId) { res.status(400).json({ error: "companyId richiesto" }); return; }
 
     const token = await getGmailToken(db, companyId);
@@ -126,7 +127,7 @@ export function gmailRoutes(db: Db) {
     try {
       // Get message list
       const listRes = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&labelIds=INBOX${pageToken ? "&pageToken=" + pageToken : ""}`,
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}${label === "STARRED" ? "&q=is:starred" : "&labelIds=" + label}${pageToken ? "&pageToken=" + pageToken : ""}`,
         { headers: { Authorization: "Bearer " + token.access_token } }
       );
       if (!listRes.ok) {

@@ -30,6 +30,7 @@ export function MailPage() {
   const [sendSuccess, setSendSuccess] = useState<string | null>(null);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [activeFilter, setActiveFilter] = useState("INBOX");
 
   useEffect(() => {
     setBreadcrumbs([{ label: "Mail" }]);
@@ -40,7 +41,7 @@ export function MailPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/gmail/messages?companyId=" + selectedCompany.id, { credentials: "include" });
+      const res = await fetch("/api/gmail/messages?companyId=" + selectedCompany.id + "&label=" + activeFilter, { credentials: "include" });
       const data = await res.json();
       if (!res.ok) { setError(data.error); setLoading(false); return; }
       setMessages(data.messages || []);
@@ -54,7 +55,7 @@ export function MailPage() {
     if (!selectedCompany?.id || !nextPageToken) return;
     setLoadingMore(true);
     try {
-      const res = await fetch("/api/gmail/messages?companyId=" + selectedCompany.id + "&pageToken=" + nextPageToken, { credentials: "include" });
+      const res = await fetch("/api/gmail/messages?companyId=" + selectedCompany.id + "&pageToken=" + nextPageToken + "&label=" + activeFilter, { credentials: "include" });
       const data = await res.json();
       if (res.ok) {
         setMessages((prev) => [...prev, ...(data.messages || [])]);
@@ -64,7 +65,7 @@ export function MailPage() {
     setLoadingMore(false);
   };
 
-  useEffect(() => { fetchMail(); }, [selectedCompany?.id]);
+  useEffect(() => { fetchMail(); }, [selectedCompany?.id, activeFilter]);
 
   const generateReply = async (msg: GmailMessage) => {
     if (!selectedCompany?.id) return;
@@ -141,6 +142,13 @@ export function MailPage() {
     setMessages((prev) => prev.map((m) => m.id === id ? { ...m, isStarred: !m.isStarred } : m));
   };
 
+  const changeFilter = (filter: string) => {
+    setActiveFilter(filter);
+    setMessages([]);
+    setSelectedMessage(null);
+    setNextPageToken(null);
+  };
+
   const formatDate = (dateStr: string) => {
     try {
       const d = new Date(dateStr);
@@ -184,6 +192,25 @@ export function MailPage() {
         >
           <RefreshCw className="w-3.5 h-3.5" /> Aggiorna
         </button>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex items-center gap-1">
+        {[
+          { id: "INBOX", label: "Inbox" },
+          { id: "STARRED", label: "Preferiti" },
+          { id: "SENT", label: "Inviate" },
+          { id: "TRASH", label: "Cestino" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => changeFilter(tab.id)}
+            className={"px-3 py-1.5 rounded-lg text-xs font-medium transition-all " + (activeFilter === tab.id ? "text-white" : "text-muted-foreground hover:text-foreground")}
+            style={activeFilter === tab.id ? { background: "linear-gradient(135deg, hsl(158 64% 42% / 0.2), hsl(158 64% 42% / 0.1))", border: "1px solid hsl(158 64% 42% / 0.3)" } : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Success toast */}

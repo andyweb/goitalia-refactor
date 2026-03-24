@@ -10,6 +10,8 @@ import { Dashboard } from "./pages/Dashboard";
 import { AdminDashboard } from "./pages/AdminDashboard";
 import { ChatPage } from "./pages/ChatPage";
 import { MailPage } from "./pages/MailPage";
+import { CalendarPage } from "./pages/CalendarPage";
+import { DrivePage } from "./pages/DrivePage";
 import { ClaudeKeyPage } from "./pages/ClaudeKeyPage";
 import { Companies } from "./pages/Companies";
 import { Agents } from "./pages/Agents";
@@ -127,6 +129,8 @@ function boardRoutes() {
       <Route path="admin" element={<AdminDashboard />} />
       <Route path="chat" element={<ChatPage />} />
       <Route path="mail" element={<MailPage />} />
+      <Route path="calendario" element={<CalendarPage />} />
+      <Route path="documenti" element={<DrivePage />} />
       <Route path="api-claude" element={<ClaudeKeyPage />} />
       <Route path="onboarding" element={<OnboardingRoutePage />} />
       <Route path="companies" element={<Companies />} />
@@ -334,6 +338,8 @@ export function App() {
           <Route path="routines/:routineId" element={<UnprefixedBoardRedirect />} />
           <Route path="skills/*" element={<UnprefixedBoardRedirect />} />
           <Route path="mail" element={<UnprefixedBoardRedirect />} />
+          <Route path="calendario" element={<UnprefixedBoardRedirect />} />
+          <Route path="documenti" element={<UnprefixedBoardRedirect />} />
           <Route path="settings" element={<LegacySettingsRedirect />} />
           <Route path="settings/*" element={<LegacySettingsRedirect />} />
           <Route path="agents" element={<UnprefixedBoardRedirect />} />
