@@ -211,71 +211,29 @@ export function telegramRoutes(db: Db) {
     try { res.json(JSON.parse(row.description)); } catch { res.json({ autoReply: false }); }
   });
 
-  // POST /telegram/webhook/:companyId - Receive messages from Telegram
-  router.post("/telegram/webhook/:companyId/:botIndex?", async (req, res) => {
+  // POST /telegram/webhook/:companyId - no bot index
+  router.post("/telegram/webhook/:companyId", async (req, res) => {
     const companyId = req.params.companyId;
-    const botIndex = parseInt((req.params as any).botIndex || "0") || 0;
     const update = req.body;
-
     if (update?.message?.text) {
       const msg = update.message;
       try {
-        await db.execute(sql`INSERT INTO telegram_messages (company_id, chat_id, from_name, from_username, message_text, direction, telegram_message_id) VALUES (${companyId}, ${msg.chat.id}, ${msg.from?.first_name || ""}, ${msg.from?.username || ""}, ${msg.text}, 'incoming', ${msg.message_id})`);
-      } catch (err) {
-        console.error("Telegram webhook save error:", err);
-      }
+        await db.execute(sql`INSERT INTO telegram_messages (company_id, chat_id, from_name, from_username, message_text, direction, telegram_message_id) VALUES (${companyId}, ${msg.chat.id}, ${msg.from?.first_name || ''}, ${msg.from?.username || ''}, ${msg.text}, 'incoming', ${msg.message_id})`);
+      } catch (err) { console.error("Telegram webhook save error:", err); }
     }
+    res.json({ ok: true });
+  });
 
-    // Auto-reply if enabled
+  // POST /telegram/webhook/:companyId/:botIndex
+  router.post("/telegram/webhook/:companyId/:botIndex", async (req, res) => {
+    const companyId = req.params.companyId;
+    const update = req.body;
     if (update?.message?.text) {
+      const msg = update.message;
       try {
-        const settingsRow = await db.select().from(companySecrets)
-          .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "telegram_settings")))
-          .then((rows) => rows[0]);
-        const settings = settingsRow?.description ? JSON.parse(settingsRow.description) : {};
-        
-        if (settings.autoReply) {
-          const token = await getTelegramToken(db, companyId);
-          const apiKeySecret = await db.select().from(companySecrets)
-            .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "claude_api_key")))
-            .then((rows) => rows[0]);
-          
-          if (token && apiKeySecret?.description) {
-            const claudeKey = decrypt(apiKeySecret.description);
-            const msg = update.message;
-            
-            const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "x-api-key": claudeKey, "anthropic-version": "2023-06-01" },
-              body: JSON.stringify({
-                model: "claude-haiku-4-20250414",
-                max_tokens: 512,
-                system: "Sei un assistente di customer service. Rispondi in italiano, in modo breve e cordiale. Max 2-3 frasi.",
-                messages: [{ role: "user", content: msg.text }],
-              }),
-            });
-            
-            if (claudeRes.ok) {
-              const data = await claudeRes.json() as { content?: Array<{ text?: string }> };
-              const reply = data.content?.map((c: any) => c.text).join("") || "";
-              
-              if (reply) {
-                await fetch(TELEGRAM_API + token + "/sendMessage", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ chat_id: msg.chat.id, text: reply }),
-                });
-                
-                await db.execute(sql`INSERT INTO telegram_messages (company_id, chat_id, from_name, message_text, direction, telegram_message_id) VALUES (${companyId}, ${msg.chat.id}, 'Bot', ${reply}, 'outgoing', 0)`);
-              }
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Telegram auto-reply error:", err);
-      }
+        await db.execute(sql`INSERT INTO telegram_messages (company_id, chat_id, from_name, from_username, message_text, direction, telegram_message_id) VALUES (${companyId}, ${msg.chat.id}, ${msg.from?.first_name || ''}, ${msg.from?.username || ''}, ${msg.text}, 'incoming', ${msg.message_id})`);
+      } catch (err) { console.error("Telegram webhook save error:", err); }
     }
-
     res.json({ ok: true });
   });
 
