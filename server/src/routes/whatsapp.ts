@@ -455,8 +455,8 @@ export function whatsappWebhookRouter(db: Db) {
                   body: JSON.stringify({ data: { messages: msg } }),
                 });
                 if (decryptRes.ok) {
-                  const decData = await decryptRes.json() as { data?: { url?: string } };
-                  if (decData.publicUrl || decData.data?.url) {
+                  const decData = await decryptRes.json() as any;
+                  if (decData.data?.url) {
                     const audioRes = await fetch(decData.data.url);
                     const audioBuffer = await audioRes.arrayBuffer();
                     const openaiKey = decrypt(openaiSecret.description);
