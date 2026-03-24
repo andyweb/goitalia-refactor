@@ -324,7 +324,7 @@ export function PluginManager() {
               </div>
             </div>
           ) : (
-            <button onClick={() => setShowVoiceSetup(true)} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all" style={{ background: "rgba(34, 197, 94, 0.2)", border: "1px solid rgba(34, 197, 94, 0.3)", color: "rgba(255,255,255,0.9)" }}>Attiva trascrizione vocali</button>
+            <button onClick={() => setShowVoiceSetup(true)} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all" style={{ background: "rgba(66, 133, 244, 0.2)", border: "1px solid rgba(66, 133, 244, 0.3)", color: "rgba(255,255,255,0.9)" }}>Attiva trascrizione vocali</button>
           )}
         </div>
       </div>
@@ -480,7 +480,7 @@ export function PluginManager() {
                 </div>
               </div>
             ) : (
-              <button onClick={() => setShowTelegramForm(true)} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all" style={{ background: "rgba(0, 136, 204, 0.2)", border: "1px solid rgba(0, 136, 204, 0.3)", color: "rgba(255,255,255,0.9)" }}>Collega Bot Telegram</button>
+              <button onClick={() => setShowTelegramForm(true)} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all" style={{ background: "rgba(66, 133, 244, 0.2)", border: "1px solid rgba(66, 133, 244, 0.3)", color: "rgba(255,255,255,0.9)" }}>Collega Bot Telegram</button>
             )}
           </div>
 
@@ -539,7 +539,7 @@ export function PluginManager() {
                 </div>
               </div>
             ) : (
-              <button onClick={() => { window.location.href = "/api/oauth/meta/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); }} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all" style={{ background: "linear-gradient(135deg, rgba(131, 58, 180, 0.2), rgba(253, 29, 29, 0.2))", border: "1px solid rgba(253, 29, 29, 0.3)", color: "rgba(255,255,255,0.9)" }}>Collega Instagram + Facebook</button>
+              <button onClick={() => { window.location.href = "/api/oauth/meta/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); }} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all" style={{ background: "rgba(66, 133, 244, 0.2)", border: "1px solid rgba(66, 133, 244, 0.3)", color: "rgba(255,255,255,0.9)" }}>Collega Instagram + Facebook</button>
             )}
           </div>
 
@@ -627,7 +627,7 @@ export function PluginManager() {
                 </div>
               </div>
             ) : (
-              <button onClick={() => setShowWaForm(true)} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all" style={{ background: "rgba(37, 211, 102, 0.2)", border: "1px solid rgba(37, 211, 102, 0.3)", color: "rgba(255,255,255,0.9)" }}>Collega WhatsApp</button>
+              <button onClick={() => setShowWaForm(true)} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all" style={{ background: "rgba(66, 133, 244, 0.2)", border: "1px solid rgba(66, 133, 244, 0.3)", color: "rgba(255,255,255,0.9)" }}>Collega WhatsApp</button>
             )}
           </div>
 
