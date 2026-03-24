@@ -227,13 +227,13 @@ export function TelegramPage() {
             <div className="pt-2 flex items-end gap-2">
               <textarea
                 ref={inputRef}
-                className="flex-1 min-h-[44px] max-h-[120px] rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none resize-none"
+                className="flex-1 min-h-[52px] max-h-[150px] rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none resize-none"
                 placeholder="Scrivi un messaggio..."
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
               />
-              <button onClick={sendReply} disabled={sending || !replyText.trim()} className="h-[44px] w-[44px] rounded-2xl flex items-center justify-center shrink-0 disabled:opacity-30" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))" }}>
+              <button onClick={sendReply} disabled={sending || !replyText.trim()} className="h-[52px] w-[52px] rounded-2xl flex items-center justify-center shrink-0 disabled:opacity-30" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))" }}>
                 {sending ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <SendIcon className="w-4 h-4 text-white" />}
               </button>
             </div>
