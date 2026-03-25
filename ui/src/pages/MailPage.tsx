@@ -78,7 +78,7 @@ export function MailPage() {
     setLoadingMore(false);
   };
 
-  useEffect(() => { fetchMail(activeFilter); }, [selectedCompany?.id, activeFilter, selectedAccount]);
+  useEffect(() => { setMessages([]); setSelectedMessage(null); fetchMail(activeFilter); }, [selectedCompany?.id, activeFilter, selectedAccount]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
@@ -145,7 +145,7 @@ export function MailPage() {
     if (!selectedCompany?.id) return;
     await fetch("/api/gmail/" + action, {
       method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-      body: JSON.stringify({ companyId: selectedCompany.id, messageId, ...extra }),
+      body: JSON.stringify({ companyId: selectedCompany.id, messageId, accountIndex: selectedAccount >= 0 ? selectedAccount : 0, ...extra }),
     });
   };
 

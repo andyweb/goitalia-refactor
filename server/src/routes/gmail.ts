@@ -340,8 +340,8 @@ Scrivi SOLO il testo della risposta, senza oggetto, senza "Gentile..." se non ne
   router.post("/gmail/trash", async (req, res) => {
     const actor = req.actor as { type?: string; userId?: string } | undefined;
     if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
-    const { companyId, messageId } = req.body;
-    const token = await getGmailToken(db, companyId);
+    const { companyId, messageId, accountIndex } = req.body;
+    const token = await getGmailToken(db, companyId, accountIndex || 0);
     if (!token) { res.status(400).json({ error: "Google non connesso" }); return; }
     const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/trash`, {
       method: "POST", headers: { Authorization: "Bearer " + token.access_token },
@@ -354,8 +354,8 @@ Scrivi SOLO il testo della risposta, senza oggetto, senza "Gentile..." se non ne
   router.post("/gmail/archive", async (req, res) => {
     const actor = req.actor as { type?: string; userId?: string } | undefined;
     if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
-    const { companyId, messageId } = req.body;
-    const token = await getGmailToken(db, companyId);
+    const { companyId, messageId, accountIndex } = req.body;
+    const token = await getGmailToken(db, companyId, accountIndex || 0);
     if (!token) { res.status(400).json({ error: "Google non connesso" }); return; }
     const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`, {
       method: "POST", headers: { Authorization: "Bearer " + token.access_token, "Content-Type": "application/json" },
@@ -369,8 +369,8 @@ Scrivi SOLO il testo della risposta, senza oggetto, senza "Gentile..." se non ne
   router.post("/gmail/star", async (req, res) => {
     const actor = req.actor as { type?: string; userId?: string } | undefined;
     if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
-    const { companyId, messageId, starred } = req.body;
-    const token = await getGmailToken(db, companyId);
+    const { companyId, messageId, starred, accountIndex } = req.body;
+    const token = await getGmailToken(db, companyId, accountIndex || 0);
     if (!token) { res.status(400).json({ error: "Google non connesso" }); return; }
     const body = starred
       ? { addLabelIds: ["STARRED"] }
@@ -387,8 +387,8 @@ Scrivi SOLO il testo della risposta, senza oggetto, senza "Gentile..." se non ne
   router.post("/gmail/mark-read", async (req, res) => {
     const actor = req.actor as { type?: string; userId?: string } | undefined;
     if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
-    const { companyId, messageId, read } = req.body;
-    const token = await getGmailToken(db, companyId);
+    const { companyId, messageId, read, accountIndex } = req.body;
+    const token = await getGmailToken(db, companyId, accountIndex || 0);
     if (!token) { res.status(400).json({ error: "Google non connesso" }); return; }
     const body = read
       ? { removeLabelIds: ["UNREAD"] }
@@ -401,35 +401,37 @@ Scrivi SOLO il testo della risposta, senza oggetto, senza "Gentile..." se non ne
     res.json({ success: true });
   });
 
-  // GET /gmail/unread-count?companyId=xxx
+  // GET /gmail/unread-count?companyId=xxx - counts ALL accounts
   router.get("/gmail/unread-count", async (req, res) => {
     const actor = req.actor as { type?: string; userId?: string } | undefined;
     if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
     const companyId = req.query.companyId as string;
     if (!companyId) { res.json({ count: 0 }); return; }
-    const token = await getGmailToken(db, companyId);
-    if (!token) { res.json({ count: 0 }); return; }
+    
+    // Get all accounts and sum unread counts
+    const secret = await db.select().from(companySecrets)
+      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "google_tokens")))
+      .then((r) => r[0]);
+    if (!secret?.description) { res.json({ count: 0 }); return; }
+    
     try {
-      const r = await fetch(
-        "https://gmail.googleapis.com/gmail/v1/users/me/labels/UNREAD",
-        { headers: { Authorization: "Bearer " + token.access_token } }
-      );
-      if (!r.ok) {
-        // Fallback: count via messages
-        const listRes = await fetch(
-          "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=1&labelIds=INBOX&labelIds=UNREAD",
-          { headers: { Authorization: "Bearer " + token.access_token } }
-        );
-        if (listRes.ok) {
-          const data = await listRes.json() as { resultSizeEstimate?: number };
-          res.json({ count: data.resultSizeEstimate || 0 });
-        } else {
-          res.json({ count: 0 });
-        }
-        return;
+      const decrypted = JSON.parse(decrypt(secret.description));
+      const accounts = Array.isArray(decrypted) ? decrypted : [decrypted];
+      let totalUnread = 0;
+      
+      for (const account of accounts) {
+        try {
+          const r = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/labels/INBOX", {
+            headers: { Authorization: "Bearer " + account.access_token },
+          });
+          if (r.ok) {
+            const data = await r.json() as { messagesUnread?: number };
+            totalUnread += data.messagesUnread || 0;
+          }
+        } catch {}
       }
-      const data = await r.json() as { messagesUnread?: number };
-      res.json({ count: data.messagesUnread || 0 });
+      
+      res.json({ count: totalUnread });
     } catch {
       res.json({ count: 0 });
     }
