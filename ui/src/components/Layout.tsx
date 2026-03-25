@@ -320,7 +320,7 @@ export function Layout() {
               id="main-content"
               tabIndex={-1}
               className={cn(
-                "flex-1 p-4 md:p-6",
+                "flex-1 p-4 md:p-6 relative",
                 isMobile ? "overflow-visible pb-[calc(5rem+env(safe-area-inset-bottom))]" : "overflow-auto",
               )}
             >
@@ -330,7 +330,10 @@ export function Layout() {
                   requestedPrefix={companyPrefix ?? selectedCompany?.issuePrefix}
                 />
               ) : (
-                <Outlet />
+                <>
+                  <Outlet />
+                  <OnboardingTooltip companyId={selectedCompanyId} sidebarOpen={sidebarOpen} />
+                </>
               )}
             </main>
             <PropertiesPanel />
@@ -344,8 +347,7 @@ export function Layout() {
       <NewGoalDialog />
       <NewAgentDialog />
       <ToastViewport />
-      <OnboardingTooltip companyId={selectedCompanyId} sidebarOpen={sidebarOpen} />
-    </div>
+      </div>
   );
 }
 
@@ -377,9 +379,9 @@ function OnboardingTooltip({ companyId, sidebarOpen }: { companyId: string | nul
 
   return (
     <>
-      {/* Overlay scuro */}
-      <div className="fixed inset-0 z-[90]" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }} />
-      {/* Tooltip */}
+      {/* Overlay solo sul contenuto main, non sulla sidebar */}
+      <div className="absolute inset-0 z-[80] rounded-lg" style={{ background: "rgba(0,0,0,0.55)" }} />
+      {/* Tooltip accanto al menu API Claude */}
       {sidebarOpen && pos && (
         <div className="fixed z-[100]" style={{ left: pos.left, top: pos.top, transform: "translateY(-50%)", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.5))" }}>
           <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2" style={{ width: 0, height: 0, borderTop: "10px solid transparent", borderBottom: "10px solid transparent", borderRight: "10px solid rgba(30, 40, 55, 0.97)" }} />
@@ -390,7 +392,7 @@ function OnboardingTooltip({ companyId, sidebarOpen }: { companyId: string | nul
               </div>
               <h3 className="text-sm font-bold text-white">Configura API Claude</h3>
             </div>
-            <p className="text-xs text-white/60 leading-relaxed mb-3">Per attivare il tuo CEO AI e sbloccare tutte le funzionalità, inserisci la tua API key di Anthropic nella sezione qui sotto.</p>
+            <p className="text-xs text-white/60 leading-relaxed mb-3">Per attivare il tuo CEO AI e sbloccare tutte le funzionalita, inserisci la tua API key di Anthropic nella sezione qui sotto.</p>
             <button onClick={() => setDismissed(true)} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all hover:brightness-110 w-full justify-center" style={{ background: "hsl(158 64% 42%)", color: "white" }}>
               Ho capito
             </button>
@@ -400,4 +402,3 @@ function OnboardingTooltip({ companyId, sidebarOpen }: { companyId: string | nul
     </>
   );
 }
-
