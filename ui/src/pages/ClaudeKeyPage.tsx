@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
-import { queryKeys } from "../lib/queryKeys";
 import { Key, ExternalLink, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 
 export function ClaudeKeyPage() {
@@ -98,7 +96,7 @@ export function ClaudeKeyPage() {
         )}
       </div>
 
-      {/* Input */}
+      {/* Input - SOPRA al tutorial */}
       <div className="glass-card p-5 space-y-4">
         <h2 className="text-sm font-semibold">{hasKey ? "Aggiorna API key" : "Inserisci API key"}</h2>
 
@@ -160,8 +158,8 @@ export function ClaudeKeyPage() {
           </button>
         </div>
       </div>
-    
-{/* Tutorial */}
+
+      {/* Tutorial - SOTTO all'input */}
       <div className="glass-card p-5 space-y-4">
         <h2 className="text-sm font-semibold">Come ottenere la API key</h2>
 
@@ -188,11 +186,10 @@ export function ClaudeKeyPage() {
 
           <div className="flex items-start gap-3 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <span className="w-6 h-6 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0" style={{ background: "hsl(158 64% 42% / 0.2)", color: "hsl(158 64% 42%)" }}>3</span>
-            <p className="text-sm font-medium">Clicca "Create Key", copia la chiave e incollala qui sotto</p>
+            <p className="text-sm font-medium">Clicca "Create Key", copia la chiave e incollala qui sopra</p>
           </div>
         </div>
       </div>
-
-      </div>
+    </div>
   );
 }
