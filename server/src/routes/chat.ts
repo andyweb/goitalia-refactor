@@ -500,11 +500,11 @@ async function executeChatTool(
 
       case "elimina_agente": {
         const input = toolInput as { agente_id: string };
-        if (input.agente_id === agentId) return "Non puoi eliminare te stesso (il Direttore AI).";
-        const target = await db.select({ id: agents.id, name: agents.name }).from(agents)
+        const target = await db.select({ id: agents.id, name: agents.name, role: agents.role }).from(agents)
           .where(and(eq(agents.id, input.agente_id), eq(agents.companyId, companyId)))
           .then((rows) => rows[0]);
         if (!target) return "Agente non trovato con id: " + input.agente_id;
+        if (target.role === "ceo") return "Il Direttore AI non può essere eliminato.";
         await db.delete(agents).where(eq(agents.id, input.agente_id));
         return `Agente eliminato: ${target.name} (${target.id})`;
       }
