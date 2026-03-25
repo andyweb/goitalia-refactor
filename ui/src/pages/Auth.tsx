@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useRef, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "@/lib/router";
 import { authApi } from "../api/auth";
@@ -9,6 +9,7 @@ type Mode = "login" | "register";
 export function AuthPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const justRegistered = useRef(false);
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<Mode>("login");
   const [companyName, setCompanyName] = useState("");
@@ -25,7 +26,7 @@ export function AuthPage() {
   });
 
   useEffect(() => {
-    if (session) navigate(nextPath, { replace: true });
+    if (session) { const dest = searchParams.get("next") || "/api-claude"; navigate(dest, { replace: true }); }
   }, [session, navigate, nextPath]);
 
   const loginMutation = useMutation({
@@ -34,7 +35,7 @@ export function AuthPage() {
       setError(null);
       await queryClient.invalidateQueries({ queryKey: queryKeys.auth.session });
       await queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
-      navigate(nextPath, { replace: true });
+      navigate(searchParams.get("next") || "/api-claude", { replace: true });
     },
     onError: (err) => setError(err instanceof Error ? err.message : "Credenziali non valide"),
   });
@@ -57,12 +58,13 @@ export function AuthPage() {
         throw new Error(data.error || "Errore nella registrazione");
       }
       // Now sign in to get session
+      justRegistered.current = true;
       await authApi.signInEmail({ email: email.trim(), password });
     },
     onSuccess: () => {
       setError(null);
       // Redirect immediately before React re-renders can intercept
-      window.location.href = "/api-claude";
+      // navigate handled by session useEffect with justRegistered flag
     },
     onError: (err) => {
       const msg = err instanceof Error ? err.message : "";
