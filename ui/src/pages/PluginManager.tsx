@@ -589,10 +589,10 @@ export function PluginManager() {
                     {greenDot}
                     {miniLi}
                     <span className="flex-1 truncate">{linkedinStatus!.name}</span>
-                    <button className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-all shrink-0" onClick={async () => {
+                    <button className="flex items-center gap-1 text-[10px] text-red-400/60 hover:text-red-400 transition-all" onClick={async () => {
                       await fetch("/api/oauth/linkedin/disconnect?companyId=" + selectedCompany?.id, { method: "POST", credentials: "include" });
                       setLinkedinStatus({ connected: false });
-                    }} title="Disconnetti">{xIcon}</button>
+                    }}>{xIcon} <span>Disconnetti</span></button>
                   </div>
                   <div className={actionRow}>
                     {agentBtn("Ho collegato LinkedIn. Crea un agente per gestire il profilo LinkedIn.")}
