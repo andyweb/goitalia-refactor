@@ -3,7 +3,7 @@ import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import {
   Sparkles, Image, Video, Upload, Loader2, Download, Trash2,
-  ChevronDown, ChevronUp, X,
+  ChevronDown, ChevronUp, X, Share2,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -13,6 +13,15 @@ type ImageSubTab = "text-to-image" | "image-edit";
 type VideoModel = "veo" | "kling" | "seedance";
 type VeoMode = "text-to-video" | "img-to-video" | "frame-to-video" | "extend-video" | "ref-to-video";
 type SimpleMode = "text-to-video" | "img-to-video";
+
+interface ActiveJob {
+  id: string;
+  modelKey: string;
+  requestId: string;
+  companyId: string;
+  type: "image" | "video";
+  status: "pending" | "polling" | "done" | "failed";
+}
 
 interface ResultItem {
   id: string;
@@ -230,12 +239,86 @@ export function GenerateAI() {
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [results, setResults] = useState<ResultItem[]>([]);
+  const [results, setResults] = useState<ResultItem[]>(() => {
+    try { return JSON.parse(localStorage.getItem("goitalia_gen_results") || "[]"); } catch { return []; }
+  });
+  const [activeJobs, setActiveJobs] = useState<ActiveJob[]>(() => {
+    try { return JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]").filter((j) => j.status !== "done"); } catch { return []; }
+  });
+  const [publishingResult, setPublishingResult] = useState<ResultItem | null>(null);
+  const [publishText, setPublishText] = useState("");
+  const [publishTargets, setPublishTargets] = useState<Set<string>>(new Set());
+  const [publishing, setPublishing] = useState(false);
+  const [publishResult, setPublishResult] = useState<Array<{ platform: string; success: boolean; error?: string }> | null>(null);
+  const [socialAccounts, setSocialAccounts] = useState<Array<{ id: string; platform: string; name: string; icon: string }>>([]);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Persist results to localStorage
   useEffect(() => {
-    setBreadcrumbs([{ label: "Genera AI" }]);
+    localStorage.setItem("goitalia_gen_results", JSON.stringify(results.slice(0, 50)));
+  }, [results]);
+
+  // Persist active jobs
+  useEffect(() => {
+    localStorage.setItem("goitalia_gen_jobs", JSON.stringify(activeJobs));
+  }, [activeJobs]);
+
+  // Fetch social accounts for publish
+  useEffect(() => {
+    if (!selectedCompany?.id) return;
+    const accs = [];
+    fetch("/api/oauth/meta/status?companyId=" + selectedCompany.id, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.instagram) d.instagram.forEach((ig) => accs.push({ id: "ig_" + ig.username, platform: "instagram", name: "@" + ig.username, icon: "instagram" }));
+        if (d.pages) d.pages.forEach((p) => accs.push({ id: "fb_" + p.id, platform: "facebook", name: p.name, icon: "facebook" }));
+        setSocialAccounts((prev) => [...prev.filter((a) => a.platform !== "instagram" && a.platform !== "facebook"), ...accs]);
+      }).catch(() => {});
+    fetch("/api/oauth/linkedin/status?companyId=" + selectedCompany.id, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { if (d.connected) setSocialAccounts((prev) => [...prev.filter((a) => a.platform !== "linkedin"), { id: "li_" + d.name, platform: "linkedin", name: d.name, icon: "linkedin" }]); })
+      .catch(() => {});
+  }, [selectedCompany?.id]);
+
+  // Resume polling for active jobs on mount
+  useEffect(() => {
+    if (!selectedCompany?.id || activeJobs.length === 0) return;
+    activeJobs.forEach((job) => {
+      if (job.status === "pending" || job.status === "polling") {
+        pollJob(job);
+      }
+    });
+  }, [selectedCompany?.id]);
+
+  const pollJob = useCallback((job: ActiveJob) => {
+    setActiveJobs((prev) => prev.map((j) => j.id === job.id ? { ...j, status: "polling" } : j));
+    const interval = setInterval(async () => {
+      try {
+        const sr = await fetch("/api/fal/status/" + job.modelKey + "/" + job.requestId + "?companyId=" + job.companyId, { credentials: "include" });
+        const status = await sr.json();
+        if (status.status === "COMPLETED") {
+          clearInterval(interval);
+          const rr = await fetch("/api/fal/result/" + job.modelKey + "/" + job.requestId + "?companyId=" + job.companyId, { credentials: "include" });
+          const res = await rr.json();
+          const newResults = [];
+          if (res.images) res.images.forEach((img) => newResults.push({ id: crypto.randomUUID(), url: img.url, type: "image" }));
+          if (res.video) newResults.push({ id: crypto.randomUUID(), url: res.video.url, type: "video" });
+          setResults((prev) => [...newResults, ...prev]);
+          setActiveJobs((prev) => prev.map((j) => j.id === job.id ? { ...j, status: "done" } : j));
+          setGenerating(false);
+          setProgress("");
+        } else if (status.status === "FAILED") {
+          clearInterval(interval);
+          setActiveJobs((prev) => prev.map((j) => j.id === job.id ? { ...j, status: "failed" } : j));
+          setGenerating(false);
+        }
+      } catch {}
+    }, 3000);
+  }, []);
+
+  useEffect(() => {
+    setBreadcrumbs([{ label: "Genera Contenuti" }]);
   }, [setBreadcrumbs]);
 
   useEffect(() => {
@@ -365,47 +448,22 @@ export function GenerateAI() {
       }
 
       const { requestId } = data;
+      // Create background job
+      const job: ActiveJob = { id: crypto.randomUUID(), modelKey, requestId, companyId: selectedCompany!.id, type: mainTab === "images" ? "image" : "video", status: "pending" };
+      setActiveJobs((prev) => [job, ...prev]);
       setProgress("In coda...");
+      pollJob(job);
+      // Keep old polling for progress display only
       let attempts = 0;
-
       pollRef.current = setInterval(async () => {
         attempts++;
         try {
-          const sr = await fetch(
-            `/api/fal/status/${modelKey}/${requestId}?companyId=${selectedCompany!.id}`,
-            { credentials: "include" }
-          );
+          const sr = await fetch(`/api/fal/status/${modelKey}/${requestId}?companyId=${selectedCompany!.id}`, { credentials: "include" });
           const status = await sr.json();
-
-          if (status.status === "COMPLETED") {
+          if (status.status === "COMPLETED" || status.status === "FAILED") {
             if (pollRef.current) clearInterval(pollRef.current);
-            setProgress("Download risultato...");
-
-            const rr = await fetch(
-              `/api/fal/result/${modelKey}/${requestId}?companyId=${selectedCompany!.id}`,
-              { credentials: "include" }
-            );
-            const res = await rr.json();
-
-            const newResults: ResultItem[] = [];
-            if (res.images) {
-              for (const img of res.images) {
-                newResults.push({ id: crypto.randomUUID(), url: img.url, type: "image" });
-              }
-            }
-            if (res.video) {
-              newResults.push({ id: crypto.randomUUID(), url: res.video.url, type: "video" });
-            }
-            setResults((prev) => [...newResults, ...prev]);
-            setGenerating(false);
-            setProgress("");
           } else if (status.status === "IN_PROGRESS") {
             setProgress("Generazione in corso...");
-          } else if (status.status === "FAILED") {
-            if (pollRef.current) clearInterval(pollRef.current);
-            setError("Generazione fallita");
-            setGenerating(false);
-            setProgress("");
           } else {
             const pos = status.queue_position ?? "?";
             setProgress(`In coda... (posizione: ${pos})`);
@@ -922,6 +980,56 @@ export function GenerateAI() {
           )}
         </div>
       )}
+
+
+            {/* Publish modal */}
+      {publishingResult && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center" onClick={() => setPublishingResult(null)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative max-w-md w-full mx-4 p-5 space-y-3 rounded-2xl" onClick={(e) => e.stopPropagation()} style={{ background: "linear-gradient(135deg, rgba(20,30,40,0.98), rgba(15,25,35,0.98))", border: "1px solid rgba(255,255,255,0.1)" }}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Pubblica immagine</h3>
+              <button onClick={() => setPublishingResult(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <img src={publishingResult.url} alt="" className="w-full rounded-xl max-h-48 object-cover" />
+            <textarea value={publishText} onChange={(e) => setPublishText(e.target.value)} placeholder="Testo del post (opzionale)..." rows={2} className="w-full rounded-xl px-3 py-2 text-sm outline-none resize-none" style={inputStyle} />
+            <div className="text-xs text-muted-foreground">Pubblica su:</div>
+            <div className="flex flex-wrap gap-1.5">
+              {socialAccounts.map((acc) => (
+                <button key={acc.id} onClick={() => { const n = new Set(publishTargets); if (n.has(acc.id)) n.delete(acc.id); else n.add(acc.id); setPublishTargets(n); }} className={"px-2.5 py-1 rounded-lg text-xs font-medium transition-all " + (publishTargets.has(acc.id) ? "text-white ring-1 ring-green-500" : "text-muted-foreground")} style={publishTargets.has(acc.id) ? { background: "rgba(34,197,94,0.15)" } : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  {acc.name}
+                </button>
+              ))}
+            </div>
+            {publishResult && publishResult.map((r, i) => (
+              <div key={i} className={"text-xs px-2 py-1 rounded " + (r.success ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400")}>
+                {r.platform}: {r.success ? "Pubblicato!" : r.error || "Errore"}
+              </div>
+            ))}
+            <button onClick={async () => {
+              if (!selectedCompany?.id || publishTargets.size === 0) return;
+              setPublishing(true);
+              try {
+                const imgRes = await fetch(publishingResult.url);
+                const imgBlob = await imgRes.blob();
+                const fd = new FormData();
+                fd.append("companyId", selectedCompany.id);
+                fd.append("text", publishText);
+                fd.append("platforms", JSON.stringify(Array.from(publishTargets)));
+                fd.append("image", imgBlob, "generated.jpg");
+                const res = await fetch("/api/social/publish", { method: "POST", credentials: "include", body: fd });
+                const data = await res.json();
+                setPublishResult(data.results || []);
+                if (data.results?.every((r) => r.success)) setTimeout(() => setPublishingResult(null), 2000);
+              } catch { setPublishResult([{ platform: "all", success: false, error: "Errore" }]); }
+              setPublishing(false);
+            }} disabled={publishing || publishTargets.size === 0} className="w-full py-2.5 rounded-xl text-sm font-medium text-white disabled:opacity-30" style={greenShadow}>
+              {publishing ? "Pubblicazione..." : "Pubblica"}
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
