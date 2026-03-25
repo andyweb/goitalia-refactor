@@ -184,7 +184,7 @@ export function falAiRoutes(db: Db) {
         headers: { Authorization: "Key " + falKey },
       });
       if (!r.ok) {
-        res.json({ status: r.status === 404 ? "FAILED" : "IN_QUEUE" });
+        res.json({ status: (r.status === 404 || r.status === 405 || r.status === 410) ? "FAILED" : "IN_QUEUE" });
         return;
       }
       const text = await r.text();
