@@ -308,29 +308,7 @@ export function CompanySettings() {
             </div>
           </div>
 
-          <Field label="Nome impresa" hint="Il nome visualizzato della tua impresa.">
-            <input
-              className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none"
-              type="text"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-            />
-          </Field>
-          <Field
-            label="Descrizione"
-            hint="Descrizione opzionale del profilo impresa."
-          >
-            <input
-              className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none"
-              type="text"
-              value={description}
-              placeholder="Descrizione opzionale"
-              onChange={(e) => setDescrizione(e.target.value)}
-            />
-          </Field>
-
-          {/* Dati account */}
-          <div className="pt-2 border-t border-white/5 space-y-3">
+          <div className="space-y-3">
             <Field label="Email" hint="Email usata per la registrazione.">
               <input className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none opacity-60" type="text" value={userEmail} readOnly />
             </Field>
