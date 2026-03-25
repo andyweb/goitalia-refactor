@@ -619,31 +619,9 @@ export function whatsappWebhookRouter(db: Db) {
     }
   });
 
-  // GET /whatsapp/unread-count?companyId=xxx
-  router.get("/whatsapp/unread-count", async (req, res) => {
-    const actor = req.actor as { type?: string; userId?: string } | undefined;
-    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
-    const companyId = req.query.companyId as string;
-    if (!companyId) { res.json({ count: 0 }); return; }
-    try {
-      const rows = await db.execute(sql`SELECT COUNT(*) as count FROM whatsapp_messages WHERE company_id = ${companyId} AND direction = 'incoming' AND created_at > COALESCE((SELECT last_read_at FROM read_markers WHERE company_id = ${companyId} AND user_id = ${actor.userId} AND channel = 'whatsapp' AND chat_id IS NULL), '2000-01-01')`);
-      const count = (rows as any[])[0]?.count || 0;
-      res.json({ count: parseInt(String(count)) });
-    } catch { res.json({ count: 0 }); }
-  });
+  
 
-  // POST /whatsapp/mark-read
-  router.post("/whatsapp/mark-read", async (req, res) => {
-    const actor = req.actor as { type?: string; userId?: string } | undefined;
-    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
-    const { companyId } = req.body as { companyId: string };
-    if (!companyId) { res.json({ ok: true }); return; }
-    try {
-      await db.execute(sql`DELETE FROM read_markers WHERE company_id = ${companyId} AND user_id = ${actor.userId} AND channel = 'whatsapp'`);
-      await db.execute(sql`INSERT INTO read_markers (company_id, user_id, channel, last_read_at) VALUES (${companyId}, ${actor.userId}, 'whatsapp', now())`);
-    } catch {}
-    res.json({ ok: true });
-  });
+  
 
   
 
