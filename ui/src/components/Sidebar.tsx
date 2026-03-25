@@ -206,7 +206,7 @@ export function Sidebar() {
 
         {/* Lavoro */}
         <SidebarSection label="Lavoro">
-          <SidebarNavItem to="/chat" label="Chat" icon={MessageCircle} />
+          <SidebarNavItem to="/chat" label="Chat (CEO)" icon={MessageCircle} />
           {hasGoogle && <SidebarNavItem to="/mail" label="Mail" icon={Mail} badge={mailUnread > 0 ? mailUnread : undefined} />}
           {hasWhatsApp && <SidebarNavItem to="/whatsapp" label="WhatsApp" icon={Phone} badge={waUnread > 0 ? waUnread : undefined} />}
           {hasTelegram && <SidebarNavItem to="/telegram" label="Telegram" icon={MessageSquare} badge={telegramUnread > 0 ? telegramUnread : undefined} />}

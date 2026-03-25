@@ -136,7 +136,7 @@ export function ChatPage() {
         }
         if (!fullText) {
           setMessages((prev) =>
-            prev.map((m) => m.id === assistantId && !m.content ? { ...m, content: "Ciao! Sono il tuo Direttore AI. Raccontami della tua impresa." } : m)
+            prev.map((m) => m.id === assistantId && !m.content ? { ...m, content: "Ciao! Sono il CEO della tua azienda AI. Raccontami della tua impresa." } : m)
           );
         }
         if (selectedCompanyId) {
@@ -279,7 +279,7 @@ export function ChatPage() {
         <div>
           <h1 className="text-sm font-semibold">{ceoAgent?.name ?? "CEO"}</h1>
           <p className="text-xs text-muted-foreground">
-            {selectedCompany?.name ?? "La tua impresa AI"} — Parla con il tuo direttore AI
+            {selectedCompany?.name ?? "La tua impresa AI"} — Parla con il tuo CEO
           </p>
         </div>
       </div>
