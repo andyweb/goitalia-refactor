@@ -235,16 +235,16 @@ export function Sidebar() {
         <SidebarSection label="Impostazioni">
           <SidebarNavItem to="/plugins" label="Connettori" icon={Plug} />
           <SidebarNavItem to="/company/settings" label="Profilo" icon={Settings} />
-          <div className="relative">
-            <SidebarNavItem to="/api-claude" label="API Claude" icon={Key} className={hasApiKey === false ? "animate-pulse" : undefined} />
-            {hasApiKey === false && (
-              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 z-50 w-56 px-3 py-2 rounded-xl text-xs shadow-lg" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}>
-                <div className="font-semibold">Inizia da qui!</div>
-                <div className="mt-0.5 opacity-90">Inserisci la tua API key Claude per attivare il CEO AI.</div>
-                <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[6px]" style={{ borderRightColor: "hsl(158 64% 42%)" }} />
-              </div>
-            )}
-          </div>
+          {hasApiKey === false ? (
+            <div className="relative">
+              <div className="absolute inset-0 rounded-lg animate-pulse" style={{ background: "hsl(158 64% 42% / 0.25)", boxShadow: "0 0 15px hsl(158 64% 42% / 0.4)" }} />
+              <SidebarNavItem to="/api-claude" label="API Claude" icon={Key} className="relative z-10 !text-white font-bold" />
+              <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full animate-ping" style={{ background: "hsl(158 64% 42%)" }} />
+              <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full" style={{ background: "hsl(158 64% 42%)" }} />
+            </div>
+          ) : (
+            <SidebarNavItem to="/api-claude" label="API Claude" icon={Key} />
+          )}
           {session?.user?.email === "emanuele@unvrslabs.dev" && (
             <SidebarNavItem to="/admin" label="GoItalIA" icon={ShieldCheck} />
           )}

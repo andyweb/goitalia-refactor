@@ -202,6 +202,21 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {hasApiKey === false && (
+        <div className="mb-6 rounded-2xl p-5 flex items-center gap-4" style={{ background: "linear-gradient(135deg, hsl(158 64% 42% / 0.15), hsl(160 70% 36% / 0.08))", border: "1px solid hsl(158 64% 42% / 0.3)" }}>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))" }}>
+            <span className="text-2xl">👋</span>
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-semibold">Benvenuto su GoItalIA!</div>
+            <div className="text-xs text-muted-foreground mt-0.5">Per iniziare, configura la tua <a href="api-claude" className="font-medium underline" style={{ color: "hsl(158 64% 52%)" }}>API key Claude</a> — è il primo passo per attivare il tuo CEO AI.</div>
+          </div>
+          <a href="api-claude" className="px-4 py-2 rounded-xl text-sm font-medium shrink-0" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}>
+            Configura API
+          </a>
+        </div>
+      )}
+
       {error && <p className="text-sm text-destructive">{error.message}</p>}
 
       {hasNoAgents && (
