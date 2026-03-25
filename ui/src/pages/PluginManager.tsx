@@ -75,6 +75,8 @@ export function PluginManager() {
   const [openaiKey, setOpenaiKey] = useState("");
   const [voiceSaving, setVoiceSaving] = useState(false);
   const [telegramAutoReply, setTelegramAutoReply] = useState<Record<string, boolean>>({});
+  const [ficConnected, setFicConnected] = useState(false);
+  const [ficCompany, setFicCompany] = useState<string | null>(null);
   const [expandedConnector, setExpandedConnector] = useState<string | null>(null);
 
   useEffect(() => {
@@ -92,6 +94,7 @@ export function PluginManager() {
       .then((d) => setTelegramStatus(d))
       .catch(() => setTelegramStatus({ connected: false }));
     fetch("/api/fal/status?companyId=" + selectedCompany.id, { credentials: "include" }).then((r) => r.json()).then((d) => setFalConnected(d.connected)).catch(() => {});
+    fetch("/api/fic/status?companyId=" + selectedCompany.id, { credentials: "include" }).then((r) => r.json()).then((d) => { setFicConnected(d.connected || false); setFicCompany(d.companyName || null); }).catch(() => {});
     fetch("/api/voice/status?companyId=" + selectedCompany.id, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => setVoiceEnabled(d.enabled || false))
@@ -221,6 +224,7 @@ export function PluginManager() {
   const isLinkedinConnected = linkedinStatus?.connected ?? false;
   const isVoiceConnected = voiceEnabled;
   const isFalConnected = falConnected;
+  const isFicConnected = ficConnected;
 
 
   // Uniform row style for sub-items
@@ -700,7 +704,43 @@ export function PluginManager() {
           )}
         </div>
 
-        {/* 8. Prossimamente */}
+        {/* 8. Fatture in Cloud */}
+        <div className="rounded-xl overflow-hidden" style={glass.cardStyle}>
+          <button onClick={() => toggle("fic")} className="w-full px-4 py-3 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(59, 130, 246, 0.15)", border: "1px solid rgba(59, 130, 246, 0.3)" }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <div className="text-sm font-medium">Fatture in Cloud</div>
+              <div className="text-xs text-muted-foreground">Fatturazione elettronica, clienti, SDI</div>
+            </div>
+            <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-medium border shrink-0", isFicConnected ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-amber-500/20 text-amber-400 border-amber-500/30")}>
+              {isFicConnected ? "Connesso" : "Non connesso"}
+            </span>
+            <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform shrink-0", expandedConnector === "fic" && "rotate-180")} />
+          </button>
+          {expandedConnector === "fic" && (
+            <div className="px-4 pb-3 space-y-2 border-t border-white/5">
+              {isFicConnected ? (
+                <div className="space-y-2">
+                  <div className={row} style={rowBg}>
+                    {greenDot}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span className="flex-1 text-xs">{ficCompany || "Fatture in Cloud"}</span>
+                    <button className="flex items-center gap-1 text-[10px] text-red-400/60 hover:text-red-400 transition-all" onClick={async () => { await fetch("/api/fic/disconnect?companyId=" + selectedCompany?.id, { method: "POST", credentials: "include" }); setFicConnected(false); setFicCompany(null); }}>{xIcon} <span>Disconnetti</span></button>
+                  </div>
+                  <div className={actionRow}>
+                    {agentBtn("Ho collegato Fatture in Cloud. Crea un agente per gestire la fatturazione elettronica, emettere fatture e monitorare i pagamenti.")}
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => { window.location.href = "/api/oauth/fattureincloud/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); }} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2" style={{ background: "rgba(66, 133, 244, 0.2)", border: "1px solid rgba(66, 133, 244, 0.3)", color: "rgba(255,255,255,0.9)" }}>Collega Fatture in Cloud</button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 9. Prossimamente */}
         <div className="rounded-xl overflow-hidden" style={{ ...glass.cardStyle, opacity: 0.5 }}>
           <div className="w-full px-4 py-3 flex items-center gap-3 cursor-default">
             <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>

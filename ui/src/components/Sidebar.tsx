@@ -20,7 +20,7 @@ import {
   ShieldCheck,
   Key,
   LogOut,
-  FolderOpen, Sparkles,
+  FolderOpen, Sparkles, Receipt,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SidebarSection } from "./SidebarSection";
@@ -62,6 +62,7 @@ export function Sidebar() {
   const [hasWhatsApp, setHasWhatsApp] = useState(false);
   const [hasSocial, setHasSocial] = useState(false);
   const [hasFal, setHasFal] = useState(false);
+  const [hasFic, setHasFic] = useState(false);
   const [telegramUnread, setTelegramUnread] = useState(0);
   const [waUnread, setWaUnread] = useState(0);
 
@@ -83,6 +84,10 @@ export function Sidebar() {
       fetch("/api/fal/status?companyId=" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json())
         .then((d) => setHasFal(d.connected || false))
+        .catch(() => {});
+      fetch("/api/fic/status?companyId=" + selectedCompanyId, { credentials: "include" })
+        .then((r) => r.json())
+        .then((d) => setHasFic(d.connected || false))
         .catch(() => {});
       Promise.all([
         fetch("/api/oauth/meta/status?companyId=" + selectedCompanyId, { credentials: "include" }).then((r) => r.json()).catch(() => ({ connected: false })),
@@ -227,6 +232,7 @@ export function Sidebar() {
           {hasTelegram && <SidebarNavItem to="/telegram" label="Telegram" icon={MessageSquare} badge={telegramUnread > 0 ? telegramUnread : undefined} />}
           {hasSocial && <SidebarNavItem to="/social" label="Social" icon={Share2Icon} />}
           {hasFal && <SidebarNavItem to="/genera" label="Genera Contenuti" icon={Sparkles} />}
+          {hasFic && <SidebarNavItem to="/fatturazione" label="Fatturazione" icon={Receipt} />}
           {hasGoogle && <SidebarNavItem to="/calendario" label="Calendario" icon={Calendar} />}
           {hasGoogle && <SidebarNavItem to="/documenti" label="Documenti" icon={HardDrive} />}
           {!isOnboarding && !isClaudeApi && <SidebarNavItem to="/issues" label="Attività" icon={CircleDot} />}
