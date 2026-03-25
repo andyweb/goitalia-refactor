@@ -236,12 +236,14 @@ export function GenerateAI() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
 
   // Generation state
-  const [generating, setGenerating] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]").some((j: any) => j.status === "pending" || j.status === "polling"); } catch { return false; }
+  const [generatingImage, setGeneratingImage] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]").some((j: any) => (j.status === "pending" || j.status === "polling") && j.type === "image"); } catch { return false; }
   });
-  const [progress, setProgress] = useState(() => {
-    try { const jobs = JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]"); return jobs.some((j: any) => j.status === "pending" || j.status === "polling") ? "Generazione in corso..." : ""; } catch { return ""; }
+  const [generatingVideo, setGeneratingVideo] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]").some((j: any) => (j.status === "pending" || j.status === "polling") && j.type === "video"); } catch { return false; }
   });
+  const [imageProgress, setImageProgress] = useState("");
+  const [videoProgress, setVideoProgress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<ResultItem[]>(() => {
     try { return JSON.parse(localStorage.getItem("goitalia_gen_results") || "[]"); } catch { return []; }
@@ -310,12 +312,12 @@ export function GenerateAI() {
           if (res.video) newResults.push({ id: crypto.randomUUID(), url: res.video.url, type: "video" });
           setResults((prev) => [...newResults, ...prev]);
           setActiveJobs((prev) => prev.map((j: ActiveJob) => j.id === job.id ? { ...j, status: "done" } : j));
-          setGenerating(false);
-          setProgress("");
+          mainTab === "images" ? setGeneratingImage(false) : setGeneratingVideo(false);
+          setImageProgress(""); setVideoProgress("");
         } else if (status.status === "FAILED") {
           clearInterval(interval);
           setActiveJobs((prev) => prev.map((j: ActiveJob) => j.id === job.id ? { ...j, status: "failed" } : j));
-          setGenerating(false);
+          mainTab === "images" ? setGeneratingImage(false) : setGeneratingVideo(false);
         }
       } catch {}
     }, 3000);
@@ -407,9 +409,9 @@ export function GenerateAI() {
   // ── Generate ──
   const generate = useCallback(async () => {
     if (!selectedCompany?.id || !prompt.trim()) return;
-    setGenerating(true);
+    mainTab === "images" ? setGeneratingImage(true) : setGeneratingVideo(true);
     setError(null);
-    setProgress("Invio richiesta...");
+    mainTab === "images" ? setImageProgress("Invio richiesta...") : setVideoProgress("Invio richiesta...");
 
     try {
       const fd = new FormData();
@@ -446,8 +448,8 @@ export function GenerateAI() {
       const data = await r.json();
       if (!r.ok) {
         setError(data.error || "Errore generazione");
-        setGenerating(false);
-        setProgress("");
+        mainTab === "images" ? setGeneratingImage(false) : setGeneratingVideo(false);
+        setImageProgress(""); setVideoProgress("");
         return;
       }
 
@@ -455,7 +457,7 @@ export function GenerateAI() {
       // Create background job
       const job: ActiveJob = { id: crypto.randomUUID(), modelKey, requestId, companyId: selectedCompany!.id, type: mainTab === "images" ? "image" : "video", status: "pending" };
       setActiveJobs((prev) => [job, ...prev]);
-      setProgress("Generazione in corso...");
+      mainTab === "images" ? setImageProgress("Generazione in corso...") : setVideoProgress("Generazione in corso...");
       pollJob(job);
       // Keep old polling for progress display only
       let attempts = 0;
@@ -467,17 +469,17 @@ export function GenerateAI() {
           if (status.status === "COMPLETED" || status.status === "FAILED") {
             if (pollRef.current) clearInterval(pollRef.current);
           } else if (status.status === "IN_PROGRESS") {
-            setProgress("Generazione in corso...");
+            mainTab === "images" ? setImageProgress("Generazione in corso...") : setVideoProgress("Generazione in corso...");
           } else {
             
-            setProgress("In coda...");
+            mainTab === "images" ? setImageProgress("In coda...") : setVideoProgress("In coda...");
           }
 
           if (attempts > 300) {
             if (pollRef.current) clearInterval(pollRef.current);
             setError("Timeout — la generazione sta impiegando troppo tempo");
-            setGenerating(false);
-            setProgress("");
+            mainTab === "images" ? setGeneratingImage(false) : setGeneratingVideo(false);
+            setImageProgress(""); setVideoProgress("");
           }
         } catch {
           // ignore poll errors, retry
@@ -485,8 +487,8 @@ export function GenerateAI() {
       }, 3000);
     } catch {
       setError("Errore di connessione");
-      setGenerating(false);
-      setProgress("");
+      mainTab === "images" ? setGeneratingImage(false) : setGeneratingVideo(false);
+      setImageProgress(""); setVideoProgress("");
     }
   }, [
     selectedCompany, prompt, modelKey, aspectRatio, duration, resolution,
@@ -661,16 +663,16 @@ export function GenerateAI() {
             {/* Generate button */}
             <button
               onClick={generate}
-              disabled={generating || !prompt.trim()}
+              disabled={(mainTab === "images" ? generatingImage : generatingVideo) || !prompt.trim()}
               className="flex items-center gap-2.5 px-6 py-3 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-30 hover:scale-[1.02] active:scale-[0.98]"
               style={greenShadow}
             >
-              {generating ? (
+              {(mainTab === "images" ? generatingImage : generatingVideo) ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Sparkles className="w-4 h-4" />
               )}
-              {generating ? progress || "Generazione..." : "Genera"}
+              {(mainTab === "images" ? generatingImage : generatingVideo) ? (mainTab === "images" ? imageProgress : videoProgress) || "Generazione..." : "Genera"}
             </button>
 
             {error && (
@@ -853,16 +855,16 @@ export function GenerateAI() {
             {/* Generate button */}
             <button
               onClick={generate}
-              disabled={generating || !prompt.trim()}
+              disabled={generatingVideo || !prompt.trim()}
               className="flex items-center gap-2.5 px-6 py-3 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-30 hover:scale-[1.02] active:scale-[0.98]"
               style={greenShadow}
             >
-              {generating ? (
+              {generatingVideo ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Sparkles className="w-4 h-4" />
               )}
-              {generating ? progress || "Generazione..." : "Genera"}
+              {generatingVideo ? videoProgress || "Generazione..." : "Genera"}
             </button>
 
             {error && (
@@ -875,7 +877,7 @@ export function GenerateAI() {
       )}
 
       {/* ─── RESULTS GALLERY ─── */}
-      {(results.length > 0 || generating) && (
+      {(results.length > 0 || generatingImage || generatingVideo) && (
         <div className="space-y-4">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
             Risultati
@@ -884,7 +886,7 @@ export function GenerateAI() {
           {/* Image results grid */}
           {results.some((r) => r.type === "image") && (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {generating && !isVideo && (
+              {generatingImage && !isVideo && (
                 <div
                   className="aspect-square rounded-xl flex items-center justify-center border border-white/10"
                   style={{ background: "rgba(255,255,255,0.04)" }}
@@ -937,7 +939,7 @@ export function GenerateAI() {
           {/* Video results grid */}
           {results.some((r) => r.type === "video") && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {generating && isVideo && (
+              {generatingVideo && isVideo && (
                 <div
                   className="aspect-video rounded-xl flex items-center justify-center border border-white/10"
                   style={{ background: "rgba(255,255,255,0.04)" }}
@@ -977,7 +979,7 @@ export function GenerateAI() {
           )}
 
           {/* Loading placeholder when no results yet */}
-          {generating && results.length === 0 && (
+          {(generatingImage || generatingVideo) && results.length === 0 && (
             <div
               className={
                 (isVideo ? "aspect-video max-w-lg" : "aspect-square max-w-[200px]") +
