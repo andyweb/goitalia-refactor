@@ -78,6 +78,10 @@ export function Sidebar() {
         .then((r) => r.json())
         .then((d) => setHasWhatsApp(d.connected || false))
         .catch(() => {});
+      fetch("/api/fal/status?companyId=" + selectedCompanyId, { credentials: "include" })
+        .then((r) => r.json())
+        .then((d) => setHasFal(d.connected || false))
+        .catch(() => {});
       Promise.all([
         fetch("/api/oauth/meta/status?companyId=" + selectedCompanyId, { credentials: "include" }).then((r) => r.json()).catch(() => ({ connected: false })),
         fetch("/api/oauth/linkedin/status?companyId=" + selectedCompanyId, { credentials: "include" }).then((r) => r.json()).catch(() => ({ connected: false })),
