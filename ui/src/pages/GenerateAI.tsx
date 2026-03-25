@@ -267,12 +267,12 @@ export function GenerateAI() {
   // Fetch social accounts for publish
   useEffect(() => {
     if (!selectedCompany?.id) return;
-    const accs = [];
+    const accs: Array<{ id: string; platform: string; name: string; icon: string }> = [];
     fetch("/api/oauth/meta/status?companyId=" + selectedCompany.id, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => {
-        if (d.instagram) d.instagram.forEach((ig) => accs.push({ id: "ig_" + ig.username, platform: "instagram", name: "@" + ig.username, icon: "instagram" }));
-        if (d.pages) d.pages.forEach((p) => accs.push({ id: "fb_" + p.id, platform: "facebook", name: p.name, icon: "facebook" }));
+        if (d.instagram) d.instagram.forEach((ig: any) => accs.push({ id: "ig_" + ig.username, platform: "instagram", name: "@" + ig.username, icon: "instagram" }));
+        if (d.pages) d.pages.forEach((p: any) => accs.push({ id: "fb_" + p.id, platform: "facebook", name: p.name, icon: "facebook" }));
         setSocialAccounts((prev) => [...prev.filter((a) => a.platform !== "instagram" && a.platform !== "facebook"), ...accs]);
       }).catch(() => {});
     fetch("/api/oauth/linkedin/status?companyId=" + selectedCompany.id, { credentials: "include" })
@@ -292,7 +292,7 @@ export function GenerateAI() {
   }, [selectedCompany?.id]);
 
   const pollJob = useCallback((job: ActiveJob) => {
-    setActiveJobs((prev) => prev.map((j) => j.id === job.id ? { ...j, status: "polling" } : j));
+    setActiveJobs((prev) => prev.map((j: ActiveJob) => j.id === job.id ? { ...j, status: "polling" } : j));
     const interval = setInterval(async () => {
       try {
         const sr = await fetch("/api/fal/status/" + job.modelKey + "/" + job.requestId + "?companyId=" + job.companyId, { credentials: "include" });
@@ -302,15 +302,15 @@ export function GenerateAI() {
           const rr = await fetch("/api/fal/result/" + job.modelKey + "/" + job.requestId + "?companyId=" + job.companyId, { credentials: "include" });
           const res = await rr.json();
           const newResults = [];
-          if (res.images) res.images.forEach((img) => newResults.push({ id: crypto.randomUUID(), url: img.url, type: "image" }));
+          if (res.images) res.images.forEach((img: any) => newResults.push({ id: crypto.randomUUID(), url: img.url, type: "image" }));
           if (res.video) newResults.push({ id: crypto.randomUUID(), url: res.video.url, type: "video" });
           setResults((prev) => [...newResults, ...prev]);
-          setActiveJobs((prev) => prev.map((j) => j.id === job.id ? { ...j, status: "done" } : j));
+          setActiveJobs((prev) => prev.map((j: ActiveJob) => j.id === job.id ? { ...j, status: "done" } : j));
           setGenerating(false);
           setProgress("");
         } else if (status.status === "FAILED") {
           clearInterval(interval);
-          setActiveJobs((prev) => prev.map((j) => j.id === job.id ? { ...j, status: "failed" } : j));
+          setActiveJobs((prev) => prev.map((j: ActiveJob) => j.id === job.id ? { ...j, status: "failed" } : j));
           setGenerating(false);
         }
       } catch {}
