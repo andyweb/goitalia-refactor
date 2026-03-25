@@ -355,17 +355,41 @@ function OnboardingTooltip({ companyId, sidebarOpen }: { companyId: string | nul
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState<number>(() => {
+    try { return parseInt(localStorage.getItem("goitalia_onboarding") || "0"); } catch { return 0; }
+  });
 
   useEffect(() => {
     if (!companyId) return;
     fetch("/api/onboarding/claude-key/" + companyId, { credentials: "include" })
-      .then((r) => r.json()).then((d) => setHasApiKey(!!d.hasKey)).catch(() => {});
+      .then((r) => r.json()).then((d) => {
+        setHasApiKey(!!d.hasKey);
+        if (d.hasKey) {
+          const s = parseInt(localStorage.getItem("goitalia_onboarding") || "0");
+          if (s < 1) { localStorage.setItem("goitalia_onboarding", "1"); setOnboardingStep(1); }
+          else { setOnboardingStep(s); }
+        }
+      }).catch(() => {});
   }, [companyId]);
 
+  // Listen for storage changes (when sidebar updates the step)
   useEffect(() => {
-    if (hasApiKey !== false || !sidebarOpen || dismissed) { setPos(null); return; }
+    const onStorage = () => {
+      const s = parseInt(localStorage.getItem("goitalia_onboarding") || "0");
+      setOnboardingStep(s);
+    };
+    window.addEventListener("storage", onStorage);
+    const id = setInterval(onStorage, 500);
+    return () => { window.removeEventListener("storage", onStorage); clearInterval(id); };
+  }, []);
+
+  // Determine which element to point at
+  const targetId = onboardingStep === 0 ? "api-claude-nav" : onboardingStep === 1 ? "chat-ceo-nav" : null;
+
+  useEffect(() => {
+    if (!targetId || !sidebarOpen || dismissed) { setPos(null); return; }
     const update = () => {
-      const el = document.getElementById("api-claude-nav");
+      const el = document.getElementById(targetId);
       if (!el) return;
       const rect = el.getBoundingClientRect();
       setPos({ top: rect.top + rect.height / 2, left: rect.right + 12 });
@@ -373,15 +397,32 @@ function OnboardingTooltip({ companyId, sidebarOpen }: { companyId: string | nul
     update();
     const id = setInterval(update, 500);
     return () => clearInterval(id);
-  }, [hasApiKey, sidebarOpen, dismissed]);
+  }, [targetId, sidebarOpen, dismissed]);
 
-  if (hasApiKey !== false || dismissed) return null;
+  // Step 0: no key -> show tooltip for API Claude
+  // Step 1: has key, hasn't seen chat -> show tooltip for Chat CEO
+  // Step 2+: done
+  if (onboardingStep >= 2) return null;
+  if (onboardingStep === 0 && hasApiKey !== false) return null;
+  if (dismissed) return null;
+
+  const stepConfig = onboardingStep === 0
+    ? { title: "Configura API Claude", text: "Per attivare il tuo CEO AI e sbloccare tutte le funzionalita, inserisci la tua API key di Anthropic nella sezione qui sotto." }
+    : { title: "Parla col tuo CEO AI", text: "Il tuo CEO AI e pronto! Apri la chat per iniziare a lavorare insieme. Puoi chiedergli qualsiasi cosa sulla tua azienda." };
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    if (onboardingStep === 1) {
+      localStorage.setItem("goitalia_onboarding", "2");
+      setOnboardingStep(2);
+    }
+  };
 
   return (
     <>
-      {/* Overlay solo sul contenuto main, non sulla sidebar */}
+      {/* Overlay solo sul contenuto main */}
       <div className="absolute inset-0 z-[80] rounded-lg" style={{ background: "rgba(0,0,0,0.55)" }} />
-      {/* Tooltip accanto al menu API Claude */}
+      {/* Tooltip */}
       {sidebarOpen && pos && (
         <div className="fixed z-[100]" style={{ left: pos.left, top: pos.top, transform: "translateY(-50%)", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.5))" }}>
           <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2" style={{ width: 0, height: 0, borderTop: "10px solid transparent", borderBottom: "10px solid transparent", borderRight: "10px solid rgba(30, 40, 55, 0.97)" }} />
@@ -390,10 +431,10 @@ function OnboardingTooltip({ companyId, sidebarOpen }: { companyId: string | nul
               <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "hsl(158 64% 42%)" }}>
                 <Key className="w-3.5 h-3.5 text-white" />
               </div>
-              <h3 className="text-sm font-bold text-white">Configura API Claude</h3>
+              <h3 className="text-sm font-bold text-white">{stepConfig.title}</h3>
             </div>
-            <p className="text-xs text-white/60 leading-relaxed mb-3">Per attivare il tuo CEO AI e sbloccare tutte le funzionalita, inserisci la tua API key di Anthropic nella sezione qui sotto.</p>
-            <button onClick={() => setDismissed(true)} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all hover:brightness-110 w-full justify-center" style={{ background: "hsl(158 64% 42%)", color: "white" }}>
+            <p className="text-xs text-white/60 leading-relaxed mb-3">{stepConfig.text}</p>
+            <button onClick={handleDismiss} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all hover:brightness-110 w-full justify-center" style={{ background: "hsl(158 64% 42%)", color: "white" }}>
               Ho capito
             </button>
           </div>

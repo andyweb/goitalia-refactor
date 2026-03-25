@@ -65,6 +65,9 @@ export function Sidebar() {
   const [hasFic, setHasFic] = useState(false);
   const [hasOpenapi, setHasOpenapi] = useState(false);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
+  const [onboardingStep, setOnboardingStep] = useState<number>(() => {
+    try { return parseInt(localStorage.getItem("goitalia_onboarding") || "0"); } catch { return 0; }
+  });
   const [telegramUnread, setTelegramUnread] = useState(0);
   const [waUnread, setWaUnread] = useState(0);
 
@@ -92,7 +95,7 @@ export function Sidebar() {
         .then((d) => setHasFic(d.connected || false))
         .catch(() => {});
       fetch("/api/onboarding/claude-key/" + selectedCompanyId, { credentials: "include" })
-      .then((r) => r.json()).then((d) => setHasApiKey(!!d.hasKey)).catch(() => {});
+      .then((r) => r.json()).then((d) => { setHasApiKey(!!d.hasKey); if (d.hasKey) { const s = parseInt(localStorage.getItem('goitalia_onboarding') || '0'); if (s < 1) { localStorage.setItem('goitalia_onboarding', '1'); setOnboardingStep(1); } } }).catch(() => {});
     fetch("/api/openapi-it/status?companyId=" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json())
         .then((d) => setHasOpenapi(d.connected || false))
@@ -202,15 +205,24 @@ export function Sidebar() {
       {/* Main nav */}
       <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide flex flex-col gap-1 px-2 py-2">
         {/* Top items */}
-        <div className={"flex flex-col gap-0.5" + (hasApiKey === false ? " opacity-30 pointer-events-none" : "")}>
+        <div className={"flex flex-col gap-0.5" + (hasApiKey === false || (hasApiKey && onboardingStep < 2) ? " opacity-30 pointer-events-none" : "")}>
           <SidebarNavItem to="/dashboard" label="Dashboard" icon={LayoutDashboard} liveCount={liveRunCount} />
           <SidebarNavItem to="/org" label="Organigramma" icon={Share2Icon} />
         </div>
 
         {/* Lavoro */}
-        <div className={hasApiKey === false ? "opacity-30 pointer-events-none" : ""}>
         <SidebarSection label="Lavoro">
-          <SidebarNavItem to="/chat" label="Chat (CEO)" icon={MessageCircle} />
+          {hasApiKey && onboardingStep === 1 ? (
+            <div className="relative" id="chat-ceo-nav">
+              <div className="absolute inset-0 rounded-lg animate-pulse" style={{ background: "hsl(158 64% 42% / 0.25)", boxShadow: "0 0 15px hsl(158 64% 42% / 0.4)" }} />
+              <SidebarNavItem to="/chat" label="Chat (CEO)" icon={MessageCircle} className="relative z-10 !text-white font-bold" />
+              <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full animate-ping" style={{ background: "hsl(158 64% 42%)" }} />
+              <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full" style={{ background: "hsl(158 64% 42%)" }} />
+            </div>
+          ) : (
+            <div className={hasApiKey === false ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/chat" label="Chat (CEO)" icon={MessageCircle} /></div>
+          )}
+        <div className={hasApiKey === false || (hasApiKey && onboardingStep < 2) ? "opacity-30 pointer-events-none" : ""}>
           {hasGoogle && <SidebarNavItem to="/mail" label="Mail" icon={Mail} badge={mailUnread > 0 ? mailUnread : undefined} />}
           {hasWhatsApp && <SidebarNavItem to="/whatsapp" label="WhatsApp" icon={Phone} badge={waUnread > 0 ? waUnread : undefined} />}
           {hasTelegram && <SidebarNavItem to="/telegram" label="Telegram" icon={MessageSquare} badge={telegramUnread > 0 ? telegramUnread : undefined} />}
@@ -222,13 +234,13 @@ export function Sidebar() {
           {hasGoogle && <SidebarNavItem to="/documenti" label="Documenti" icon={HardDrive} />}
 
 
-        </SidebarSection>
         </div>
+        </SidebarSection>
 
 
 
         {/* Agents */}
-        <div className={hasApiKey === false ? "opacity-30 pointer-events-none" : ""}>
+        <div className={hasApiKey === false || (hasApiKey && onboardingStep < 2) ? "opacity-30 pointer-events-none" : ""}>
         <SidebarAgents />
 
         {/* Projects */}
@@ -237,8 +249,8 @@ export function Sidebar() {
         </div>
         {/* Impostazioni - nel menu principale */}
         <SidebarSection label="Impostazioni">
-          <div className={hasApiKey === false ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/plugins" label="Connettori" icon={Plug} /></div>
-          <div className={hasApiKey === false ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/company/settings" label="Profilo" icon={Settings} /></div>
+          <div className={hasApiKey === false || (hasApiKey && onboardingStep < 2) ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/plugins" label="Connettori" icon={Plug} /></div>
+          <div className={hasApiKey === false || (hasApiKey && onboardingStep < 2) ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/company/settings" label="Profilo" icon={Settings} /></div>
           {hasApiKey === false ? (
             <div className="relative" id="api-claude-nav">
               <div className="absolute inset-0 rounded-lg animate-pulse" style={{ background: "hsl(158 64% 42% / 0.25)", boxShadow: "0 0 15px hsl(158 64% 42% / 0.4)" }} />

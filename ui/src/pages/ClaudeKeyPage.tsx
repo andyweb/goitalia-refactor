@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "@/lib/router";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { Key, ExternalLink, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 
 export function ClaudeKeyPage() {
   const { selectedCompanyId } = useCompany();
+  const navigate = useNavigate();
   const { setBreadcrumbs } = useBreadcrumbs();
   const [apiKey, setApiKey] = useState("");
   const [loading, setLoading] = useState(false);
@@ -47,7 +49,9 @@ export function ClaudeKeyPage() {
       setApiKey("");
       setSuccess(true);
       setHasKey(true);
-      setTimeout(() => setSuccess(false), 3000);
+      // Advance onboarding to step 2 (chat CEO)
+      localStorage.setItem("goitalia_onboarding", "1");
+      setTimeout(() => navigate("/chat", { replace: true }), 1500);
     } catch {
       setError("Errore di connessione");
     }
