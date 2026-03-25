@@ -226,7 +226,7 @@ export function GenerateAI() {
   const [showNegPrompt, setShowNegPrompt] = useState(false);
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [resolution, setResolution] = useState("1K");
-  const [outputFormat, setOutputFormat] = useState("png");
+  const [outputFormat, setOutputFormat] = useState("jpeg");
   const [numImages, setNumImages] = useState(1);
   const [duration, setDuration] = useState("8s");
   const [generateAudio, setGenerateAudio] = useState(true);
