@@ -289,7 +289,7 @@ export function WhatsAppPage() {
             {/* Delete chat */}
             <button onClick={async () => {
               if (!selectedCompany?.id || !selectedChat) return;
-              if (!confirm("Eliminare questa conversazione?")) return;
+              if (!confirm("Eliminare questa conversazione dalla dashboard? (La chat resterà su WhatsApp)")) return;
               await fetch("/api/whatsapp/delete-chat", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, remoteJid: String(selectedChat) }) });
               setSelectedChat(null); fetchMessages();
             }} className="text-[10px] text-red-400/40 hover:text-red-400 mt-1 transition-all">Elimina conversazione</button>
