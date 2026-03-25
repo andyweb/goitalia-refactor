@@ -1,4 +1,4 @@
-const CACHE_NAME = "goitalia-v4";
+const CACHE_NAME = "goitalia-v5";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
