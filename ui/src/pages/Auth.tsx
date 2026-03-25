@@ -10,6 +10,7 @@ export function AuthPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const justRegistered = useRef(false);
+  const loginInProgress = useRef(false);
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<Mode>("login");
   const [companyName, setCompanyName] = useState("");
@@ -26,11 +27,11 @@ export function AuthPage() {
   });
 
   useEffect(() => {
-    if (session) navigate(justRegistered.current ? "/api-claude" : (searchParams.get("next") || "/"), { replace: true });
+    if (session && !loginInProgress.current) navigate(justRegistered.current ? "/api-claude" : (searchParams.get("next") || "/"), { replace: true });
   }, [session, navigate, nextPath]);
 
   const loginMutation = useMutation({
-    mutationFn: () => authApi.signInEmail({ email: email.trim(), password }),
+    mutationFn: () => { loginInProgress.current = true; return authApi.signInEmail({ email: email.trim(), password }); },
     onSuccess: async () => {
       setError(null);
       await queryClient.invalidateQueries({ queryKey: queryKeys.auth.session });
