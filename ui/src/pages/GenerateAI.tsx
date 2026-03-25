@@ -243,7 +243,7 @@ export function GenerateAI() {
     try { return JSON.parse(localStorage.getItem("goitalia_gen_results") || "[]"); } catch { return []; }
   });
   const [activeJobs, setActiveJobs] = useState<ActiveJob[]>(() => {
-    try { return JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]").filter((j) => j.status !== "done"); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]").filter((j: any) => j.status !== "done"); } catch { return []; }
   });
   const [publishingResult, setPublishingResult] = useState<ResultItem | null>(null);
   const [publishText, setPublishText] = useState("");
@@ -1020,7 +1020,7 @@ export function GenerateAI() {
                 const res = await fetch("/api/social/publish", { method: "POST", credentials: "include", body: fd });
                 const data = await res.json();
                 setPublishResult(data.results || []);
-                if (data.results?.every((r) => r.success)) setTimeout(() => setPublishingResult(null), 2000);
+                if (data.results?.every((r: any) => r.success)) setTimeout(() => setPublishingResult(null), 2000);
               } catch { setPublishResult([{ platform: "all", success: false, error: "Errore" }]); }
               setPublishing(false);
             }} disabled={publishing || publishTargets.size === 0} className="w-full py-2.5 rounded-xl text-sm font-medium text-white disabled:opacity-30" style={greenShadow}>
