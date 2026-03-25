@@ -223,6 +223,7 @@ export function GenerateAI() {
 
   // File uploads
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [lastFrameFile, setLastFrameFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
 
   // Generation state
@@ -342,6 +343,12 @@ export function GenerateAI() {
       }
 
       if (imageFile) fd.append("image", imageFile);
+      if (lastFrameFile && currentVideoMode === "frame-to-video") {
+        // Upload last frame separately - for now pass as URL after first upload
+        // The backend handles first_frame_url from the uploaded file
+        // For last frame we need to upload it to fal CDN separately
+        fd.append("last_frame_file", lastFrameFile);
+      }
       if (videoFile) fd.append("image", videoFile); // backend handles as file upload
 
       const r = await fetch("/api/fal/generate", {
@@ -639,7 +646,7 @@ export function GenerateAI() {
               tabs={[
                 { value: "text-to-video" as VeoMode, label: "Testo\u2192Video" },
                 { value: "img-to-video" as VeoMode, label: "Img\u2192Video" },
-                { value: "frame-to-video" as VeoMode, label: "Frame" },
+                { value: "frame-to-video" as VeoMode, label: "First & Last Frame" },
                 { value: "extend-video" as VeoMode, label: "Estendi" },
                 { value: "ref-to-video" as VeoMode, label: "Riferimento" },
               ]}
@@ -669,21 +676,45 @@ export function GenerateAI() {
           )}
 
           <div className={glassCard + " p-5 space-y-5"} style={glassBg}>
-            {/* Image upload for img-to-video, frame, reference modes */}
-            {needsImage && (
+            {/* Image upload for img-to-video, reference modes */}
+            {needsImage && currentVideoMode !== "frame-to-video" && (
               <UploadZone
                 file={imageFile}
                 onFile={setImageFile}
                 onClear={() => setImageFile(null)}
                 accept="image/*"
                 label={
-                  currentVideoMode === "frame-to-video"
-                    ? "Carica il primo frame (o primo e ultimo)"
-                    : currentVideoMode === "ref-to-video"
+                  currentVideoMode === "ref-to-video"
                     ? "Carica immagine di riferimento"
                     : "Carica immagine sorgente"
                 }
               />
+            )}
+
+            {/* First & Last Frame - two upload zones side by side */}
+            {currentVideoMode === "frame-to-video" && (
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <div className="text-xs text-muted-foreground mb-1.5">Primo Frame</div>
+                  <UploadZone
+                    file={imageFile}
+                    onFile={setImageFile}
+                    onClear={() => setImageFile(null)}
+                    accept="image/*"
+                    label="First"
+                  />
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs text-muted-foreground mb-1.5">Ultimo Frame</div>
+                  <UploadZone
+                    file={lastFrameFile}
+                    onFile={setLastFrameFile}
+                    onClear={() => setLastFrameFile(null)}
+                    accept="image/*"
+                    label="Last"
+                  />
+                </div>
+              </div>
             )}
 
             {/* Video upload for extend mode */}
