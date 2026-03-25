@@ -106,18 +106,29 @@ export function ClaudeKeyPage() {
 
         <div>
           <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>API Key *</label>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => { setApiKey(e.target.value); setError(null); }}
-            placeholder="sk-ant-api03-..."
-            className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
-            style={{
-              ...inputStyle,
-              borderColor: apiKey && !apiKey.startsWith("sk-ant-") ? "hsl(0 65% 50% / 0.5)" : error ? "hsl(0 65% 50% / 0.5)" : "rgba(255,255,255,0.12)",
-            }}
-            autoComplete="off"
-          />
+          {hasKey && !apiKey ? (
+            <div
+              className="w-full rounded-xl px-4 py-3 text-sm flex items-center justify-between cursor-pointer"
+              style={{ ...inputStyle }}
+              onClick={() => setHasKey(false)}
+            >
+              <span className="tracking-widest text-muted-foreground">••••••••••••••••••••</span>
+              <span className="text-xs text-muted-foreground/50 ml-2">Clicca per aggiornare</span>
+            </div>
+          ) : (
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => { setApiKey(e.target.value); setError(null); }}
+              placeholder="sk-ant-api03-..."
+              className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
+              style={{
+                ...inputStyle,
+                borderColor: apiKey && !apiKey.startsWith("sk-ant-") ? "hsl(0 65% 50% / 0.5)" : error ? "hsl(0 65% 50% / 0.5)" : "rgba(255,255,255,0.12)",
+              }}
+              autoComplete="off"
+            />
+          )}
         </div>
 
         {error && (
