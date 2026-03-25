@@ -237,10 +237,10 @@ export function GenerateAI() {
 
   // Generation state
   const [generating, setGenerating] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]").some((j) => j.status === "pending" || j.status === "polling"); } catch { return false; }
+    try { return JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]").some((j: any) => j.status === "pending" || j.status === "polling"); } catch { return false; }
   });
   const [progress, setProgress] = useState(() => {
-    try { const jobs = JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]"); return jobs.some((j) => j.status === "pending" || j.status === "polling") ? "Generazione in corso..." : ""; } catch { return ""; }
+    try { const jobs = JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]"); return jobs.some((j: any) => j.status === "pending" || j.status === "polling") ? "Generazione in corso..." : ""; } catch { return ""; }
   });
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<ResultItem[]>(() => {
