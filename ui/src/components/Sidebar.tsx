@@ -217,7 +217,7 @@ export function Sidebar() {
           {hasGoogle && <SidebarNavItem to="/mail" label="Mail" icon={Mail} badge={mailUnread > 0 ? mailUnread : undefined} />}
           {hasWhatsApp && <SidebarNavItem to="/whatsapp" label="WhatsApp" icon={Phone} badge={waUnread > 0 ? waUnread : undefined} />}
           {hasTelegram && <SidebarNavItem to="/telegram" label="Telegram" icon={MessageSquare} badge={telegramUnread > 0 ? telegramUnread : undefined} />}
-          <SidebarNavItem to="/social" label="Social" icon={Share2Icon} />
+          {hasSocial && <SidebarNavItem to="/social" label="Social" icon={Share2Icon} />}
           {hasFal && <SidebarNavItem to="/genera" label="Genera Contenuti" icon={Sparkles} />}
           {hasGoogle && <SidebarNavItem to="/calendario" label="Calendario" icon={Calendar} />}
           {hasGoogle && <SidebarNavItem to="/documenti" label="Documenti" icon={HardDrive} />}
