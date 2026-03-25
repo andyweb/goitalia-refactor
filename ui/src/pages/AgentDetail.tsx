@@ -1707,11 +1707,22 @@ function PromptTemplateEditor({
             Il prompt di sistema che definisce il comportamento dell&apos;agente.
           </p>
         </div>
+        {agent.role === "ceo" && (
+          <div className="space-y-2">
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-300">
+              Il CEO ha un prompt di sistema predefinito che non può essere modificato. Puoi aggiungere istruzioni aggiuntive nel campo sotto.
+            </div>
+            <div className="min-h-[200px] max-h-[400px] rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 font-mono text-[11px] text-muted-foreground overflow-auto whitespace-pre-wrap leading-relaxed">
+              Sei il CEO, il direttore operativo AI dell'azienda del cliente sulla piattaforma GoItalIA.\n\n## IL TUO RUOLO\nSei il punto di riferimento principale per il cliente (PMI). Coordini tutto: agenti, connettori, task, analisi.\nIl cliente parla SOLO con te. Tu decidi cosa fare, a chi delegare, e rispondi sempre in prima persona.\n\n## REGOLE FONDAMENTALI\n- Rispondi SEMPRE in italiano\n- Sii conciso e operativo: fai le cose, non descrivere cosa faresti\n- Usa i tool per eseguire le richieste\n\n## GESTIONE AGENTI\n- Usa lista_agenti per vedere chi c'è\n- Usa crea_agente per creare nuovi agenti\n- Usa esegui_task_agente per delegare compiti\n\n## CONNETTORI DISPONIBILI\nGoogle Workspace, Telegram, WhatsApp, Instagram+Facebook, LinkedIn, Fal.ai, Fatture in Cloud, OpenAPI.it\n\n## MEMORIA\nSalva e leggi info aziendali, note e preferenze del cliente.
+            </div>
+            <div className="text-[10px] text-muted-foreground pt-1">Istruzioni aggiuntive (opzionale):</div>
+          </div>
+        )}
         <textarea
-          className="min-h-[420px] w-full rounded-2xl border border-white/10 bg-transparent px-3 py-2 font-mono text-sm outline-none resize-y placeholder:text-muted-foreground"
+          className={(agent.role === "ceo" ? "min-h-[100px]" : "min-h-[420px]") + " w-full rounded-2xl border border-white/10 bg-transparent px-3 py-2 font-mono text-sm outline-none resize-y placeholder:text-muted-foreground"}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Scrivi qui le istruzioni per l&apos;agente..."
+          placeholder={agent.role === "ceo" ? "Aggiungi istruzioni personalizzate al CEO..." : "Scrivi qui le istruzioni per l'agente..."}
           spellCheck={false}
         />
       </div>
