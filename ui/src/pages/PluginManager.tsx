@@ -76,6 +76,8 @@ export function PluginManager() {
   const [voiceSaving, setVoiceSaving] = useState(false);
   const [telegramAutoReply, setTelegramAutoReply] = useState<Record<string, boolean>>({});
   const [ficConnected, setFicConnected] = useState(false);
+  const [ficToken, setFicToken] = useState("");
+  const [ficSaving, setFicSaving] = useState(false);
   const [ficCompany, setFicCompany] = useState<string | null>(null);
   const [expandedConnector, setExpandedConnector] = useState<string | null>(null);
 
