@@ -21,6 +21,7 @@ interface ActiveJob {
   companyId: string;
   type: "image" | "video";
   status: "pending" | "polling" | "done" | "failed";
+  createdAt: number;
 }
 
 interface ResultItem {
@@ -291,8 +292,15 @@ export function GenerateAI() {
   useEffect(() => {
     if (!selectedCompany?.id || activeJobs.length === 0) return;
     activeJobs.forEach((job) => {
-      if (job.status === "pending" || job.status === "polling") {
-        pollJob(job);
+      if ((job.status === "pending" || job.status === "polling")) {
+        if (job.createdAt && Date.now() - job.createdAt > 600000) {
+          // Job older than 10 min - mark as failed
+          setActiveJobs((prev) => prev.filter((j: any) => j.id !== job.id));
+          if (job.type === "image") setGeneratingImage(false);
+          else setGeneratingVideo(false);
+        } else {
+          pollJob(job);
+        }
       }
     });
   }, [selectedCompany?.id]);
@@ -455,7 +463,7 @@ export function GenerateAI() {
 
       const { requestId } = data;
       // Create background job
-      const job: ActiveJob = { id: crypto.randomUUID(), modelKey, requestId, companyId: selectedCompany!.id, type: mainTab === "images" ? "image" : "video", status: "pending" };
+      const job: ActiveJob = { id: crypto.randomUUID(), modelKey, requestId, companyId: selectedCompany!.id, type: mainTab === "images" ? "image" : "video", status: "pending", createdAt: Date.now() };
       setActiveJobs((prev) => [job, ...prev]);
       mainTab === "images" ? setImageProgress("Generazione in corso...") : setVideoProgress("Generazione in corso...");
       pollJob(job);
