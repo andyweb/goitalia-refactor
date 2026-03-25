@@ -431,7 +431,7 @@ export function GenerateAI() {
 
       if (isVideo) {
         fd.append("duration", duration);
-        fd.append("resolution", mainTab === "images" ? resolution : videoResolution);
+        fd.append("resolution", videoResolution);
         fd.append("generate_audio", String(generateAudio));
         if (negativePrompt.trim()) fd.append("negative_prompt", negativePrompt);
       } else {
