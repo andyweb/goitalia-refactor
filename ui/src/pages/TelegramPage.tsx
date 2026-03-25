@@ -90,11 +90,15 @@ export function TelegramPage() {
   // Mark as read when page opens
   useEffect(() => {
     if (!selectedCompany?.id) return;
-    fetch("/api/telegram/mark-read", {
-      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-      body: JSON.stringify({ companyId: selectedCompany.id }),
-    }).catch(() => {});
-    window.dispatchEvent(new CustomEvent("telegram-read"));
+    (async () => {
+      try {
+        await fetch("/api/telegram/mark-read", {
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+          body: JSON.stringify({ companyId: selectedCompany.id }),
+        });
+      } catch {}
+      window.dispatchEvent(new CustomEvent("telegram-read"));
+    })();
   }, [selectedCompany?.id]);
 
   useEffect(() => { fetchMessages(); }, [selectedCompany?.id, selectedBot]);

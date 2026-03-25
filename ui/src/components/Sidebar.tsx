@@ -117,8 +117,8 @@ export function Sidebar() {
     fetchUnread();
     const interval = setInterval(() => { fetchUnread(); fetchTgUnread(); fetchWaUnread(); }, 30000);
     const onMailUpdated = () => fetchUnread();
-    const onTgRead = () => { setTelegramUnread(0); setTimeout(fetchTgUnread, 2000); };
-    const onWaRead = () => { setWaUnread(0); setTimeout(fetchWaUnread, 2000); };
+    const onTgRead = () => { setTelegramUnread(0); };
+    const onWaRead = () => { setWaUnread(0); };
     window.addEventListener("mail-updated", onMailUpdated);
     window.addEventListener("telegram-read", onTgRead);
     window.addEventListener("whatsapp-read", onWaRead);
