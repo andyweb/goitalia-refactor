@@ -669,8 +669,10 @@ export function PluginManager() {
                     {greenDot}
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a855f7" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
                     <span className="flex-1 text-xs">Fal.ai — 11 modelli AI</span>
-                    <a href={"/" + (selectedCompany?.issuePrefix || "") + "/chat?msg=" + encodeURIComponent("Ho collegato Fal.ai per la generazione di contenuti. Crea un agente specializzato in generazione immagini e video con AI.")} className="text-[10px] px-2 py-0.5 rounded-md no-underline shrink-0" style={{ background: "hsl(158 64% 42% / 0.12)", border: "1px solid hsl(158 64% 42% / 0.2)", color: "hsl(158 64% 62%)" }}>Crea agente</a>
                     <button className="flex items-center gap-1 text-[10px] text-red-400/60 hover:text-red-400 transition-all" onClick={async () => { await fetch("/api/fal/key?companyId=" + selectedCompany?.id, { method: "DELETE", credentials: "include" }); setFalConnected(false); }}>{xIcon} <span>Disconnetti</span></button>
+                  </div>
+                  <div className={actionRow}>
+                    {agentBtn("Ho collegato Fal.ai per la generazione di contenuti. Crea un agente specializzato in generazione immagini e video con AI.")}
                   </div>
                 </div>
               ) : (
