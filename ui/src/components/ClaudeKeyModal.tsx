@@ -54,7 +54,7 @@ export function ClaudeKeyModal() {
       .catch(() => setChecking(false));
   }, [selectedCompany]);
 
-  if (checking || !visible || success) return null;
+  return null; // Disabled — onboarding handled by guided flow
 
   const handleSubmit = async () => {
     if (!selectedCompany || !apiKey) return;
