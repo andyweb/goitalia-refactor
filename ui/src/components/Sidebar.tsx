@@ -222,11 +222,11 @@ export function Sidebar() {
 
 
 
-        {/* Projects */}
-        <SidebarProjects />
-
         {/* Agents */}
         <SidebarAgents />
+
+        {/* Projects */}
+        <SidebarProjects />
 
         {/* Impostazioni - nel menu principale */}
         <SidebarSection label="Impostazioni">

@@ -2523,8 +2523,17 @@ function AgentConnectorsTab({ companyId }: { companyId?: string }) {
     { name: "Sheets", desc: "Gestisci fogli di calcolo", icon: "sheet" },
   ];
 
+  const hasAnyConnector = googleStatus?.connected || (telegramStatus?.connected && telegramStatus.bots?.length) || whatsappStatus?.connected || metaStatus?.connected || linkedinStatus?.connected || falStatus?.connected || ficStatus?.connected || oaiStatus?.connected;
+
   return (
     <div className="space-y-4">
+      {!hasAnyConnector && (
+        <div className="glass-card p-8 text-center space-y-3">
+          <Boxes className="w-10 h-10 text-muted-foreground/40 mx-auto" />
+          <div className="text-sm text-muted-foreground">Nessun connettore attivo</div>
+          <p className="text-xs text-muted-foreground/60">Vai su <a href={"/" + (selectedCompany?.issuePrefix || "") + "/plugins"} className="text-emerald-400 hover:underline">Connettori</a> per collegare i servizi che l'agente potrà utilizzare.</p>
+        </div>
+      )}
       {googleStatus?.connected && (<div className="glass-card p-4 space-y-4">
         <div onClick={() => setExpandedConn(expandedConn === "google" ? null : "google")} className="flex items-center gap-3 cursor-pointer">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(66, 133, 244, 0.15)", border: "1px solid rgba(66, 133, 244, 0.3)" }}>
