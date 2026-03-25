@@ -297,6 +297,88 @@ async function executeChatTool(
         return `Agente creato: ${input.nome} (${input.titolo}) \u2014 id: ${newAgent.id}`;
       }
 
+
+      case "lista_clienti": {
+        console.log("[chat-tool] lista_clienti for company:", companyId);
+        const ficToken = await getFicTokenForChat(db, companyId);
+        if (!ficToken) return "Fatture in Cloud non connesso. Collega il servizio da Connettori.";
+        const r = await fetch(`https://api-v2.fattureincloud.it/c/${ficToken.fic_company_id}/entities/clients?per_page=50&fieldset=basic`, {
+          headers: { Authorization: "Bearer " + ficToken.access_token },
+        });
+        if (!r.ok) return "Errore nel recupero clienti: " + r.status;
+        const data = await r.json() as any;
+        const clients = data.data || [];
+        if (clients.length === 0) return "Nessun cliente trovato. Usa crea_cliente per aggiungerne uno.";
+        return clients.map((c: any) => `ID: ${c.id} | ${c.name}${c.vat_number ? " | P.IVA: " + c.vat_number : ""}`).join("\n");
+      }
+
+      case "cerca_cliente": {
+        const ficToken = await getFicTokenForChat(db, companyId);
+        if (!ficToken) return "Fatture in Cloud non connesso.";
+        const query = toolInput.query as string;
+        const r = await fetch(`https://api-v2.fattureincloud.it/c/${ficToken.fic_company_id}/entities/clients?per_page=20&fieldset=detailed`, {
+          headers: { Authorization: "Bearer " + ficToken.access_token },
+        });
+        if (!r.ok) return "Errore ricerca: " + r.status;
+        const data = await r.json() as any;
+        const clients = (data.data || []).filter((c: any) => c.name?.toLowerCase().includes(query.toLowerCase()));
+        if (clients.length === 0) return "Nessun cliente trovato con '" + query + "'.";
+        return clients.map((c: any) => `ID: ${c.id} | ${c.name} | ${c.vat_number || ""} | ${c.address_city || ""}`).join("\n");
+      }
+
+      case "crea_cliente": {
+        const ficToken = await getFicTokenForChat(db, companyId);
+        if (!ficToken) return "Fatture in Cloud non connesso.";
+        const body = { data: { name: toolInput.nome, vat_number: toolInput.partita_iva || "", tax_code: toolInput.codice_fiscale || "", address_street: toolInput.indirizzo || "", address_postal_code: toolInput.cap || "", address_city: toolInput.citta || "", address_province: toolInput.provincia || "", country: "Italia", email: toolInput.email || "", certified_email: toolInput.pec || "", ei_code: toolInput.codice_sdi || "0000000" } };
+        const r = await fetch(`https://api-v2.fattureincloud.it/c/${ficToken.fic_company_id}/entities/clients`, {
+          method: "POST", headers: { Authorization: "Bearer " + ficToken.access_token, "Content-Type": "application/json" }, body: JSON.stringify(body),
+        });
+        if (!r.ok) { const err = await r.text(); return "Errore creazione cliente: " + err.substring(0, 200); }
+        const data = await r.json() as any;
+        return "Cliente creato! ID: " + data.data?.id + " | Nome: " + data.data?.name;
+      }
+
+      case "crea_fattura": {
+        const ficToken = await getFicTokenForChat(db, companyId);
+        if (!ficToken) return "Fatture in Cloud non connesso.";
+        const righe = (toolInput.righe as any[]) || [];
+        const items = righe.map((r: any) => ({ name: r.descrizione, net_price: r.prezzo, qty: r.quantita || 1, vat: { id: 0, value: r.iva || 22, is_disabled: false } }));
+        const body = { data: { type: "invoice", date: (toolInput.data as string) || new Date().toISOString().split("T")[0], entity: { id: toolInput.cliente_id }, items_list: items, e_invoice: toolInput.fattura_elettronica !== false, notes: toolInput.note || "" } };
+        const r = await fetch(`https://api-v2.fattureincloud.it/c/${ficToken.fic_company_id}/issued_documents`, {
+          method: "POST", headers: { Authorization: "Bearer " + ficToken.access_token, "Content-Type": "application/json" }, body: JSON.stringify(body),
+        });
+        if (!r.ok) { const err = await r.text(); return "Errore creazione fattura: " + err.substring(0, 300); }
+        const data = await r.json() as any;
+        const doc = data.data;
+        return "Fattura creata! ID: " + doc?.id + " | Numero: " + doc?.number + " | Totale: " + doc?.amount_gross + " euro";
+      }
+
+      case "lista_fatture": {
+        const ficToken = await getFicTokenForChat(db, companyId);
+        if (!ficToken) return "Fatture in Cloud non connesso.";
+        const tipo = (toolInput.tipo as string) || "emesse";
+        const endpoint = tipo === "ricevute" ? `/c/${ficToken.fic_company_id}/received_documents?type=expense&per_page=10&sort=-date&fieldset=basic` : `/c/${ficToken.fic_company_id}/issued_documents?type=invoice&per_page=10&sort=-date&fieldset=basic`;
+        const r = await fetch("https://api-v2.fattureincloud.it" + endpoint, { headers: { Authorization: "Bearer " + ficToken.access_token } });
+        if (!r.ok) return "Errore recupero fatture: " + r.status;
+        const data = await r.json() as any;
+        const docs = data.data || [];
+        if (docs.length === 0) return "Nessuna fattura trovata.";
+        return docs.map((d: any) => `#${d.number || d.id} | ${d.date} | ${d.entity?.name || "?"} | ${d.amount_gross || 0} euro | ${d.status === "paid" ? "Pagata" : "Non pagata"}`).join("\n");
+      }
+
+      case "invia_fattura_sdi": {
+        const ficToken = await getFicTokenForChat(db, companyId);
+        if (!ficToken) return "Fatture in Cloud non connesso.";
+        const docId = toolInput.fattura_id as number;
+        const verify = await fetch(`https://api-v2.fattureincloud.it/c/${ficToken.fic_company_id}/issued_documents/${docId}/e_invoice/xml_verify`, { headers: { Authorization: "Bearer " + ficToken.access_token } });
+        if (!verify.ok) return "Verifica XML fallita: " + (await verify.text()).substring(0, 200);
+        const r = await fetch(`https://api-v2.fattureincloud.it/c/${ficToken.fic_company_id}/issued_documents/${docId}/e_invoice/send`, {
+          method: "POST", headers: { Authorization: "Bearer " + ficToken.access_token, "Content-Type": "application/json" }, body: JSON.stringify({ data: {} }),
+        });
+        if (!r.ok) return "Errore invio SDI: " + (await r.text()).substring(0, 200);
+        return "Fattura inviata allo SDI!";
+      }
+
       default:
         return "Tool sconosciuto: " + toolName;
     }
