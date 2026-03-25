@@ -35,7 +35,22 @@ export function AuthPage() {
       setError(null);
       await queryClient.invalidateQueries({ queryKey: queryKeys.auth.session });
       await queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
-      navigate(searchParams.get("next") || "/", { replace: true });
+      // If explicit next param, use it
+      const next = searchParams.get("next");
+      if (next) { navigate(next, { replace: true }); return; }
+      // Check if first company has API key, if not go to api-claude
+      const companies = await queryClient.fetchQuery({ queryKey: queryKeys.companies.all }) as any[];
+      if (companies?.length > 0) {
+        const prefix = companies[0].issuePrefix;
+        try {
+          const res = await fetch("/api/onboarding/claude-key/" + companies[0].id, { credentials: "include" });
+          const data = await res.json();
+          if (!data.hasKey) { navigate("/" + prefix + "/api-claude", { replace: true }); return; }
+        } catch {}
+        navigate("/" + prefix + "/dashboard", { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
     },
     onError: (err) => setError(err instanceof Error ? err.message : "Credenziali non valide"),
   });
