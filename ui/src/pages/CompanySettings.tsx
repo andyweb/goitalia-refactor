@@ -34,6 +34,9 @@ export function CompanySettings() {
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
   // Generale settings local state
+  const sessionQ = useQuery({ queryKey: ["auth", "session"], queryFn: () => fetch("/api/auth/get-session", { credentials: "include" }).then(r => r.json()) });
+  const userEmail = sessionQ.data?.user?.email || "";
+
   const [companyName, setCompanyName] = useState("");
   const [description, setDescrizione] = useState("");
   const [brandColor, setBrandColor] = useState("");
@@ -254,10 +257,48 @@ export function CompanySettings() {
               onChange={(e) => setDescrizione(e.target.value)}
             />
           </Field>
+
+          {/* Logo */}
+          <div className="flex items-start gap-4 pt-2 border-t border-white/5">
+            <div className="shrink-0">
+              <CompanyPatternIcon
+                companyName={companyName || selectedCompany.name}
+                logoUrl={logoUrl || null}
+                brandColor={brandColor || null}
+                className="rounded-[14px]"
+              />
+            </div>
+            <div className="flex-1">
+              <Field label="Logo" hint="PNG, JPEG, WEBP, GIF o SVG.">
+                <div className="space-y-2">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                    onChange={handleLogoFileChange}
+                    className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none file:mr-4 file:rounded-md file:border-0 file:bg-muted file:px-2.5 file:py-1 file:text-xs"
+                  />
+                  {logoUrl && (
+                    <Button size="sm" variant="outline" onClick={handleClearLogo} disabled={clearLogoMutation.isPending}>
+                      {clearLogoMutation.isPending ? "Rimozione..." : "Rimuovi logo"}
+                    </Button>
+                  )}
+                  {logoUploadMutation.isPending && <span className="text-xs text-muted-foreground">Caricamento...</span>}
+                </div>
+              </Field>
+            </div>
+          </div>
+
+          {/* Dati account */}
+          <div className="pt-2 border-t border-white/5 space-y-3">
+            <Field label="Email" hint="Email usata per la registrazione.">
+              <input className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none opacity-60" type="text" value={userEmail} readOnly />
+            </Field>
+            <Field label="Password">
+              <input className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none" type="password" value="••••••••" readOnly />
+            </Field>
+          </div>
         </div>
       </div>
-
-      {/* Aspetto */}
       <div className="space-y-4">
         <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           Aspetto
@@ -382,58 +423,6 @@ export function CompanySettings() {
 
 
 
-      {/* Zona pericolosa */}
-      <div className="space-y-4">
-        <div className="text-xs font-medium text-destructive uppercase tracking-wide">
-          Zona pericolosa
-        </div>
-        <div className="glass-card px-5 py-5 space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Archivia questa impresa per nasconderla dalla barra laterale.
-            
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="destructive"
-              disabled={
-                archiveMutation.isPending ||
-                selectedCompany.status === "archived"
-              }
-              onClick={() => {
-                if (!selectedCompanyId) return;
-                const confirmed = window.confirm(
-                  `Archivia impresa "${selectedCompany.name}"? It will be hidden from the sidebar.`
-                );
-                if (!confirmed) return;
-                const nextCompanyId =
-                  companies.find(
-                    (company) =>
-                      company.id !== selectedCompanyId &&
-                      company.status !== "archived"
-                  )?.id ?? null;
-                archiveMutation.mutate({
-                  companyId: selectedCompanyId,
-                  nextCompanyId
-                });
-              }}
-            >
-              {archiveMutation.isPending
-                ? "Archiviazione..."
-                : selectedCompany.status === "archived"
-                ? "Gi. archiviata"
-                : "Archivia impresa"}
-            </Button>
-            {archiveMutation.isError && (
-              <span className="text-xs text-destructive">
-                {archiveMutation.error instanceof Error
-                  ? archiveMutation.error.message
-                  : "Archiviazione fallita"}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
