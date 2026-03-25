@@ -64,6 +64,7 @@ export function Sidebar() {
   const [hasFal, setHasFal] = useState(false);
   const [hasFic, setHasFic] = useState(false);
   const [hasOpenapi, setHasOpenapi] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [telegramUnread, setTelegramUnread] = useState(0);
   const [waUnread, setWaUnread] = useState(0);
 
@@ -90,7 +91,9 @@ export function Sidebar() {
         .then((r) => r.json())
         .then((d) => setHasFic(d.connected || false))
         .catch(() => {});
-      fetch("/api/openapi-it/status?companyId=" + selectedCompanyId, { credentials: "include" })
+      fetch("/api/onboarding/claude-key/" + selectedCompanyId, { credentials: "include" })
+      .then((r) => r.json()).then((d) => setHasApiKey(!!d.hasKey)).catch(() => {});
+    fetch("/api/openapi-it/status?companyId=" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json())
         .then((d) => setHasOpenapi(d.connected || false))
         .catch(() => {});
@@ -232,7 +235,16 @@ export function Sidebar() {
         <SidebarSection label="Impostazioni">
           <SidebarNavItem to="/plugins" label="Connettori" icon={Plug} />
           <SidebarNavItem to="/company/settings" label="Profilo" icon={Settings} />
-          <SidebarNavItem to="/api-claude" label="API Claude" icon={Key} />
+          <div className="relative">
+            <SidebarNavItem to="/api-claude" label="API Claude" icon={Key} className={hasApiKey === false ? "animate-pulse" : undefined} />
+            {hasApiKey === false && (
+              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 z-50 w-56 px-3 py-2 rounded-xl text-xs shadow-lg" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}>
+                <div className="font-semibold">Inizia da qui!</div>
+                <div className="mt-0.5 opacity-90">Inserisci la tua API key Claude per attivare il CEO AI.</div>
+                <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[6px]" style={{ borderRightColor: "hsl(158 64% 42%)" }} />
+              </div>
+            )}
+          </div>
           {session?.user?.email === "emanuele@unvrslabs.dev" && (
             <SidebarNavItem to="/admin" label="GoItalIA" icon={ShieldCheck} />
           )}
