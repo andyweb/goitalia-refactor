@@ -85,7 +85,7 @@ export function MailPage() {
     if (!selectedCompany?.id) return;
     const interval = setInterval(() => { fetchMail(activeFilter); }, 30000);
     return () => clearInterval(interval);
-  }, [selectedCompany?.id, activeFilter]);
+  }, [selectedCompany?.id, activeFilter, selectedAccount]);
 
   const generateReply = async (msg: GmailMessage) => {
     if (!selectedCompany?.id) return;
