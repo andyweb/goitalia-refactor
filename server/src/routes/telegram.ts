@@ -386,6 +386,18 @@ export function telegramRoutes(db: Db) {
     } catch { res.status(500).json({ error: "Errore generazione risposta" }); }
   });
 
+  // POST /telegram/delete-chat - Delete all messages from a chat
+  router.post("/telegram/delete-chat", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const { companyId, chatId } = req.body as { companyId: string; chatId: string };
+    if (!companyId || !chatId) { res.status(400).json({ error: "Parametri mancanti" }); return; }
+    try {
+      await db.execute(sql`DELETE FROM telegram_messages WHERE company_id = ${companyId} AND chat_id = ${parseInt(chatId)}`);
+      res.json({ deleted: true });
+    } catch { res.status(500).json({ error: "Errore" }); }
+  });
+
   return router;
 }
 

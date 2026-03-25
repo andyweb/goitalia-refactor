@@ -87,19 +87,7 @@ export function TelegramPage() {
       .catch(() => {});
   }, [selectedCompany?.id]);
 
-  // Mark as read when page opens
-  useEffect(() => {
-    if (!selectedCompany?.id) return;
-    (async () => {
-      try {
-        await fetch("/api/telegram/mark-read", {
-          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-          body: JSON.stringify({ companyId: selectedCompany.id }),
-        });
-      } catch {}
-      window.dispatchEvent(new CustomEvent("telegram-read"));
-    })();
-  }, [selectedCompany?.id]);
+
 
   useEffect(() => { fetchMessages(); }, [selectedCompany?.id, selectedBot]);
   useEffect(() => { const i = setInterval(fetchMessages, 10000); return () => clearInterval(i); }, [selectedCompany?.id]);
@@ -296,6 +284,13 @@ export function TelegramPage() {
                 {sending ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <SendIcon className="w-4 h-4 text-white" />}
               </button>
             </div>
+            {/* Delete chat */}
+            <button onClick={async () => {
+              if (!selectedCompany?.id || !selectedChat) return;
+              if (!confirm("Eliminare questa conversazione?")) return;
+              await fetch("/api/telegram/delete-chat", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, chatId: String(selectedChat) }) });
+              setSelectedChat(null); fetchMessages();
+            }} className="text-[10px] text-red-400/40 hover:text-red-400 mt-1 transition-all">Elimina conversazione</button>
           </>
         )}
       </div>
