@@ -235,7 +235,7 @@ function parseAgentDetailView(value: string | null): AgentDetailView {
   if (value === "skills") return "skills";
   if (value === "budget") return "budget";
   if (value === "runs") return value;
-  return "dashboard";
+  return "instructions";
 }
 
 function usageNumber(usage: Record<string, unknown> | null, ...keys: string[]) {
@@ -922,7 +922,7 @@ export function AgentDetail() {
         >
           <PageTabBar
             items={[
-              { value: "dashboard", label: "Panoramica", icon: <LayoutDashboard className="h-4 w-4" /> },
+              
               { value: "instructions", label: "Istruzioni", icon: <FileText className="h-4 w-4" /> },
               { value: "skills", label: (agent.adapterType as string) === "claude_api" ? "Connettori" : "Competenze", icon: <Boxes className="h-4 w-4" /> },
               ...((agent.adapterType as string) !== "claude_api" ? [{ value: "configuration", label: "Configurazione", icon: <Settings className="h-4 w-4" /> }] : []),
