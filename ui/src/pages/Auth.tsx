@@ -61,10 +61,11 @@ export function AuthPage() {
       justRegistered.current = true;
       await authApi.signInEmail({ email: email.trim(), password });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       setError(null);
-      // Redirect immediately before React re-renders can intercept
-      window.location.href = "/api-claude";
+      justRegistered.current = true;
+      await queryClient.invalidateQueries({ queryKey: queryKeys.auth.session });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
     },
     onError: (err) => {
       const msg = err instanceof Error ? err.message : "";
