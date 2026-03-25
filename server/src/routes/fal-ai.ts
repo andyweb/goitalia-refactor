@@ -183,9 +183,13 @@ export function falAiRoutes(db: Db) {
       const r = await fetch(FAL_QUEUE_URL + "/" + model.id + "/requests/" + requestId + "/status?logs=1", {
         headers: { Authorization: "Key " + falKey },
       });
-      const data = await r.json();
-      res.json(data);
-    } catch { res.status(500).json({ error: "Errore" }); }
+      if (!r.ok) {
+        res.json({ status: r.status === 404 ? "FAILED" : "IN_QUEUE" });
+        return;
+      }
+      const text = await r.text();
+      try { res.json(JSON.parse(text)); } catch { res.json({ status: "IN_QUEUE" }); }
+    } catch { res.json({ status: "IN_QUEUE" }); }
   });
 
   // GET /fal/result/:modelKey/:requestId - Get generation result
@@ -203,8 +207,9 @@ export function falAiRoutes(db: Db) {
       const r = await fetch(FAL_QUEUE_URL + "/" + model.id + "/requests/" + requestId, {
         headers: { Authorization: "Key " + falKey },
       });
-      const data = await r.json();
-      res.json(data);
+      if (!r.ok) { res.status(r.status).json({ error: "Request non trovato" }); return; }
+      const text = await r.text();
+      try { res.json(JSON.parse(text)); } catch { res.status(500).json({ error: "Risposta non valida" }); }
     } catch { res.status(500).json({ error: "Errore" }); }
   });
 
