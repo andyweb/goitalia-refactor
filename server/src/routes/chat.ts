@@ -171,7 +171,33 @@ async function getFicTokenForChat(db: Db, companyId: string): Promise<{ access_t
     .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "fattureincloud_tokens")))
     .then((r) => r[0]);
   if (!secret?.description) return null;
-  try { return JSON.parse(decrypt(secret.description)); } catch { return null; }
+  try {
+    const data = JSON.parse(decrypt(secret.description));
+    // Refresh if expired
+    if (data.expiresAt && data.expiresAt < Date.now() && data.refresh_token) {
+      try {
+        const r = await fetch("https://api-v2.fattureincloud.it/oauth/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            grant_type: "refresh_token",
+            client_id: process.env.FIC_CLIENT_ID || "",
+            client_secret: process.env.FIC_CLIENT_SECRET || "",
+            refresh_token: data.refresh_token,
+          }),
+        });
+        if (r.ok) {
+          const tokens = await r.json() as any;
+          data.access_token = tokens.access_token;
+          data.refresh_token = tokens.refresh_token;
+          data.expiresAt = Date.now() + (tokens.expires_in || 86400) * 1000;
+          const enc = encrypt(JSON.stringify(data));
+          await db.update(companySecrets).set({ description: enc, updatedAt: new Date() }).where(eq(companySecrets.id, secret.id));
+        }
+      } catch (e) { console.error("[chat] FIC refresh error:", e); }
+    }
+    return data;
+  } catch (e) { console.error("[chat] FIC decrypt error:", e); return null; }
 }
 
 type ToolInput = Record<string, unknown>;
