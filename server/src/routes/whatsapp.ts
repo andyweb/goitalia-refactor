@@ -439,6 +439,18 @@ export function whatsappRoutes(db: Db) {
 }
 
 // Webhook router (mounted before auth)
+  // POST /whatsapp/delete-chat
+  router.post("/whatsapp/delete-chat", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const { companyId, remoteJid } = req.body as { companyId: string; remoteJid: string };
+    if (!companyId || !remoteJid) { res.status(400).json({ error: "Parametri mancanti" }); return; }
+    try {
+      await db.execute(sql`DELETE FROM whatsapp_messages WHERE company_id = ${companyId} AND remote_jid = ${remoteJid}`);
+      res.json({ deleted: true });
+    } catch { res.status(500).json({ error: "Errore" }); }
+  });
+
 export function whatsappWebhookRouter(db: Db) {
   const router = Router();
 
