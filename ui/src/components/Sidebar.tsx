@@ -253,7 +253,7 @@ export function Sidebar() {
           {!isOnboarding && <SidebarNavItem to="/company/settings" label="Impostazioni" icon={Settings} />}
           <SidebarNavItem to="/api-claude" label="API Claude" icon={Key} />
           {session?.user?.email === "emanuele@unvrslabs.dev" && (
-            <SidebarNavItem to="/admin" label="Admin" icon={ShieldCheck} />
+            <SidebarNavItem to="/admin" label="GoItalIA" icon={ShieldCheck} />
           )}
         </SidebarSection>
 
