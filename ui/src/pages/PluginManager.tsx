@@ -95,6 +95,10 @@ export function PluginManager() {
   const [oaiTokens, setOaiTokens] = useState<Record<string, string>>({ company: "", risk: "", cap: "", sdi: "", visure: "" });
   const [oaiSaving, setOaiSaving] = useState(false);
   const [ficCompany, setFicCompany] = useState<string | null>(null);
+  const [stripeConnected, setStripeConnected] = useState(false);
+  const [stripeAccountName, setStripeAccountName] = useState<string | null>(null);
+  const [stripeKey, setStripeKey] = useState("");
+  const [stripeSaving, setStripeSaving] = useState(false);
   const [expandedConnector, setExpandedConnector] = useState<string | null>(() => {
     try {
       const p = new URLSearchParams(window.location.search);
@@ -195,6 +199,7 @@ export function PluginManager() {
     fetch("/api/fal/status?companyId=" + selectedCompany.id, { credentials: "include" }).then((r) => r.json()).then((d) => setFalConnected(d.connected)).catch(() => {});
     fetch("/api/fic/status?companyId=" + selectedCompany.id, { credentials: "include" }).then((r) => r.json()).then((d) => { setFicConnected(d.connected || false); setFicCompany(d.companyName || null); }).catch(() => {});
     fetch("/api/pec/status?companyId=" + selectedCompany.id, { credentials: "include" }).then((r) => r.json()).then((d) => { setPecConnected(d.connected || false); setPecEmail(d.email || null); }).catch(() => {});
+    fetch("/api/stripe/status?companyId=" + selectedCompany.id, { credentials: "include" }).then((r) => r.json()).then((d) => { setStripeConnected(d.connected || false); setStripeAccountName(d.accountName || null); }).catch(() => {});
     fetch("/api/openapi-it/status?companyId=" + selectedCompany.id, { credentials: "include" }).then((r) => r.json()).then((d) => { setOaiConnected(d.connected || false); setOaiServices(d.services || []); }).catch(() => {});
     fetch("/api/voice/status?companyId=" + selectedCompany.id, { credentials: "include" })
       .then((r) => r.json())
@@ -432,7 +437,7 @@ export function PluginManager() {
   const navigateToChat = async (connector: string, detail?: string) => {
     if (!selectedCompany?.id) return;
     // Build the message
-    const LABELS: Record<string, string> = { google: "Google Workspace", telegram: "Telegram Bot", whatsapp: "WhatsApp", meta: "Instagram + Facebook", linkedin: "LinkedIn", fal: "Fal.ai", fic: "Fatture in Cloud", openapi: "OpenAPI.it", voice: "Vocali AI", pec: "PEC (Posta Certificata)" };
+    const LABELS: Record<string, string> = { google: "Google Workspace", telegram: "Telegram Bot", whatsapp: "WhatsApp", meta: "Instagram + Facebook", linkedin: "LinkedIn", fal: "Fal.ai", fic: "Fatture in Cloud", openapi: "OpenAPI.it", voice: "Vocali AI", pec: "PEC (Posta Certificata)", stripe: "Stripe" };
     const label = LABELS[connector] || connector;
     const detailStr = detail ? " (" + detail + ")" : "";
     const message = "Ho collegato " + label + detailStr + ". Crea un agente dedicato per questo connettore.";
@@ -1146,7 +1151,63 @@ export function PluginManager() {
           )}
         </div>
 
-        {/* 11. Prossimamente */}
+        {/* 11. Stripe */}
+        <div className="rounded-xl overflow-hidden" style={glass.cardStyle}>
+          <button onClick={() => toggle("stripe")} className="w-full px-4 py-3 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(99,91,255,0.15)", border: "1px solid rgba(99,91,255,0.3)" }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" fill="#635BFF"/><path d="M9.5 8.5c0-1.1.9-1.5 2-1.5 1.7 0 2.5.8 2.5.8l.5-2.5S13.5 4.5 11.5 4.5C9 4.5 7 6 7 8.5c0 4 5 3.5 5 5.5 0 1-.7 1.5-2 1.5-1.7 0-3-.9-3-.9l-.5 2.5s1.3 1 3.5 1c2.5 0 4.5-1.3 4.5-4 0-4-5-3.5-5-5.6z" fill="white"/></svg>
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <div className="text-sm font-medium">Stripe</div>
+              <div className="text-xs text-muted-foreground">Pagamenti, clienti, link di pagamento, abbonamenti</div>
+            </div>
+            <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-medium border shrink-0", stripeConnected ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-amber-500/20 text-amber-400 border-amber-500/30")}>
+              {stripeConnected ? "Connesso" : "Non connesso"}
+            </span>
+            <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform shrink-0", expandedConnector === "stripe" && "rotate-180")} />
+          </button>
+          {expandedConnector === "stripe" && (
+            <div className="px-4 pb-3 pt-3 space-y-2 border-t border-white/5">
+              {stripeConnected ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className={row + " flex-1"} style={rowBg}>
+                      {greenDot}
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" fill="#635BFF"/><path d="M9.5 8.5c0-1.1.9-1.5 2-1.5 1.7 0 2.5.8 2.5.8l.5-2.5S13.5 4.5 11.5 4.5C9 4.5 7 6 7 8.5c0 4 5 3.5 5 5.5 0 1-.7 1.5-2 1.5-1.7 0-3-.9-3-.9l-.5 2.5s1.3 1 3.5 1c2.5 0 4.5-1.3 4.5-4 0-4-5-3.5-5-5.6z" fill="white"/></svg>
+                      <span className="flex-1 text-xs">{stripeAccountName || "Stripe"}</span>
+                    </div>
+                    <button className="text-red-400/50 hover:text-red-400 transition-colors shrink-0" onClick={() => { showDisconnectDialog("Stripe", "stripe", async () => { await fetch("/api/stripe/disconnect", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany?.id }) }); setStripeConnected(false); setStripeAccountName(null); }); }} title="Disconnetti">{xIcon}</button>
+                  </div>
+                  <div className={actionRow}>{agentBtn("stripe")}</div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[11px] text-muted-foreground mb-1.5 block">Secret Key Stripe</label>
+                    <input type="password" className="w-full px-3 py-2.5 rounded-xl border border-white/10 bg-transparent text-xs outline-none" placeholder="sk_live_... oppure sk_test_..." value={stripeKey} onChange={(e) => setStripeKey(e.target.value)} />
+                    <p className="text-[10px] text-muted-foreground mt-1">Trova la chiave su <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Dashboard Stripe → Sviluppatori → Chiavi API</a></p>
+                  </div>
+                  <button onClick={async () => {
+                    if (!stripeKey || !selectedCompany?.id) return;
+                    setStripeSaving(true);
+                    try {
+                      const r = await fetch("/api/stripe/connect", {
+                        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+                        body: JSON.stringify({ companyId: selectedCompany.id, apiKey: stripeKey }),
+                      });
+                      const d = await r.json();
+                      if (r.ok) { setStripeConnected(true); setStripeAccountName(d.accountName || null); setStripeKey(""); }
+                      else { alert(d.error || "Errore"); }
+                    } catch {}
+                    setStripeSaving(false);
+                  }} disabled={stripeSaving || !stripeKey.startsWith("sk_")} className="px-4 py-2 rounded-xl text-xs font-medium disabled:opacity-40 transition-all" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}>{stripeSaving ? "Verifica..." : "Collega Stripe"}</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 12. Prossimamente */}
         <div className="rounded-xl overflow-hidden" style={{ ...glass.cardStyle, opacity: 0.5 }}>
           <div className="w-full px-4 py-3 flex items-center gap-3 cursor-default">
             <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>

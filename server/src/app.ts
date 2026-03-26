@@ -30,6 +30,7 @@ import { metaRoutes } from "./routes/meta.js";
 import { linkedinRoutes } from "./routes/linkedin.js";
 import { pecRoutes } from "./routes/pec.js";
 import { billingRoutes, billingWebhookRouter } from "./routes/billing.js";
+import { stripeConnectorRoutes } from "./routes/stripe-connector.js";
 import { socialRoutes } from "./routes/social.js";
 import { connectorAccountRoutes } from "./routes/connector-accounts.js";
 import { companySkillRoutes } from "./routes/company-skills.js";
@@ -247,6 +248,7 @@ app.use(express.json({
   api.use(metaRoutes(db));
   api.use(linkedinRoutes(db));
   api.use(pecRoutes(db));
+  api.use(stripeConnectorRoutes(db));
   api.use(billingRoutes(db));
   api.use(socialRoutes(db));
   api.use("/companies", companyRoutes(db, opts.storageService));
@@ -367,6 +369,8 @@ app.use(express.json({
           await upsertConnectorAccount(db, cid, "openapi", "default", obj.email || "OpenAPI.it"); created++;
         } else if (secret.name === "openai_api_key") {
           await upsertConnectorAccount(db, cid, "voice", "default", "Vocali AI"); created++;
+        } else if (secret.name === "stripe_api_key") {
+          await upsertConnectorAccount(db, cid, "stripe", "default", "Account Stripe"); created++;
         }
       } catch (e) {
         errors.push(`${secret.name}/${secret.companyId}: ${(e as Error).message}`);

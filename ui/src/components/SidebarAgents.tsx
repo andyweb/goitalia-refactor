@@ -43,6 +43,10 @@ const CONNECTOR_ICONS: Record<string, { icon: React.ReactNode; color: string }> 
     icon: <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><rect x="2" y="2" width="20" height="20" rx="4" fill="#F59E0B"/><path d="M7 7h10M7 11h7M7 15h4M15 13l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
     color: "#F59E0B",
   },
+  stripe: {
+    icon: <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><rect x="2" y="2" width="20" height="20" rx="4" fill="#635BFF"/><path d="M9.5 8.5c0-1.1.9-1.5 2-1.5 1.7 0 2.5.8 2.5.8l.5-2.5S13.5 4.5 11.5 4.5C9 4.5 7 6 7 8.5c0 4 5 3.5 5 5.5 0 1-.7 1.5-2 1.5-1.7 0-3-.9-3-.9l-.5 2.5s1.3 1 3.5 1c2.5 0 4.5-1.3 4.5-4 0-4-5-3.5-5-5.6z" fill="white"/></svg>,
+    color: "#635BFF",
+  },
   openapi: {
     icon: <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><rect x="2" y="2" width="20" height="20" rx="4" fill="#10B981"/><path d="M12 7v5l3 3M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>,
     color: "#10B981",
@@ -70,6 +74,7 @@ function detectConnector(agent: Agent): string | null {
     if (keys.includes("linkedin")) return "linkedin";
     if (keys.includes("fal")) return "fal";
     if (keys.includes("fic")) return "fic";
+    if (keys.includes("stripe")) return "stripe";
     if (keys.some((k) => k.startsWith("oai_"))) return "openapi";
     if (keys.includes("voice")) return "voice";
   }

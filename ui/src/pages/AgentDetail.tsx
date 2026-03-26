@@ -2498,6 +2498,7 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
   const [linkedinStatus, setLinkedinStatus] = useState<{ connected: boolean; name?: string; email?: string; picture?: string } | null>(null);
   const [falStatus, setFalStatus] = useState<{ connected: boolean } | null>(null);
   const [ficStatus, setFicStatus] = useState<{ connected: boolean; companyName?: string } | null>(null);
+  const [stripeStatus, setStripeStatus] = useState<{ connected: boolean; accountName?: string } | null>(null);
   const [oaiStatus, setOaiStatus] = useState<{ connected: boolean; services?: string[] } | null>(null);
   const [expandedConn, setExpandedConn] = useState<string | null>(null);
   const [selectedGoogleAcct, setSelectedGoogleAcct] = useState(0);
@@ -2652,6 +2653,8 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
       .then((r) => r.json()).then((d) => setFalStatus(d)).catch(() => {});
     fetch("/api/fic/status?companyId=" + companyId, { credentials: "include" })
       .then((r) => r.json()).then((d) => setFicStatus(d)).catch(() => {});
+    fetch("/api/stripe/status?companyId=" + companyId, { credentials: "include" })
+      .then((r) => r.json()).then((d) => setStripeStatus(d)).catch(() => {});
     fetch("/api/openapi-it/status?companyId=" + companyId, { credentials: "include" })
       .then((r) => r.json()).then((d) => setOaiStatus(d)).catch(() => {});
   }, [companyId]);
@@ -2664,7 +2667,7 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
     { name: "Sheets", desc: "Gestisci fogli di calcolo", icon: "sheet" },
   ];
 
-  const hasAnyConnector = googleStatus?.connected || (telegramStatus?.connected && telegramStatus.bots?.length) || whatsappStatus?.connected || metaStatus?.connected || linkedinStatus?.connected || falStatus?.connected || ficStatus?.connected || oaiStatus?.connected;
+  const hasAnyConnector = googleStatus?.connected || (telegramStatus?.connected && telegramStatus.bots?.length) || whatsappStatus?.connected || metaStatus?.connected || linkedinStatus?.connected || falStatus?.connected || ficStatus?.connected || stripeStatus?.connected || oaiStatus?.connected;
 
   // Agent-level connector checks (what the agent actually uses)
   const agentHasGoogle = ["gmail", "calendar", "drive", "sheets", "docs"].some((k) => agentConnectors[k] === true);
@@ -2674,6 +2677,7 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
   const agentHasLinkedIn = agentConnectors.linkedin === true;
   const agentHasFal = Object.keys(agentConnectors).some((k) => k.startsWith("fal") && agentConnectors[k] === true) || agentConnectors.fal === true;
   const agentHasFic = agentConnectors.fic === true;
+  const agentHasStripe = agentConnectors.stripe === true;
   const agentHasOpenapi = Object.keys(agentConnectors).some((k) => k.startsWith("oai_") && agentConnectors[k] === true);
 
   // Order connectors: primary first (order 0), others after (order 1)
@@ -2977,6 +2981,40 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
               </div>
               {nativeToggle(agentConnectors.fic === true, () => toggleConnector("fic"))}
             </div>
+          </div>
+          )}
+        </div>
+      )}
+
+      {/* Stripe */}
+      {stripeStatus?.connected && (
+        <div onClick={() => setExpandedConn(expandedConn === "stripe" ? null : "stripe")} className="cursor-pointer glass-card p-4 space-y-4" style={{ order: connOrder("stripe") }}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(99,91,255,0.15)", border: "1px solid rgba(99,91,255,0.3)" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" fill="#635BFF"/><path d="M9.5 8.5c0-1.1.9-1.5 2-1.5 1.7 0 2.5.8 2.5.8l.5-2.5S13.5 4.5 11.5 4.5C9 4.5 7 6 7 8.5c0 4 5 3.5 5 5.5 0 1-.7 1.5-2 1.5-1.7 0-3-.9-3-.9l-.5 2.5s1.3 1 3.5 1c2.5 0 4.5-1.3 4.5-4 0-4-5-3.5-5-5.6z" fill="white"/></svg>
+            </div>
+            <div className="flex-1">
+              <div className="text-sm font-semibold">Stripe</div>
+              {agentHasStripe ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Connesso</span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">Non attivo</span>
+              )}
+            </div>
+          </div>
+          {expandedConn === "stripe" && (<div className="space-y-1.5 pt-2 px-4 pb-4">
+            {[
+              { key: "stripe", label: "Stripe", desc: "Pagamenti, clienti, link di pagamento" },
+            ].map(({ key, label, desc }) => (
+              <div key={key} className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <div className="flex items-center gap-2">
+                  <span className={"w-2 h-2 rounded-full shrink-0 " + (agentConnectors[key] === true ? "bg-green-500" : "bg-white/20")} />
+                  <div className="text-xs font-medium">{label}</div>
+                  <div className="text-[10px] text-muted-foreground">{desc}</div>
+                </div>
+                {nativeToggle(agentConnectors[key] === true, () => toggleConnector(key))}
+              </div>
+            ))}
           </div>
           )}
         </div>

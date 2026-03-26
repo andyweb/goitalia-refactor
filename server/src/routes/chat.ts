@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Db } from "@goitalia/db";
+import { getStripeApiKey } from "./stripe-connector.js";
 import { companySecrets, agents, companyMemberships, companies, issues, connectorAccounts, agentConnectorAccounts, routines, routineTriggers, routineRuns } from "@goitalia/db";
 import { parseCron, nextCronTick } from "../services/cron.js";
 import { nextCronTickInTimeZone } from "../services/routines.js";
@@ -335,6 +336,55 @@ export const TOOLS = [
     },
   },
 
+  // Stripe tools
+  {
+    name: "stripe_lista_clienti",
+    description: "Elenca i clienti Stripe della company (fino a 50). Mostra nome, email, ID, data creazione.",
+    input_schema: { type: "object" as const, properties: { limite: { type: "number", description: "Numero massimo di risultati (default 20)" } }, required: [] as string[] },
+  },
+  {
+    name: "stripe_cerca_cliente",
+    description: "Cerca un cliente Stripe per nome o email.",
+    input_schema: { type: "object" as const, properties: { query: { type: "string", description: "Nome o email del cliente" } }, required: ["query"] as string[] },
+  },
+  {
+    name: "stripe_crea_cliente",
+    description: "Crea un nuovo cliente su Stripe.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        nome: { type: "string", description: "Nome del cliente" },
+        email: { type: "string", description: "Email del cliente" },
+        telefono: { type: "string", description: "Telefono (opzionale)" },
+        descrizione: { type: "string", description: "Note interne (opzionale)" },
+      },
+      required: ["nome", "email"] as string[],
+    },
+  },
+  {
+    name: "stripe_lista_pagamenti",
+    description: "Elenca gli ultimi pagamenti/fatture ricevuti. Mostra importo, stato, cliente, data.",
+    input_schema: { type: "object" as const, properties: { limite: { type: "number", description: "Numero massimo di risultati (default 10)" }, stato: { type: "string", enum: ["succeeded", "pending", "failed"], description: "Filtra per stato" } }, required: [] as string[] },
+  },
+  {
+    name: "stripe_crea_link_pagamento",
+    description: "Crea un link di pagamento Stripe una-tantum da inviare a un cliente. Specifica importo e descrizione.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        importo_eur: { type: "number", description: "Importo in euro (es: 150 = €150)" },
+        descrizione: { type: "string", description: "Descrizione del prodotto/servizio" },
+        cliente_email: { type: "string", description: "Email del cliente (opzionale, per prefillare)" },
+      },
+      required: ["importo_eur", "descrizione"] as string[],
+    },
+  },
+  {
+    name: "stripe_verifica_abbonamento",
+    description: "Verifica lo stato dell'abbonamento Stripe di un cliente dato il suo ID o email.",
+    input_schema: { type: "object" as const, properties: { cliente_id: { type: "string", description: "ID cliente Stripe (cus_...)" }, email: { type: "string", description: "Email del cliente" } }, required: [] as string[] },
+  },
+
   {
     name: "crea_attivita_programmata",
     description: "Crea un'attività programmata (cron) per un agente. L'agente eseguirà il task all'orario specificato.",
@@ -401,6 +451,13 @@ export const TOOL_CONNECTOR: Record<string, string | null> = {
   leggi_pec: "pec",
   invia_pec: "pec",
   rispondi_pec: "pec",
+  // Stripe
+  stripe_lista_clienti: "stripe",
+  stripe_cerca_cliente: "stripe",
+  stripe_crea_cliente: "stripe",
+  stripe_lista_pagamenti: "stripe",
+  stripe_crea_link_pagamento: "stripe",
+  stripe_verifica_abbonamento: "stripe",
 };
 
 
@@ -677,6 +734,22 @@ const CONNECTOR_GUIDES: ConnectorGuide[] = [
     ],
     suggestions: [
       "Funziona automaticamente su WhatsApp e Telegram — ogni vocale viene trascritto in testo",
+    ],
+  },
+  {
+    key: "stripe",
+    label: "Stripe",
+    capabilities: "Clienti, pagamenti, link di pagamento, abbonamenti, fatture Stripe",
+    questions: [
+      "Hai clienti ricorrenti o fai pagamenti one-shot?",
+      "Vuoi che l'agente crei link di pagamento da mandare via WhatsApp o email?",
+      "Vuoi ricevere alert quando arriva un pagamento o quando uno fallisce?",
+      "Gestisci abbonamenti? Vuoi un alert se un cliente non rinnova?",
+    ],
+    suggestions: [
+      "Posso creare link di pagamento direttamente da WhatsApp — il cliente riceve il link e paga in pochi secondi",
+      "Alert automatico: pagamento ricevuto → notifica Telegram/WhatsApp con dettagli",
+      "Posso collegarlo a Fatture in Cloud — pagamento Stripe → fattura automatica",
     ],
   },
   {
@@ -1512,6 +1585,119 @@ export async function executeChatTool(
         const replySubject = ogg.startsWith("Re:") ? ogg : "Re: " + ogg;
         await sendPecMessage(pecCreds, dest, replySubject, testo);
         return `Risposta PEC inviata a ${dest}. Oggetto: "${replySubject}"`;
+      }
+
+      case "stripe_lista_clienti": {
+        const stripeKey = await getStripeApiKey(db, companyId);
+        if (!stripeKey) return "Stripe non connesso. Collega il tuo account Stripe da Connettori.";
+        const limit = Math.min(toolInput.limite as number || 20, 50);
+        const r = await fetch(`https://api.stripe.com/v1/customers?limit=${limit}`, {
+          headers: { Authorization: "Bearer " + stripeKey },
+        });
+        if (!r.ok) return "Errore recupero clienti Stripe: " + r.status;
+        const data = await r.json() as { data: Array<{ id: string; name?: string; email?: string; created: number }> };
+        if (!data.data.length) return "Nessun cliente trovato su Stripe.";
+        return data.data.map((c) => `ID: ${c.id} | ${c.name || "–"} | ${c.email || "–"} | ${new Date(c.created * 1000).toLocaleDateString("it-IT")}`).join("\n");
+      }
+
+      case "stripe_cerca_cliente": {
+        const stripeKey = await getStripeApiKey(db, companyId);
+        if (!stripeKey) return "Stripe non connesso.";
+        const query = toolInput.query as string;
+        const r = await fetch(`https://api.stripe.com/v1/customers/search?query=${encodeURIComponent(`email:"${query}" OR name~"${query}"`)}&limit=10`, {
+          headers: { Authorization: "Bearer " + stripeKey },
+        });
+        if (!r.ok) {
+          // Fallback: list and filter
+          const lr = await fetch(`https://api.stripe.com/v1/customers?limit=100`, { headers: { Authorization: "Bearer " + stripeKey } });
+          if (!lr.ok) return "Errore ricerca Stripe: " + lr.status;
+          const ld = await lr.json() as { data: Array<{ id: string; name?: string; email?: string }> };
+          const filtered = ld.data.filter((c) => c.name?.toLowerCase().includes(query.toLowerCase()) || c.email?.toLowerCase().includes(query.toLowerCase()));
+          if (!filtered.length) return `Nessun cliente trovato per "${query}".`;
+          return filtered.map((c) => `ID: ${c.id} | ${c.name || "–"} | ${c.email || "–"}`).join("\n");
+        }
+        const data = await r.json() as { data: Array<{ id: string; name?: string; email?: string }> };
+        if (!data.data.length) return `Nessun cliente trovato per "${query}".`;
+        return data.data.map((c) => `ID: ${c.id} | ${c.name || "–"} | ${c.email || "–"}`).join("\n");
+      }
+
+      case "stripe_crea_cliente": {
+        const stripeKey = await getStripeApiKey(db, companyId);
+        if (!stripeKey) return "Stripe non connesso.";
+        const body = new URLSearchParams();
+        body.append("name", toolInput.nome as string);
+        body.append("email", toolInput.email as string);
+        if (toolInput.telefono) body.append("phone", toolInput.telefono as string);
+        if (toolInput.descrizione) body.append("description", toolInput.descrizione as string);
+        const r = await fetch("https://api.stripe.com/v1/customers", {
+          method: "POST", headers: { Authorization: "Bearer " + stripeKey, "Content-Type": "application/x-www-form-urlencoded" }, body,
+        });
+        if (!r.ok) { const e = await r.json() as { error?: { message: string } }; return "Errore creazione cliente: " + (e.error?.message || r.status); }
+        const data = await r.json() as { id: string; name?: string; email?: string };
+        return `Cliente Stripe creato! ID: ${data.id} | Nome: ${data.name} | Email: ${data.email}`;
+      }
+
+      case "stripe_lista_pagamenti": {
+        const stripeKey = await getStripeApiKey(db, companyId);
+        if (!stripeKey) return "Stripe non connesso.";
+        const limit = Math.min(toolInput.limite as number || 10, 30);
+        const stato = toolInput.stato as string || "";
+        const url = `https://api.stripe.com/v1/payment_intents?limit=${limit}${stato ? "&query=status%3A%22" + stato + "%22" : ""}`;
+        const r = await fetch(url, { headers: { Authorization: "Bearer " + stripeKey } });
+        if (!r.ok) return "Errore recupero pagamenti: " + r.status;
+        const data = await r.json() as { data: Array<{ id: string; amount: number; currency: string; status: string; created: number; description?: string }> };
+        if (!data.data.length) return "Nessun pagamento trovato.";
+        const statusLabel = (s: string) => ({ succeeded: "✅ Pagato", pending: "⏳ In attesa", failed: "❌ Fallito" }[s] || s);
+        return data.data.map((p) => `${statusLabel(p.status)} | €${(p.amount / 100).toFixed(2)} | ${p.description || "–"} | ${new Date(p.created * 1000).toLocaleDateString("it-IT")}`).join("\n");
+      }
+
+      case "stripe_crea_link_pagamento": {
+        const stripeKey = await getStripeApiKey(db, companyId);
+        if (!stripeKey) return "Stripe non connesso.";
+        // Create a price on the fly
+        const amountCents = Math.round((toolInput.importo_eur as number) * 100);
+        const priceBody = new URLSearchParams();
+        priceBody.append("unit_amount", String(amountCents));
+        priceBody.append("currency", "eur");
+        priceBody.append("product_data[name]", toolInput.descrizione as string);
+        const priceRes = await fetch("https://api.stripe.com/v1/prices", {
+          method: "POST", headers: { Authorization: "Bearer " + stripeKey, "Content-Type": "application/x-www-form-urlencoded" }, body: priceBody,
+        });
+        if (!priceRes.ok) { const e = await priceRes.json() as { error?: { message: string } }; return "Errore creazione prezzo: " + (e.error?.message || priceRes.status); }
+        const price = await priceRes.json() as { id: string };
+        const linkBody = new URLSearchParams();
+        linkBody.append("line_items[0][price]", price.id);
+        linkBody.append("line_items[0][quantity]", "1");
+        const linkRes = await fetch("https://api.stripe.com/v1/payment_links", {
+          method: "POST", headers: { Authorization: "Bearer " + stripeKey, "Content-Type": "application/x-www-form-urlencoded" }, body: linkBody,
+        });
+        if (!linkRes.ok) { const e = await linkRes.json() as { error?: { message: string } }; return "Errore creazione link: " + (e.error?.message || linkRes.status); }
+        const link = await linkRes.json() as { url: string; id: string };
+        return `Link pagamento creato! 💳\nImporto: €${(amountCents / 100).toFixed(2)}\nDescrizione: ${toolInput.descrizione}\nLink: ${link.url}`;
+      }
+
+      case "stripe_verifica_abbonamento": {
+        const stripeKey = await getStripeApiKey(db, companyId);
+        if (!stripeKey) return "Stripe non connesso.";
+        let customerId = toolInput.cliente_id as string | undefined;
+        if (!customerId && toolInput.email) {
+          const r = await fetch(`https://api.stripe.com/v1/customers?email=${encodeURIComponent(toolInput.email as string)}&limit=1`, { headers: { Authorization: "Bearer " + stripeKey } });
+          const d = await r.json() as { data: Array<{ id: string }> };
+          customerId = d.data[0]?.id;
+        }
+        if (!customerId) return "Cliente non trovato. Specifica cliente_id o email valida.";
+        const r = await fetch(`https://api.stripe.com/v1/subscriptions?customer=${customerId}&limit=5`, { headers: { Authorization: "Bearer " + stripeKey } });
+        if (!r.ok) return "Errore recupero abbonamenti: " + r.status;
+        const data = await r.json() as { data: Array<{ id: string; status: string; current_period_end: number; items: { data: Array<{ price: { unit_amount: number; recurring?: { interval: string } } }> } }> };
+        if (!data.data.length) return "Nessun abbonamento trovato per questo cliente.";
+        return data.data.map((s) => {
+          const item = s.items.data[0];
+          const amount = item ? (item.price.unit_amount / 100).toFixed(2) : "–";
+          const interval = item?.price.recurring?.interval || "–";
+          const end = new Date(s.current_period_end * 1000).toLocaleDateString("it-IT");
+          const statusLabel = { active: "✅ Attivo", past_due: "⚠️ Scaduto", canceled: "❌ Cancellato", trialing: "🔄 Trial" }[s.status] || s.status;
+          return `${statusLabel} | €${amount}/${interval} | Rinnovo: ${end}`;
+        }).join("\n");
       }
 
       default:
