@@ -377,7 +377,7 @@ export function PluginManager() {
                               body: JSON.stringify({ companyId: selectedCompany?.id, autoReply: newVal, botUsername: bot.username }),
                             });
                           })}
-                        <button className="text-red-400/50 hover:text-red-400 transition-colors" onClick={async () => {
+                        <button className="text-red-400/50 hover:text-red-400 transition-colors ml-1" onClick={async () => {
                           if (!confirm("Sei sicuro di voler disconnettere questo bot?")) return;
                           await fetch("/api/telegram/disconnect?companyId=" + selectedCompany?.id + "&bot=" + bot.username, { method: "POST", credentials: "include" });
                           const newBots = (telegramStatus!.bots || []).filter((b) => b.username !== bot.username);
