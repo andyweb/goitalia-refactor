@@ -65,6 +65,9 @@ export function PluginManager() {
   const [waConnecting, setWaConnecting] = useState(false);
   const [waQrCode, setWaQrCode] = useState<string | null>(null);
   const [showWaForm, setShowWaForm] = useState(false);
+  const [waPricingModal, setWaPricingModal] = useState(false);
+  const [waPricingPhone, setWaPricingPhone] = useState("");
+  const [waPricingLoading, setWaPricingLoading] = useState(false);
   const [linkedinStatus, setLinkedinStatus] = useState<{ connected: boolean; name?: string; email?: string; accounts?: Array<{ name: string; email: string; picture?: string }> } | null>(null);
   const [metaStatus, setMetaStatus] = useState<{ connected: boolean; userName?: string; pages?: Array<{ id: string; name: string }>; instagram?: Array<{ id: string; username: string; pageName: string }> } | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
@@ -248,6 +251,89 @@ export function PluginManager() {
     }, 40000);
     return () => clearInterval(refresh);
   }, [waQrCode, selectedCompany?.id]);
+
+  // Handle return from Stripe Checkout (wa_paid=1 in URL)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const waPaid = params.get("wa_paid");
+    const paidPhone = params.get("phone");
+    if (waPaid === "1" && paidPhone && selectedCompany?.id) {
+      // Clean URL
+      const clean = window.location.pathname;
+      window.history.replaceState({}, "", clean);
+      // Auto-trigger WhatsApp connect for the paid number
+      setTimeout(async () => {
+        toggle("whatsapp");
+        setShowWaForm(false);
+        setWaConnecting(true);
+        try {
+          const r = await fetch("/api/whatsapp/connect", {
+            method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+            body: JSON.stringify({ companyId: selectedCompany.id, phoneNumber: paidPhone }),
+          });
+          const d = await r.json();
+          if (d.qrCode) setWaQrCode(d.qrCode);
+          else if (d.connected) {
+            const status = await fetch("/api/whatsapp/status?companyId=" + selectedCompany.id, { credentials: "include" }).then((r) => r.json());
+            setWaStatus(status);
+          }
+        } catch {}
+        setWaConnecting(false);
+      }, 500);
+    }
+  }, [selectedCompany?.id]);
+
+  const connectWaWithBillingCheck = async (phone: string) => {
+    if (!selectedCompany?.id || !phone) return;
+    // Check subscription status
+    const statusRes = await fetch(`/api/billing/whatsapp/status?companyId=${selectedCompany.id}&phone=${encodeURIComponent(phone)}`, { credentials: "include" });
+    const statusData = await statusRes.json();
+    if (statusData.active) {
+      // Already paid — connect directly
+      setWaConnecting(true);
+      try {
+        const r = await fetch("/api/whatsapp/connect", {
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+          body: JSON.stringify({ companyId: selectedCompany.id, phoneNumber: phone }),
+        });
+        const d = await r.json();
+        if (d.qrCode) { setWaQrCode(d.qrCode); setShowWaForm(false); }
+        else if (d.error) { alert(d.error); }
+      } catch {}
+      setWaConnecting(false);
+    } else {
+      // Need to pay — show pricing modal
+      setWaPricingPhone(phone);
+      setWaPricingModal(true);
+    }
+  };
+
+  const startWaCheckout = async (interval: "monthly" | "annual") => {
+    if (!selectedCompany?.id || !waPricingPhone) return;
+    setWaPricingLoading(true);
+    try {
+      const prefix = selectedCompany.issuePrefix || "";
+      const base = window.location.origin + "/" + prefix;
+      const successUrl = base + "/plugins?wa_paid=1&phone=" + encodeURIComponent(waPricingPhone);
+      const cancelUrl = base + "/plugins";
+      const r = await fetch("/api/billing/whatsapp/checkout", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({
+          companyId: selectedCompany.id,
+          companyName: selectedCompany.name,
+          phone: waPricingPhone,
+          interval,
+          successUrl,
+          cancelUrl,
+        }),
+      });
+      const d = await r.json();
+      if (d.url) { window.location.href = d.url; }
+      else { alert(d.error || "Errore nel pagamento"); setWaPricingLoading(false); }
+    } catch {
+      setWaPricingLoading(false);
+    }
+  };
 
   const connectTelegram = async () => {
     if (!selectedCompany?.id || !telegramToken) return;
@@ -567,19 +653,7 @@ export function PluginManager() {
                       <p className="text-xs text-muted-foreground">Inserisci il numero WhatsApp da collegare</p>
                       <input className="w-full px-3 py-2 rounded-xl border border-white/10 bg-transparent text-xs outline-none" placeholder="+39 333 1234567" value={waPhone} onChange={(e) => setWaPhone(e.target.value)} />
                       <div className="flex gap-2">
-                        <button onClick={async () => {
-                          setWaConnecting(true);
-                          try {
-                            const r = await fetch("/api/whatsapp/connect", {
-                              method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-                              body: JSON.stringify({ companyId: selectedCompany?.id, phoneNumber: waPhone }),
-                            });
-                            const d = await r.json();
-                            if (d.qrCode) { setWaQrCode(d.qrCode); setShowWaForm(false); }
-                            else if (d.error) { alert(d.error); }
-                          } catch {}
-                          setWaConnecting(false);
-                        }} disabled={waConnecting || !waPhone} className="px-3 py-1.5 rounded-xl text-xs font-medium disabled:opacity-40" style={{ background: "rgba(37, 211, 102, 0.2)", border: "1px solid rgba(37, 211, 102, 0.3)", color: "rgba(255,255,255,0.9)" }}>{waConnecting ? "Connessione..." : "Collega"}</button>
+                        <button onClick={() => connectWaWithBillingCheck(waPhone)} disabled={waConnecting || !waPhone} className="px-3 py-1.5 rounded-xl text-xs font-medium disabled:opacity-40" style={{ background: "rgba(37, 211, 102, 0.2)", border: "1px solid rgba(37, 211, 102, 0.3)", color: "rgba(255,255,255,0.9)" }}>{waConnecting ? "Connessione..." : "Collega"}</button>
                         <button onClick={() => setShowWaForm(false)} className="text-xs text-muted-foreground">Annulla</button>
                       </div>
                     </div>
@@ -625,7 +699,7 @@ export function PluginManager() {
                   </div>
                 </div>
               ) : (
-                <button onClick={() => setShowWaForm(true)} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}>Collega WhatsApp</button>
+                <button onClick={() => { setShowWaForm(true); toggle("whatsapp"); }} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}>Collega WhatsApp</button>
               )}
             </div>
           )}
@@ -1165,6 +1239,80 @@ export function PluginManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* WhatsApp Pricing Modal */}
+      {waPricingModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center" onClick={() => { if (!waPricingLoading) setWaPricingModal(false); }}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative mx-4 w-full max-w-sm rounded-2xl p-6 space-y-5" style={{ background: "linear-gradient(135deg, rgba(15,25,40,0.98), rgba(10,18,30,0.98))", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }} onClick={(e) => e.stopPropagation()}>
+            {/* Icon */}
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "rgba(37,211,102,0.15)", border: "1px solid rgba(37,211,102,0.3)" }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-white">Attiva numero WhatsApp</h3>
+                <p className="text-xs text-muted-foreground mt-1">{waPricingPhone}</p>
+              </div>
+            </div>
+
+            {/* Pricing options */}
+            <div className="space-y-3">
+              {/* Monthly */}
+              <button
+                onClick={() => startWaCheckout("monthly")}
+                disabled={waPricingLoading}
+                className="w-full text-left px-4 py-3.5 rounded-xl transition-all disabled:opacity-40"
+                style={{ background: "rgba(37,211,102,0.08)", border: "1px solid rgba(37,211,102,0.25)" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(37,211,102,0.14)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(37,211,102,0.08)"; }}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-white">Mensile</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">Rinnovo automatico ogni mese</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-white">€20</div>
+                    <div className="text-[10px] text-muted-foreground">/mese</div>
+                  </div>
+                </div>
+              </button>
+
+              {/* Annual */}
+              <button
+                onClick={() => startWaCheckout("annual")}
+                disabled={waPricingLoading}
+                className="w-full text-left px-4 py-3.5 rounded-xl transition-all disabled:opacity-40 relative overflow-hidden"
+                style={{ background: "rgba(37,211,102,0.12)", border: "1px solid rgba(37,211,102,0.4)" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(37,211,102,0.2)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(37,211,102,0.12)"; }}
+              >
+                <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: "rgba(37,211,102,0.3)", color: "#25D366" }}>2 MESI GRATIS</div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-white">Annuale</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">€16/mese — rinnovo annuale</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-white">€192</div>
+                    <div className="text-[10px] text-muted-foreground">/anno</div>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            <p className="text-[10px] text-center text-muted-foreground/60">Pagamento sicuro via Stripe · Cancella in qualsiasi momento</p>
+
+            {!waPricingLoading && (
+              <button onClick={() => setWaPricingModal(false)} className="w-full text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors">Annulla</button>
+            )}
+            {waPricingLoading && (
+              <p className="text-xs text-center text-muted-foreground animate-pulse">Reindirizzamento a Stripe...</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

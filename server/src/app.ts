@@ -29,6 +29,7 @@ import { voiceRoutes } from "./routes/voice.js";
 import { metaRoutes } from "./routes/meta.js";
 import { linkedinRoutes } from "./routes/linkedin.js";
 import { pecRoutes } from "./routes/pec.js";
+import { billingRoutes, billingWebhookRouter } from "./routes/billing.js";
 import { socialRoutes } from "./routes/social.js";
 import { connectorAccountRoutes } from "./routes/connector-accounts.js";
 import { companySkillRoutes } from "./routes/company-skills.js";
@@ -144,6 +145,8 @@ app.use(express.json({
   // Telegram webhooks on separate path (avoids all /api middleware)
   app.use("/tg-hook", telegramWebhookRouterFn(db));
   app.use("/wa-hook", whatsappWebhookRouter(db));
+  // Stripe webhook (raw body needed — registered before JSON middleware would interfere)
+  app.use("/api", billingWebhookRouter(db));
 
   // Serve WhatsApp and Telegram media files
   app.use("/api/tg-media", (await import("express")).default.static("data/tg-media", { maxAge: "1d" }));
@@ -244,6 +247,7 @@ app.use(express.json({
   api.use(metaRoutes(db));
   api.use(linkedinRoutes(db));
   api.use(pecRoutes(db));
+  api.use(billingRoutes(db));
   api.use(socialRoutes(db));
   api.use("/companies", companyRoutes(db, opts.storageService));
   api.use(companySkillRoutes(db));
