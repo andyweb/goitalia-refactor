@@ -253,8 +253,8 @@ export function PluginManager() {
   const rowBg = { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" } as React.CSSProperties;
   const greenDot = <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />;
   const toggleBtn = (active: boolean, onClick: () => void) => (
-    <button onClick={onClick} style={{ width: 36, height: 20, minWidth: 36, borderRadius: 10, background: active ? "#16a34a" : "rgba(255,255,255,0.1)", position: "relative", display: "inline-flex", alignItems: "center", flexShrink: 0, transition: "background 0.2s", border: "none", cursor: "pointer", padding: 0 }}>
-      <span style={{ width: 14, height: 14, borderRadius: 7, background: "white", position: "absolute", left: active ? 19 : 3, transition: "left 0.2s" }} />
+    <button onClick={onClick} style={{ width: 44, height: 24, minWidth: 44, borderRadius: 12, background: active ? "#16a34a" : "rgba(255,255,255,0.15)", position: "relative", display: "inline-flex", alignItems: "center", flexShrink: 0, transition: "background 0.2s", border: "none", cursor: "pointer", padding: 0 }}>
+      <span style={{ width: 18, height: 18, borderRadius: 9, background: "white", position: "absolute", left: active ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
     </button>
   );
   const actionRow = "flex items-center gap-2 pt-2";
