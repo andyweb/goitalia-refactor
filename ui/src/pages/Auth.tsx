@@ -52,10 +52,10 @@ export function AuthPage() {
         try {
           const stepRes = await fetch("/api/onboarding/onboarding-step/" + companies[0].id, { credentials: "include" });
           const stepData = await stepRes.json();
-          if (stepData.step === 0) { navigate("/" + prefix + "/api-claude", { replace: true }); return; }
-          if (stepData.step === 1) { navigate("/" + prefix + "/chat", { replace: true }); return; }
-          if (stepData.step === 2) { navigate("/" + prefix + "/chat", { replace: true }); return; }
-          if (stepData.step === 3) { navigate("/" + prefix + "/plugins", { replace: true }); return; }
+          if (stepData.step === 0) { window.location.href = "/" + prefix + "/api-claude"; return; }
+          if (stepData.step === 1) { window.location.href = "/" + prefix + "/chat"; return; }
+          if (stepData.step === 2) { window.location.href = "/" + prefix + "/chat"; return; }
+          if (stepData.step === 3) { window.location.href = "/" + prefix + "/plugins"; return; }
         } catch {}
         navigate("/" + prefix + "/dashboard", { replace: true });
       } else {
