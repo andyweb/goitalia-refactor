@@ -560,7 +560,6 @@ export function PluginManager() {
                       {greenDot}
                       {miniIg}
                       <span className="flex-1 truncate">@{ig.username}</span>
-                      <span className="text-[10px] text-muted-foreground/40">{ig.pageName}</span>
                     </div>
                   ))}
                   {metaStatus!.pages?.map((p) => (
