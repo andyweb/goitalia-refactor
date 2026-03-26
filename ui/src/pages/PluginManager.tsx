@@ -85,7 +85,17 @@ export function PluginManager() {
   const [oaiSaving, setOaiSaving] = useState(false);
   const [ficCompany, setFicCompany] = useState<string | null>(null);
   const [expandedConnector, setExpandedConnector] = useState<string | null>(() => {
-    try { const p = new URLSearchParams(window.location.search); if (p.get("google_connected")) return "google"; if (p.get("telegram_connected")) return "telegram"; } catch {} return null;
+    try {
+      const p = new URLSearchParams(window.location.search);
+      if (p.get("google_connected")) return "google";
+      if (p.get("telegram_connected")) return "telegram";
+      if (p.get("meta_connected")) return "meta";
+      if (p.get("linkedin_connected")) return "linkedin";
+      if (p.get("fic_connected")) return "fic";
+      if (p.get("wa_connected")) return "whatsapp";
+      if (p.get("fal_connected")) return "fal";
+      if (p.get("openapi_connected")) return "openapi";
+    } catch {} return null;
   });
 
   useEffect(() => {
