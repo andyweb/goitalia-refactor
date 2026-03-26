@@ -368,7 +368,7 @@ function OnboardingTooltip({ sidebarOpen }: { sidebarOpen: boolean }) {
   const configs: Record<number, { title: string; text: string; targetId: string; fallbackTop: number }> = {
     0: {
       title: "Configura API Claude",
-      text: "Per attivare il tuo CEO AI e sbloccare tutte le funzionalita, inserisci la tua API key di Anthropic nella sezione qui sotto.",
+      text: "Inserisci la tua API key di Anthropic per attivare il CEO AI e utilizzare tutte le funzionalita del sistema. Se non sai come ottenerla, consulta la guida disponibile dopo aver cliccato su Ho capito. Senza API key, il sistema non e utilizzabile.",
       targetId: "api-claude-nav",
       fallbackTop: 340,
     },
