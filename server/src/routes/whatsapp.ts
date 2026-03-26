@@ -631,6 +631,9 @@ export function whatsappWebhookRouter(db: Db) {
                   const adapterConfig = agent.adapterConfig as Record<string, unknown>;
                   let prompt = (adapterConfig?.promptTemplate as string) || `Sei ${agent.name}. Rispondi in italiano in modo conciso.`;
 
+                  // Regola fissa: rispondi nella lingua dell'ultimo messaggio ricevuto
+                  prompt += "\n\nREGOLA IMPORTANTE: Rispondi SEMPRE nella stessa lingua in cui è scritto l'ultimo messaggio che ricevi. Se scrivono in inglese, rispondi in inglese. Se in spagnolo, in spagnolo. Se in italiano, in italiano. Adatta la lingua automaticamente.";
+
                   // Arricchisci il prompt con contesto del contatto dalla rubrica
                   if (contactInfo?.context) {
                     prompt += contactInfo.context;

@@ -2,7 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import type { Db } from "@goitalia/db";
 import { whatsappContacts, whatsappContactFiles, companySecrets } from "@goitalia/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { decrypt } from "../utils/crypto.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB
@@ -228,6 +228,31 @@ export function whatsappContactsRoutes(db: Db) {
     }).returning();
 
     res.json({ file: { ...inserted, hasContent: !!contentText } });
+  });
+
+  // GET /whatsapp-contacts/:id/messages — storico messaggi per contatto
+  router.get("/whatsapp-contacts/:id/messages", async (req, res) => {
+    const actor = req.actor as { userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    // Get contact to find phone number
+    const contact = await db.select().from(whatsappContacts)
+      .where(eq(whatsappContacts.id, req.params.id as string)).then(r => r[0]);
+    if (!contact) { res.status(404).json({ error: "Contatto non trovato" }); return; }
+
+    // Search by phone number in from_name (WaSender LID format) or remote_jid
+    const cleanPhone = contact.phoneNumber.replace(/^\+/, "");
+    const rows = await db.execute(sql`
+      SELECT message_text, direction, from_name, message_type, media_url, created_at
+      FROM whatsapp_messages
+      WHERE company_id = ${contact.companyId}
+        AND (from_name LIKE ${"%" + cleanPhone + "%"} OR remote_jid LIKE ${"%" + cleanPhone + "%"})
+      ORDER BY created_at DESC
+      LIMIT ${limit}
+    `) as any[];
+
+    res.json({ messages: (rows || []).reverse() });
   });
 
   // DELETE /whatsapp-contacts/:id/files/:fileId — delete file

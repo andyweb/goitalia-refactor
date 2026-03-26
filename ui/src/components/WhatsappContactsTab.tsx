@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Upload, ExternalLink, Phone, User, FileText, ChevronDown, ChevronRight, X, Search } from "lucide-react";
+import { Plus, Trash2, Upload, ExternalLink, Phone, User, FileText, ChevronDown, ChevronRight, X, Search, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -320,11 +320,89 @@ export function WhatsappContactsTab({ agentId, companyId }: { agentId: string; c
                     </div>
                   </div>
                 </div>
+
+                {/* Storico conversazioni */}
+                <ConversationHistory contactId={contact.id} />
               </div>
             )}
           </div>
         );
       })}
+    </div>
+  );
+}
+
+interface WaMessage {
+  message_text: string;
+  direction: "incoming" | "outgoing";
+  from_name: string;
+  message_type: string;
+  media_url: string | null;
+  created_at: string;
+}
+
+function ConversationHistory({ contactId }: { contactId: string }) {
+  const [messages, setMessages] = useState<WaMessage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  const load = async () => {
+    if (messages.length > 0) { setOpen(!open); return; }
+    setLoading(true);
+    setOpen(true);
+    try {
+      const r = await fetch(`/api/whatsapp-contacts/${contactId}/messages?limit=50`, { credentials: "include" });
+      if (r.ok) {
+        const data = await r.json();
+        setMessages(data.messages || []);
+      }
+    } catch {}
+    setLoading(false);
+  };
+
+  // Group messages by date
+  const groupByDate = (msgs: WaMessage[]) => {
+    const groups: Record<string, WaMessage[]> = {};
+    for (const m of msgs) {
+      const date = new Date(m.created_at).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
+      if (!groups[date]) groups[date] = [];
+      groups[date].push(m);
+    }
+    return groups;
+  };
+
+  return (
+    <div className="space-y-2 pt-2">
+      <button onClick={load} className="flex items-center gap-2 text-xs font-medium text-white/70 hover:text-white/90 transition-colors">
+        <MessageSquare className="w-3.5 h-3.5" />
+        <span>Storico conversazioni</span>
+        {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        {messages.length > 0 && <span className="text-white/30">({messages.length} msg)</span>}
+      </button>
+
+      {open && (
+        <div className="max-h-80 overflow-y-auto rounded-lg border border-white/8 bg-black/20">
+          {loading && <div className="p-3 text-xs text-white/30">Caricamento...</div>}
+          {!loading && messages.length === 0 && <div className="p-3 text-xs text-white/30">Nessun messaggio</div>}
+          {!loading && Object.entries(groupByDate(messages)).map(([date, msgs]) => (
+            <div key={date}>
+              <div className="sticky top-0 bg-black/40 backdrop-blur-sm px-3 py-1 text-[10px] text-white/30 font-medium">{date}</div>
+              {msgs.map((m, i) => {
+                const time = new Date(m.created_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+                const isOut = m.direction === "outgoing";
+                return (
+                  <div key={i} className={`px-3 py-1.5 flex gap-2 ${isOut ? "flex-row-reverse" : ""}`}>
+                    <div className={`max-w-[80%] rounded-lg px-2.5 py-1.5 text-xs ${isOut ? "bg-green-900/30 text-green-200/90 ml-auto" : "bg-white/8 text-white/70"}`}>
+                      <div>{m.message_text || `[${m.message_type}]`}</div>
+                      <div className={`text-[10px] mt-0.5 ${isOut ? "text-green-300/40 text-right" : "text-white/25"}`}>{time}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
