@@ -1206,6 +1206,32 @@ export function chatRoutes(db: Db) {
     res.json({ cleared: true });
   });
 
+  // Clear pending messages after ChatPage picks them up
+  router.post("/chat/clear-pending", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const companyId = req.query.companyId as string;
+    if (!companyId) { res.json({ cleared: true }); return; }
+    await db.execute(sql`DELETE FROM chat_messages WHERE company_id = ${companyId} AND user_id = ${actor.userId} AND role = 'pending_user'`);
+    res.json({ cleared: true });
+  });
+
+  // Queue a message to be auto-sent when ChatPage loads
+  router.post("/chat/queue-message", async (req, res) => {
+    try {
+      const actor = req.actor as { type?: string; userId?: string } | undefined;
+      if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+      const { companyId, message } = req.body as { companyId: string; message: string };
+      if (!companyId || !message) { res.status(400).json({ error: "companyId e message obbligatori" }); return; }
+      // Save as a pending message with special flag
+      await db.execute(sql`INSERT INTO chat_messages (id, company_id, user_id, role, content, created_at) VALUES (${randomUUID()}, ${companyId}, ${actor.userId}, 'pending_user', ${message}, NOW())`);
+      res.json({ queued: true });
+    } catch (e) {
+      console.error("Queue message error:", e);
+      res.status(500).json({ error: "Errore" });
+    }
+  });
+
   router.post("/chat", async (req, res) => {
     try {
       const actor = req.actor as { type?: string; userId?: string; companyIds?: string[] } | undefined;

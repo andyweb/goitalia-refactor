@@ -306,20 +306,18 @@ export function PluginManager() {
   const actionBtn = (label: string, onClick: () => void, style?: React.CSSProperties) => (
     <button onClick={onClick} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={style || { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}>{label}</button>
   );
-  const navigateToChat = (connector: string, detail?: string) => {
-    if (selectedCompany?.id) fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, step: 99 }) });
-    // Use hidden form submission — guarantees full page reload, no SPA interception
-    sessionStorage.removeItem("goitalia_create_agent");
-    sessionStorage.removeItem("goitalia_pending_msg");
-    const form = document.createElement("form");
-    form.method = "GET";
-    form.action = "/" + (selectedCompany?.issuePrefix || "") + "/chat";
-    const addField = (name: string, value: string) => { const input = document.createElement("input"); input.type = "hidden"; input.name = name; input.value = value; form.appendChild(input); };
-    addField("create_agent", connector);
-    if (detail) addField("detail", detail);
-    addField("_t", String(Date.now()));
-    document.body.appendChild(form);
-    form.submit();
+  const navigateToChat = async (connector: string, detail?: string) => {
+    if (!selectedCompany?.id) return;
+    // Build the message
+    const LABELS: Record<string, string> = { google: "Google Workspace", telegram: "Telegram Bot", whatsapp: "WhatsApp", meta: "Instagram + Facebook", linkedin: "LinkedIn", fal: "Fal.ai", fic: "Fatture in Cloud", openapi: "OpenAPI.it", voice: "Vocali AI" };
+    const label = LABELS[connector] || connector;
+    const detailStr = detail ? " (" + detail + ")" : "";
+    const message = "Ho collegato " + label + detailStr + ". Crea un agente dedicato per questo connettore.";
+    // Save message to DB — bulletproof, no SPA issues
+    await fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, step: 99 }) });
+    await fetch("/api/chat/queue-message", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, message }) });
+    // Navigate to chat — the ChatPage will find the pending message in DB
+    window.location.href = "/" + (selectedCompany?.issuePrefix || "") + "/chat";
   };
   const agentBtn = (connector: string, detail?: string) => (
     <button onClick={() => navigateToChat(connector, detail)} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
