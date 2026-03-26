@@ -131,7 +131,7 @@ export function ChatPage() {
         }
         setIsStreaming(false);
       }).catch(() => setIsStreaming(false));
-  }, [ceoAgent, selectedCompanyId]);
+  }, [ceoAgent, selectedCompanyId, isStreaming]);
 
   // Also trigger on force-send event
   useEffect(() => {

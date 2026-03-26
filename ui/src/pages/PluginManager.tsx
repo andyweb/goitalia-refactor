@@ -368,19 +368,14 @@ export function PluginManager() {
                       <span className="flex-1 truncate">@{bot.username}</span>
                       <div className="flex items-center gap-2 shrink-0">
                         <button onClick={() => { if (selectedCompany?.id) fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, step: 99 }) }); sessionStorage.setItem("goitalia_pending_msg", "Ho collegato il bot Telegram @" + bot.username + ". Crea un agente dedicato per rispondere ai messaggi di questo bot."); window.location.href = "/" + (selectedCompany?.issuePrefix || "") + "/chat"; }} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid rgba(34, 197, 94, 0.3)", color: "rgba(255,255,255,0.9)" }}>Crea agente</button>
-                        <button
-                          onClick={async () => {
+                        {toggleBtn(telegramAutoReply[bot.username] ?? true, async () => {
                             const newVal = !telegramAutoReply[bot.username];
                             setTelegramAutoReply({ ...telegramAutoReply, [bot.username]: newVal });
                             await fetch("/api/telegram/settings", {
                               method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
                               body: JSON.stringify({ companyId: selectedCompany?.id, autoReply: newVal, botUsername: bot.username }),
                             });
-                          }}
-                          style={{ width: 48, height: 28, minWidth: 48, borderRadius: 14, background: telegramAutoReply[bot.username] ? "#16a34a" : "rgba(255,255,255,0.15)", position: "relative", display: "inline-flex", alignItems: "center", flexShrink: 0, transition: "background 0.2s", border: "none", cursor: "pointer", padding: 0 }}
-                        >
-                          <span style={{ width: 22, height: 22, borderRadius: 11, background: "white", position: "absolute", left: telegramAutoReply[bot.username] ? 23 : 3, bottom: 3, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
-                        </button>
+                          })}
                         <button className="text-red-400/50 hover:text-red-400 transition-colors" onClick={async () => {
                           await fetch("/api/telegram/disconnect?companyId=" + selectedCompany?.id + "&bot=" + bot.username, { method: "POST", credentials: "include" });
                           const newBots = (telegramStatus!.bots || []).filter((b) => b.username !== bot.username);
@@ -444,19 +439,14 @@ export function PluginManager() {
                       <span className="flex-1 truncate">{num.phoneNumber}</span>
                       <div className="flex items-center gap-2 shrink-0">
                         <button onClick={() => { if (selectedCompany?.id) fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, step: 99 }) }); sessionStorage.setItem("goitalia_pending_msg", "Ho collegato WhatsApp " + num.phoneNumber + ". Crea un agente dedicato per rispondere ai messaggi di questo numero."); window.location.href = "/" + (selectedCompany?.issuePrefix || "") + "/chat"; }} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid rgba(34, 197, 94, 0.3)", color: "rgba(255,255,255,0.9)" }}>Crea agente</button>
-                        <button
-                          onClick={async () => {
+                        {toggleBtn(waAutoReply[num.phoneNumber] ?? true, async () => {
                             const newVal = !waAutoReply[num.phoneNumber];
                             setWaAutoReply({ ...waAutoReply, [num.phoneNumber]: newVal });
                             await fetch("/api/whatsapp/settings", {
                               method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
                               body: JSON.stringify({ companyId: selectedCompany?.id, autoReply: newVal, phoneNumber: num.phoneNumber }),
                             });
-                          }}
-                          style={{ width: 48, height: 28, minWidth: 48, borderRadius: 14, background: waAutoReply[num.phoneNumber] ? "#16a34a" : "rgba(255,255,255,0.1)", position: "relative", display: "inline-flex", alignItems: "center", flexShrink: 0, transition: "background 0.2s", border: "none", cursor: "pointer", padding: 0 }}
-                        >
-                          <span style={{ width: 22, height: 22, borderRadius: 11, background: "white", position: "absolute", left: waAutoReply[num.phoneNumber] ? 23 : 3, bottom: 3, transition: "left 0.2s" }} />
-                        </button>
+                          })}
                         <button className="text-red-400/50 hover:text-red-400 transition-colors" onClick={async () => {
                           await fetch("/api/whatsapp/disconnect?companyId=" + selectedCompany?.id + "&phone=" + encodeURIComponent(num.phoneNumber), { method: "POST", credentials: "include" });
                           const newNums = (waStatus!.numbers || []).filter((n) => n.phoneNumber !== num.phoneNumber);
