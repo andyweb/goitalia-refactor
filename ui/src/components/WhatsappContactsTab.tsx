@@ -127,8 +127,24 @@ export function WhatsappContactsTab({ agentId, companyId }: { agentId: string; c
       const data = await r.json();
       if (data.isWaChatExport) {
         setUploadingFor("generating-" + contactId);
-        // Wait a bit for async generation, then reload
-        setTimeout(() => { setUploadingFor(null); loadContacts(); }, 8000);
+        // Poll until the generated .md file appears
+        const startFileCount = contacts.find(c => c.id === contactId)?.files.length || 0;
+        const poll = async (attempts: number) => {
+          if (attempts <= 0) { setUploadingFor(null); loadContacts(); return; }
+          const cr = await fetch(`/api/whatsapp-contacts?agentId=${agentId}`, { credentials: "include" });
+          if (cr.ok) {
+            const cd = await cr.json();
+            const contact = (cd.contacts || []).find((c: any) => c.id === contactId);
+            if (contact && contact.files.length > startFileCount + 1) {
+              // New file appeared (chat + generated md)
+              setUploadingFor(null);
+              setContacts(cd.contacts);
+              return;
+            }
+          }
+          setTimeout(() => poll(attempts - 1), 2000);
+        };
+        poll(20); // max 40 seconds
         return;
       }
     }
