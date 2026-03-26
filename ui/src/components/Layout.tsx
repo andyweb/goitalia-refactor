@@ -355,7 +355,7 @@ function OnboardingOverlay() {
   const { step, tooltipDismissed } = useOnboarding();
 
   // Show overlay for steps 0, 1, 3 only (not 2, not 99, not null/loading)
-  if (step === null || step === 2 || step >= 4) return null;
+  if (step === null || step === 2 || step >= 3) return null;
   if (tooltipDismissed) return null;
 
   return <div className="absolute inset-0 z-[80] rounded-lg" style={{ background: "rgba(0,0,0,0.55)" }} />;
@@ -425,7 +425,7 @@ function OnboardingTooltip({ sidebarOpen }: { sidebarOpen: boolean }) {
     return () => clearInterval(interval);
   }, [cfg, sidebarOpen, step]);
 
-  if (step === null || step === 2 || step >= 4) return null;
+  if (step === null || step === 2 || step >= 3) return null;
   if (tooltipDismissed) return null;
   if (!sidebarOpen) return null;
   if (!cfg || !position) return null;

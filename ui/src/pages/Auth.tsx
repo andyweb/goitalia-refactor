@@ -55,7 +55,7 @@ export function AuthPage() {
           if (stepData.step === 0) { window.location.href = "/" + prefix + "/api-claude"; return; }
           if (stepData.step === 1) { window.location.href = "/" + prefix + "/chat"; return; }
           if (stepData.step === 2) { window.location.href = "/" + prefix + "/chat"; return; }
-          // step 3 no longer used, goes to dashboard
+          if (stepData.step === 3) { window.location.href = "/" + prefix + "/plugins"; return; }
         } catch {}
         navigate("/" + prefix + "/dashboard", { replace: true });
       } else {
