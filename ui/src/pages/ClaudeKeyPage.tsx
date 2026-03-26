@@ -53,7 +53,7 @@ export function ClaudeKeyPage() {
       setHasKey(true);
       // Advance onboarding to step 1 (chat CEO) via context
       await advanceStep(1);
-      setTimeout(() => navigate("/chat", { replace: true }), 1500);
+      navigate("/chat", { replace: true });
     } catch {
       setError("Errore di connessione");
     }
