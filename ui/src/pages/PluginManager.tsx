@@ -306,8 +306,21 @@ export function PluginManager() {
   const actionBtn = (label: string, onClick: () => void, style?: React.CSSProperties) => (
     <button onClick={onClick} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={style || { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}>{label}</button>
   );
+  const navigateToChat = (msg: string) => {
+    if (selectedCompany?.id) fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, step: 99 }) });
+    sessionStorage.setItem("goitalia_pending_msg", msg);
+    const chatUrl = "/" + (selectedCompany?.issuePrefix || "") + "/chat";
+    // Force full page reload by navigating away then back, or using assign
+    if (window.location.pathname === chatUrl || window.location.pathname.startsWith(chatUrl)) {
+      // Already on chat — reload
+      window.location.href = chatUrl + "?_t=" + Date.now();
+      window.location.reload();
+    } else {
+      window.location.href = chatUrl;
+    }
+  };
   const agentBtn = (msg: string) => (
-    <button onClick={() => { if (selectedCompany?.id) fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, step: 99 }) }); window.location.href = "/" + (selectedCompany?.issuePrefix || "") + "/chat?msg=" + encodeURIComponent(msg) + "&_t=" + Date.now(); }} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
+    <button onClick={() => navigateToChat(msg)} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
   );
   const connectBtn = (label: string, onClick: () => void) => (
     <button onClick={onClick} className="w-full px-4 py-2.5 rounded-xl text-sm font-semibold transition-all mt-1" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}>{label}</button>
@@ -414,7 +427,7 @@ export function PluginManager() {
                       {miniTg}
                       <span className="flex-1 truncate">@{bot.username}</span>
                       <div className="flex items-center gap-3 shrink-0">
-                        <button onClick={() => { if (selectedCompany?.id) fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, step: 99 }) }); window.location.href = "/" + (selectedCompany?.issuePrefix || "") + "/chat?msg=" + encodeURIComponent("Ho collegato il bot Telegram @" + bot.username + ". Crea un agente dedicato per rispondere ai messaggi di questo bot.") + "&_t=" + Date.now(); }} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
+                        <button onClick={() => navigateToChat("Ho collegato il bot Telegram @" + bot.username + ". Crea un agente dedicato per rispondere ai messaggi di questo bot.")} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
                         {toggleBtn(telegramAutoReply[bot.username] ?? true, async () => {
                             const newVal = !telegramAutoReply[bot.username];
                             setTelegramAutoReply({ ...telegramAutoReply, [bot.username]: newVal });
@@ -489,7 +502,7 @@ export function PluginManager() {
                       {miniWa}
                       <span className="flex-1 truncate">{num.phoneNumber}</span>
                       <div className="flex items-center gap-3 shrink-0">
-                        <button onClick={() => { if (selectedCompany?.id) fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, step: 99 }) }); window.location.href = "/" + (selectedCompany?.issuePrefix || "") + "/chat?msg=" + encodeURIComponent("Ho collegato WhatsApp " + num.phoneNumber + ". Crea un agente dedicato per rispondere ai messaggi di questo numero.") + "&_t=" + Date.now(); }} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid rgba(34, 197, 94, 0.3)", color: "rgba(255,255,255,0.9)" }}>Crea agente</button>
+                        <button onClick={() => navigateToChat("Ho collegato WhatsApp " + num.phoneNumber + ". Crea un agente dedicato per rispondere ai messaggi di questo numero.")} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid rgba(34, 197, 94, 0.3)", color: "rgba(255,255,255,0.9)" }}>Crea agente</button>
                         {toggleBtn(waAutoReply[num.phoneNumber] ?? true, async () => {
                             const newVal = !waAutoReply[num.phoneNumber];
                             setWaAutoReply({ ...waAutoReply, [num.phoneNumber]: newVal });
