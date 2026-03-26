@@ -876,6 +876,27 @@ a.paperclip-project-mention-chip {
   border-radius: 1rem;
 }
 
+/* Shiny text animation */
+.shiny-text {
+  background: linear-gradient(
+    120deg,
+    rgba(255,255,255,0.3) 0%,
+    rgba(255,255,255,0.8) 40%,
+    rgba(255,255,255,0.3) 60%,
+    rgba(255,255,255,0.3) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shiny-slide 2s ease-in-out infinite;
+}
+
+@keyframes shiny-slide {
+  0% { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
 /* Hide adapter and API keys sections for PMI view */
 .hide-adapter-section [data-section="adapter"],
 .hide-adapter-section [data-section="apikeys"] {

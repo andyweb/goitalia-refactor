@@ -346,7 +346,7 @@ export function WhatsappContactsTab({ agentId, companyId }: { agentId: string; c
                       e.target.value = "";
                     }} />
                     <button className="text-[10px] text-white/30 hover:text-white/60 transition-colors" onClick={() => fileInputRef.current?.click()} disabled={!!uploadingFor}>
-                      {uploadingFor === contact.id ? "Caricamento..." : uploadingFor === "generating-" + contact.id ? "Generando istruzioni AI..." : "+ Upload"}
+                      {uploadingFor === contact.id ? "Caricamento..." : uploadingFor === "generating-" + contact.id ? <span className="shiny-text">Generando istruzioni AI...</span> : "+ Upload"}
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
