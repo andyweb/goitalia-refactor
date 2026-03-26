@@ -53,7 +53,7 @@ export function ClaudeKeyPage() {
       setHasKey(true);
       // Advance onboarding to step 1 (chat CEO) via context
       await advanceStep(1);
-      // tooltip will guide user to chat
+      window.location.href = window.location.pathname.replace(/\/[^/]+$/, "/chat");
     } catch {
       setError("Errore di connessione");
     }
