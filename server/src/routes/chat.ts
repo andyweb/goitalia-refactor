@@ -436,6 +436,18 @@ export const TOOLS = [
       required: ["routine_id"] as string[],
     },
   },
+  {
+    name: "riassunto_conversazioni_wa",
+    description: "Legge le conversazioni WhatsApp recenti dell'agente e genera un riassunto con le cose importanti. Utile per avere un quadro delle comunicazioni WA.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        ore: { type: "number", description: "Quante ore indietro guardare (default: 24)" },
+        numero: { type: "string", description: "Filtra per un numero specifico (opzionale, es: +34646238826)" },
+      },
+      required: [] as string[],
+    },
+  },
 ];
 
 // Map each tool to the connector key it requires. null = always available.
@@ -483,6 +495,7 @@ export const TOOL_CONNECTOR: Record<string, string | null> = {
   stripe_lista_pagamenti: "stripe",
   stripe_crea_link_pagamento: "stripe",
   stripe_verifica_abbonamento: "stripe",
+  riassunto_conversazioni_wa: "whatsapp",
 };
 
 
@@ -1806,6 +1819,52 @@ export async function executeChatTool(
           const statusLabel = { active: "✅ Attivo", past_due: "⚠️ Scaduto", canceled: "❌ Cancellato", trialing: "🔄 Trial" }[s.status] || s.status;
           return `${statusLabel} | €${amount}/${interval} | Rinnovo: ${end}`;
         }).join("\n");
+      }
+
+      case "riassunto_conversazioni_wa": {
+        const input = toolInput as { ore?: number; numero?: string };
+        const hours = input.ore || 24;
+        const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+        let query = `SELECT remote_jid, from_name, message_text, direction, message_type, created_at FROM whatsapp_messages WHERE company_id = '${companyId}' AND created_at >= '${since}'`;
+        if (input.numero) {
+          const cleanNum = input.numero.replace(/\+/g, "").replace(/\s/g, "");
+          query += ` AND (from_name LIKE '%${cleanNum}%' OR remote_jid LIKE '%${cleanNum}%')`;
+        }
+        query += ` ORDER BY remote_jid, created_at ASC LIMIT 500`;
+        const rows = await db.execute(sql.raw(query)) as any[];
+        if (!rows || rows.length === 0) return `Nessuna conversazione WhatsApp nelle ultime ${hours} ore.`;
+
+        // Group by remote_jid
+        const convos: Record<string, Array<{ from: string; text: string; dir: string; time: string; type: string }>> = {};
+        for (const r of rows) {
+          const jid = r.remote_jid || "unknown";
+          if (!convos[jid]) convos[jid] = [];
+          convos[jid].push({
+            from: r.from_name || (r.direction === "outgoing" ? "Agente" : jid),
+            text: r.message_text || "",
+            dir: r.direction,
+            time: new Date(r.created_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
+            type: r.message_type || "text",
+          });
+        }
+
+        const parts: string[] = [];
+        for (const [jid, msgs] of Object.entries(convos)) {
+          const contactName = msgs.find(m => m.dir === "incoming")?.from || jid;
+          const msgCount = msgs.length;
+          const inCount = msgs.filter(m => m.dir === "incoming").length;
+          const outCount = msgs.filter(m => m.dir === "outgoing").length;
+
+          let convoText = `\n📱 ${contactName} (${inCount} ricevuti, ${outCount} inviati)\n`;
+          for (const m of msgs) {
+            const arrow = m.dir === "incoming" ? "⬅️" : "➡️";
+            const typeTag = m.type !== "text" ? ` [${m.type}]` : "";
+            convoText += `  ${m.time} ${arrow} ${m.text.substring(0, 200)}${typeTag}\n`;
+          }
+          parts.push(convoText);
+        }
+
+        return `📊 RIASSUNTO CONVERSAZIONI WA — ultime ${hours}h\nTotale: ${Object.keys(convos).length} conversazioni, ${rows.length} messaggi\n` + parts.join("\n---") + "\n\nAnalizza queste conversazioni e riporta al titolare: punti chiave, richieste importanti, cose da sapere, e eventuali follow-up necessari.";
       }
 
       default:
