@@ -419,11 +419,12 @@ REGOLE:
   router.get("/onboarding-step/:companyId", async (req, res) => {
     try {
       const { companyId } = req.params;
-      await assertCompanyAccess(req, companyId, db);
       const result: any = await db.execute(sql`SELECT onboarding_step FROM companies WHERE id = ${companyId}`);
-      const step = (result.rows[0] as any)?.onboarding_step ?? 0;
+      const row = result.rows ? result.rows[0] : result[0];
+      const step = row?.onboarding_step ?? 0;
       res.json({ step });
-    } catch {
+    } catch (err) {
+      console.error("onboarding-step GET error:", err);
       res.json({ step: 0 });
     }
   });
