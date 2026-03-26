@@ -86,11 +86,37 @@ export function ChatPage() {
       .catch(() => { setHistoryLoaded(true); });
   }, [selectedCompany?.id]);
 
-  // Auto-send message from URL ?msg= param or sessionStorage
+  // Auto-send message from connector create-agent flow or legacy ?msg= param
   const pendingMsgRef = useRef<string | null>(null);
+  const CONNECTOR_LABELS: Record<string, string> = {
+    google: "Google Workspace (Gmail, Calendar, Drive)",
+    telegram: "Telegram Bot",
+    whatsapp: "WhatsApp",
+    meta: "Instagram + Facebook",
+    linkedin: "LinkedIn",
+    fal: "Fal.ai (generazione immagini e video)",
+    fic: "Fatture in Cloud",
+    openapi: "OpenAPI.it (dati aziendali, visure)",
+    voice: "Vocali AI",
+  };
   const checkPendingMsg = () => {
-    const params = new URLSearchParams(window.location.search);
-    let msg = params.get("msg");
+    let msg: string | null = null;
+    // Check structured create-agent request first
+    const createAgentData = sessionStorage.getItem("goitalia_create_agent");
+    if (createAgentData) {
+      sessionStorage.removeItem("goitalia_create_agent");
+      try {
+        const data = JSON.parse(createAgentData);
+        const label = CONNECTOR_LABELS[data.connector] || data.connector;
+        const detail = data.detail ? " (" + data.detail + ")" : "";
+        msg = "Ho collegato " + label + detail + ". Crea un agente dedicato per questo connettore.";
+      } catch {}
+    }
+    // Fallback: legacy ?msg= or goitalia_pending_msg
+    if (!msg) {
+      const params = new URLSearchParams(window.location.search);
+      msg = params.get("msg");
+    }
     if (!msg) { msg = sessionStorage.getItem("goitalia_pending_msg"); sessionStorage.removeItem("goitalia_pending_msg"); }
     if (msg && !pendingMsgRef.current) {
       pendingMsgRef.current = msg;

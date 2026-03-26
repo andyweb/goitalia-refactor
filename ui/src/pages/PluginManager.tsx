@@ -306,14 +306,13 @@ export function PluginManager() {
   const actionBtn = (label: string, onClick: () => void, style?: React.CSSProperties) => (
     <button onClick={onClick} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={style || { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}>{label}</button>
   );
-  const navigateToChat = (msg: string) => {
+  const navigateToChat = (connector: string, detail?: string) => {
     if (selectedCompany?.id) fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, step: 99 }) });
-    sessionStorage.setItem("goitalia_pending_msg", msg);
-    // Use full absolute URL to bypass SPA router
-    window.location.href = window.location.origin + "/" + (selectedCompany?.issuePrefix || "") + "/chat#auto=" + Date.now();
+    sessionStorage.setItem("goitalia_create_agent", JSON.stringify({ connector, detail, ts: Date.now() }));
+    window.location.href = window.location.origin + "/" + (selectedCompany?.issuePrefix || "") + "/chat#agent=" + Date.now();
   };
-  const agentBtn = (msg: string) => (
-    <button onClick={() => navigateToChat(msg)} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
+  const agentBtn = (connector: string, detail?: string) => (
+    <button onClick={() => navigateToChat(connector, detail)} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
   );
   const connectBtn = (label: string, onClick: () => void) => (
     <button onClick={onClick} className="w-full px-4 py-2.5 rounded-xl text-sm font-semibold transition-all mt-1" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}>{label}</button>
@@ -376,7 +375,7 @@ export function PluginManager() {
                   ))}
                   <div className={actionRow}>
                     {actionBtn("+ Aggiungi account", () => { setGoogleLoading(true); window.location.href = "/api/oauth/google/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); })}
-                    {agentBtn("Ho collegato Google Workspace. Crea un agente per gestire le email.")}
+                    {agentBtn("google")}
                   </div>
                 </>
               ) : (
@@ -420,7 +419,7 @@ export function PluginManager() {
                       {miniTg}
                       <span className="flex-1 truncate">@{bot.username}</span>
                       <div className="flex items-center gap-3 shrink-0">
-                        <button onClick={() => navigateToChat("Ho collegato il bot Telegram @" + bot.username + ". Crea un agente dedicato per rispondere ai messaggi di questo bot.")} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
+                        <button onClick={() => navigateToChat("telegram", "@" + bot.username)} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
                         {toggleBtn(telegramAutoReply[bot.username] ?? true, async () => {
                             const newVal = !telegramAutoReply[bot.username];
                             setTelegramAutoReply({ ...telegramAutoReply, [bot.username]: newVal });
@@ -495,7 +494,7 @@ export function PluginManager() {
                       {miniWa}
                       <span className="flex-1 truncate">{num.phoneNumber}</span>
                       <div className="flex items-center gap-3 shrink-0">
-                        <button onClick={() => navigateToChat("Ho collegato WhatsApp " + num.phoneNumber + ". Crea un agente dedicato per rispondere ai messaggi di questo numero.")} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid rgba(34, 197, 94, 0.3)", color: "rgba(255,255,255,0.9)" }}>Crea agente</button>
+                        <button onClick={() => navigateToChat("whatsapp", num.phoneNumber)} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid rgba(34, 197, 94, 0.3)", color: "rgba(255,255,255,0.9)" }}>Crea agente</button>
                         {toggleBtn(waAutoReply[num.phoneNumber] ?? true, async () => {
                             const newVal = !waAutoReply[num.phoneNumber];
                             setWaAutoReply({ ...waAutoReply, [num.phoneNumber]: newVal });
@@ -621,7 +620,7 @@ export function PluginManager() {
                     </div>
                   ))}
                   <div className="flex items-center justify-between pt-2">
-                    {agentBtn("Ho collegato Instagram e Facebook. Crea un agente per gestire i social media.")}
+                    {agentBtn("meta")}
                     <button className="text-red-400/50 hover:text-red-400 transition-colors shrink-0" onClick={() => {
                       showDisconnectDialog("Instagram + Facebook", "meta", async () => {
                         await fetch("/api/oauth/meta/disconnect?companyId=" + selectedCompany?.id, { method: "POST", credentials: "include" });
@@ -670,7 +669,7 @@ export function PluginManager() {
                     }} title="Disconnetti">{xIcon}</button>
                   </div>
                   <div className={actionRow}>
-                    {agentBtn("Ho collegato LinkedIn. Crea un agente per gestire il profilo LinkedIn.")}
+                    {agentBtn("linkedin")}
                   </div>
                 </>
               ) : (
@@ -764,7 +763,7 @@ export function PluginManager() {
                   <button className="text-red-400/50 hover:text-red-400 transition-colors shrink-0" onClick={() => { showDisconnectDialog("Fal.ai", "fal", async () => { await fetch("/api/fal/key?companyId=" + selectedCompany?.id, { method: "DELETE", credentials: "include" }); setFalConnected(false); }); }} title="Disconnetti">{xIcon}</button>
                   </div>
                   <div className={actionRow}>
-                    {agentBtn("Ho collegato Fal.ai per la generazione di contenuti. Crea un agente specializzato in generazione immagini e video con AI.")}
+                    {agentBtn("fal")}
                   </div>
                 </div>
               ) : (
@@ -820,7 +819,7 @@ export function PluginManager() {
                   <button className="text-red-400/50 hover:text-red-400 transition-colors shrink-0" onClick={() => { showDisconnectDialog("Fatture in Cloud", "fic", async () => { await fetch("/api/fic/disconnect?companyId=" + selectedCompany?.id, { method: "POST", credentials: "include" }); setFicConnected(false); setFicCompany(null); }); }} title="Disconnetti">{xIcon}</button>
                   </div>
                   <div className={actionRow}>
-                    {agentBtn("Ho collegato Fatture in Cloud. Crea un agente per gestire la fatturazione elettronica, emettere fatture e monitorare i pagamenti.")}
+                    {agentBtn("fic")}
                   </div>
                 </div>
               ) : (
@@ -921,7 +920,7 @@ export function PluginManager() {
               })}
               {isOaiConnected && (
                 <div className={actionRow}>
-                  {agentBtn("Ho collegato OpenAPI.it con i servizi: " + oaiServices.join(", ") + ". Crea un agente specializzato in analisi aziende, visure e due diligence.")}
+                  {agentBtn("openapi", oaiServices.join(", "))}
                 </div>
               )}
             </div>
