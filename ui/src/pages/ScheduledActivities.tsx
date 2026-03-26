@@ -71,7 +71,7 @@ export function ScheduledActivities() {
   });
 
   if (!selectedCompanyId) {
-    return <EmptyState icon={CalendarClock} title="Seleziona un'azienda" description="Seleziona un'azienda per vedere le attività programmate." />;
+    return <EmptyState icon={CalendarClock} message="Seleziona un'azienda per vedere le attività programmate." />;
   }
 
   if (routinesQuery.isLoading) return <PageSkeleton />;
@@ -118,7 +118,7 @@ export function ScheduledActivities() {
       {activeTab === "all" && (
         <div className="space-y-3">
           {routines.length === 0 ? (
-            <EmptyState icon={CalendarClock} title="Nessuna routine" description="Non ci sono attività programmate per questa azienda." />
+            <EmptyState icon={CalendarClock} message="Non ci sono attività programmate per questa azienda." />
           ) : (
             routines.map((routine: any) => (
               <div
@@ -196,7 +196,7 @@ export function ScheduledActivities() {
           {pendingQuery.isLoading ? (
             <PageSkeleton />
           ) : pendingRuns.length === 0 ? (
-            <EmptyState icon={Check} title="Nessuna attività da approvare" description="Tutte le attività sono state gestite." />
+            <EmptyState icon={Check} message="Nessuna attività da approvare." />
           ) : (
             pendingRuns.map((run) => (
               <div
