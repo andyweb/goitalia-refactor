@@ -651,6 +651,9 @@ async function executeChatTool(
 
       case "crea_agente": {
         const input = toolInput as { nome: string; titolo: string; competenze: string; istruzioni: string };
+        // Check for duplicate agent name
+        const existing = await db.select({ id: agents.id }).from(agents).where(and(eq(agents.companyId, companyId), eq(agents.name, input.nome))).then(r => r[0]);
+        if (existing) return "Agente " + input.nome + " esiste gia (id: " + existing.id + "). Non creo duplicati.";
         const [newAgent] = await db.insert(agents).values({
           id: randomUUID(),
           companyId,
