@@ -73,8 +73,8 @@ export function ChatPage() {
       .then((r) => r.json())
       .then((data) => {
         if (data.messages?.length > 0) {
-          const pending = data.messages.filter((m: any) => m.role === "pending_user");
-          const regular = data.messages.filter((m: any) => m.role !== "pending_user");
+          const pending = data.messages.filter((m: any) => m.content?.startsWith("__PENDING__"));
+          const regular = data.messages.filter((m: any) => !m.content?.startsWith("__PENDING__"));
           const loaded = regular.map((m: any) => ({
             id: m.id || crypto.randomUUID(),
             role: m.role,
@@ -84,8 +84,8 @@ export function ChatPage() {
           setMessages(loaded);
           if (pending.length > 0) {
             const lastPending = pending[pending.length - 1];
-            pendingMsgRef.current = lastPending.content;
-            setInput(lastPending.content);
+            pendingMsgRef.current = lastPending.content.replace("__PENDING__", "");
+            setInput(lastPending.content.replace("__PENDING__", ""));
             setPendingMsgTrigger(t => t + 1);
             fetch("/api/chat/clear-pending?companyId=" + selectedCompany.id, { method: "POST", credentials: "include" });
           }

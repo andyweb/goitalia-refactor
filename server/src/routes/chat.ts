@@ -1212,7 +1212,7 @@ export function chatRoutes(db: Db) {
     if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
     const companyId = req.query.companyId as string;
     if (!companyId) { res.json({ cleared: true }); return; }
-    await db.execute(sql`DELETE FROM chat_messages WHERE company_id = ${companyId} AND user_id = ${actor.userId} AND role = 'pending_user'`);
+    await db.execute(sql`DELETE FROM chat_messages WHERE company_id = ${companyId} AND user_id = ${actor.userId} AND content LIKE '__PENDING__%'`);
     res.json({ cleared: true });
   });
 
@@ -1223,8 +1223,8 @@ export function chatRoutes(db: Db) {
       if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
       const { companyId, message } = req.body as { companyId: string; message: string };
       if (!companyId || !message) { res.status(400).json({ error: "companyId e message obbligatori" }); return; }
-      // Save as a pending message with special flag
-      await db.execute(sql`INSERT INTO chat_messages (id, company_id, user_id, role, content, created_at) VALUES (${randomUUID()}, ${companyId}, ${actor.userId}, 'pending_user', ${message}, NOW())`);
+      // Save as user message with __PENDING__ prefix to mark it for auto-send
+      await db.execute(sql`INSERT INTO chat_messages (id, company_id, user_id, role, content, created_at) VALUES (${randomUUID()}, ${companyId}, ${actor.userId}, 'user', ${"__PENDING__" + message}, NOW())`);
       res.json({ queued: true });
     } catch (e) {
       console.error("Queue message error:", e);
