@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "@/lib/router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
@@ -16,6 +17,7 @@ interface ChatMessage {
 
 export function ChatPage() {
   const { selectedCompanyId, selectedCompany } = useCompany();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { setBreadcrumbs } = useBreadcrumbs();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -88,6 +90,43 @@ export function ChatPage() {
       })
       .catch(() => { setHistoryLoaded(true); });
   }, [selectedCompany?.id]);
+
+  // Auto-send message from URL ?msg= param (e.g. from Crea agente button)
+  useEffect(() => {
+    const msg = searchParams.get("msg");
+    if (!msg || !ceoAgent || !selectedCompanyId || autoStarted || isStreaming) return;
+    // Clear the param from URL
+    setSearchParams({}, { replace: true });
+    setAutoStarted(true);
+    const startMsg = { id: crypto.randomUUID(), role: "user" as const, content: msg, timestamp: new Date() };
+    setMessages(prev => [...prev, startMsg]);
+    setIsStreaming(true);
+    const aId = crypto.randomUUID();
+    setMessages(prev => [...prev, { id: aId, role: "assistant", content: "", timestamp: new Date() }]);
+    // Advance onboarding to 99 (complete)
+    fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompanyId, step: 99 }) });
+    window.dispatchEvent(new Event("onboarding-step-changed"));
+    fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompanyId, agentId: ceoAgent.id, message: msg, history: [] }) })
+      .then(async (res) => {
+        if (!res.ok || !res.body) { setIsStreaming(false); return; }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          for (const ln of chunk.split(String.fromCharCode(10))) {
+            if (!ln.startsWith("data: ")) continue;
+            try {
+              const d = JSON.parse(ln.slice(6));
+              if (d.type === "text" || d.type === "content_block_delta") { fullText += d.text || d.delta?.text || ""; setMessages(prev => prev.map(m => m.id === aId ? { ...m, content: fullText } : m)); }
+            } catch {}
+          }
+        }
+        setIsStreaming(false);
+      }).catch(() => setIsStreaming(false));
+  }, [ceoAgent, selectedCompanyId, searchParams]);
 
   // Also trigger on force-send event
   useEffect(() => {
