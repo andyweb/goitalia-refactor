@@ -309,9 +309,8 @@ export function PluginManager() {
   const navigateToChat = (msg: string) => {
     if (selectedCompany?.id) fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, step: 99 }) });
     sessionStorage.setItem("goitalia_pending_msg", msg);
-    // Force full page reload — bypass SPA router completely
-    window.location.assign(window.location.origin + "/" + (selectedCompany?.issuePrefix || "") + "/chat");
-    setTimeout(() => window.location.reload(), 50);
+    // Use full absolute URL to bypass SPA router
+    window.location.href = window.location.origin + "/" + (selectedCompany?.issuePrefix || "") + "/chat#auto=" + Date.now();
   };
   const agentBtn = (msg: string) => (
     <button onClick={() => navigateToChat(msg)} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
