@@ -385,7 +385,7 @@ export function PluginManager() {
                   ))}
                   <div className={actionRow}>
                     {actionBtn("+ Aggiungi account", () => { setGoogleLoading(true); window.location.href = "/api/oauth/google/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); })}
-                    {agentBtn("google")}
+                    {agentBtn("google", (googleStatus?.accounts || [googleStatus?.email]).join(", "))}
                   </div>
                 </>
               ) : (
