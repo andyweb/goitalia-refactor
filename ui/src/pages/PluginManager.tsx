@@ -304,7 +304,7 @@ export function PluginManager() {
             <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform shrink-0", expandedConnector === "google" && "rotate-180")} />
           </button>
           {expandedConnector === "google" && (
-            <div className="px-4 pb-3 space-y-2 border-t border-white/5">
+            <div className="px-4 pb-3 pt-3 space-y-2 border-t border-white/5">
               {isGoogleConnected ? (
                 <>
                   {(googleStatus!.accounts || [googleStatus!.email]).map((email) => (
@@ -355,7 +355,7 @@ export function PluginManager() {
             <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform shrink-0", expandedConnector === "telegram" && "rotate-180")} />
           </button>
           {expandedConnector === "telegram" && (
-            <div className="px-4 pb-3 space-y-2 border-t border-white/5">
+            <div className="px-4 pb-3 pt-3 space-y-2 border-t border-white/5">
               {isTelegramConnected ? (
                 <>
                   {telegramStatus!.bots!.map((bot) => (
@@ -431,7 +431,7 @@ export function PluginManager() {
             <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform shrink-0", expandedConnector === "whatsapp" && "rotate-180")} />
           </button>
           {expandedConnector === "whatsapp" && (
-            <div className="px-4 pb-3 space-y-2 border-t border-white/5">
+            <div className="px-4 pb-3 pt-3 space-y-2 border-t border-white/5">
               {isWaConnected ? (
                 <>
                   {waStatus!.numbers!.map((num) => (
@@ -545,7 +545,7 @@ export function PluginManager() {
             <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform shrink-0", expandedConnector === "meta" && "rotate-180")} />
           </button>
           {expandedConnector === "meta" && (
-            <div className="px-4 pb-3 space-y-2 border-t border-white/5">
+            <div className="px-4 pb-3 pt-3 space-y-2 border-t border-white/5">
               {isMetaConnected ? (
                 <>
                   {metaStatus!.instagram?.map((ig) => (
@@ -594,7 +594,7 @@ export function PluginManager() {
             <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform shrink-0", expandedConnector === "linkedin" && "rotate-180")} />
           </button>
           {expandedConnector === "linkedin" && (
-            <div className="px-4 pb-3 space-y-2 border-t border-white/5">
+            <div className="px-4 pb-3 pt-3 space-y-2 border-t border-white/5">
               {isLinkedinConnected ? (
                 <>
                   <div className={row} style={rowBg}>
@@ -633,7 +633,7 @@ export function PluginManager() {
             <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform shrink-0", expandedConnector === "voice" && "rotate-180")} />
           </button>
           {expandedConnector === "voice" && (
-            <div className="px-4 pb-3 space-y-2 border-t border-white/5">
+            <div className="px-4 pb-3 pt-3 space-y-2 border-t border-white/5">
               <p className="text-xs text-muted-foreground pt-1">Trascrive automaticamente i messaggi vocali ricevuti su WhatsApp e Telegram in testo, usando OpenAI Whisper.</p>
               {isVoiceConnected ? (
                 <div className="space-y-2">
@@ -686,7 +686,7 @@ export function PluginManager() {
             <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform shrink-0", expandedConnector === "fal" && "rotate-180")} />
           </button>
           {expandedConnector === "fal" && (
-            <div className="px-4 pb-3 space-y-2 border-t border-white/5">
+            <div className="px-4 pb-3 pt-3 space-y-2 border-t border-white/5">
               <p className="text-xs text-muted-foreground pt-1">Genera immagini e video con AI. Ottieni la key da <a href="https://Fal.ai/dashboard/keys" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Fal.ai/dashboard/keys</a></p>
               {isFalConnected ? (
                 <div className="space-y-2">
@@ -741,7 +741,7 @@ export function PluginManager() {
             <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform shrink-0", expandedConnector === "fic" && "rotate-180")} />
           </button>
           {expandedConnector === "fic" && (
-            <div className="px-4 pb-3 space-y-2 border-t border-white/5">
+            <div className="px-4 pb-3 pt-3 space-y-2 border-t border-white/5">
               {isFicConnected ? (
                 <div className="space-y-2">
                   <div className={row} style={rowBg}>
