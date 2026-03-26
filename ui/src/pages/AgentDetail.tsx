@@ -2645,7 +2645,7 @@ function AgentConnectorsTab({ companyId, agentRole, agentId }: { companyId?: str
           <div className="space-y-1.5 pt-2">
             {telegramStatus.bots.map((bot) => {
               const key = "tg_" + bot.username;
-              const isOn = agentConnectors[key] === true || agentConnectors.telegram === true;
+              const isOn = agentConnectors[key] === true;
               return (
                 <div key={bot.username} className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                   <div className="flex items-center gap-2">
@@ -2719,7 +2719,7 @@ function AgentConnectorsTab({ companyId, agentRole, agentId }: { companyId?: str
           <div className="space-y-1.5 pt-2">
             {metaStatus.instagram?.map((ig) => {
               const key = "ig_" + ig.username;
-              const isOn = agentConnectors[key] === true || agentConnectors.meta === true;
+              const isOn = agentConnectors[key] === true;
               return (
                 <div key={ig.id} className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                   <div className="flex items-center gap-2">
@@ -2733,7 +2733,7 @@ function AgentConnectorsTab({ companyId, agentRole, agentId }: { companyId?: str
             })}
             {metaStatus.pages?.map((p) => {
               const key = "fb_" + p.id;
-              const isOn = agentConnectors[key] === true || agentConnectors.meta === true;
+              const isOn = agentConnectors[key] === true;
               return (
                 <div key={p.id} className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                   <div className="flex items-center gap-2">

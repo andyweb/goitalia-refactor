@@ -72,6 +72,7 @@ const TOOLS = [
         competenze: { type: "string", description: "Descrizione delle competenze" },
         istruzioni: { type: "string", description: "Prompt di sistema / istruzioni operative" },
         connettore: { type: "string", description: "Connettore principale per cui l'agente è creato (google, telegram, whatsapp, meta, linkedin, fal, fic, openapi, voice)" },
+        account_id: { type: "string", description: "Identificativo specifico dell'account/bot/numero (es: @energizzo.it per Instagram, @nomebot per Telegram, +39xxx per WhatsApp, email per Google). Usato per attivare SOLO quell'account specifico nel connettore." },
       },
       required: ["nome", "titolo", "competenze", "istruzioni", "connettore"],
     },
@@ -389,8 +390,8 @@ NON inventare nomi creativi. NON usare nomi come Postino, Segretario, Concierge,
 "Ricapitolo l'agente: Nome: [nome] | Connettore: [connettore] | Scope: [cosa fa] | Limiti: [cosa non fa] | Autonomia: [livello] | Tono: [se applicabile]. Creo l'agente così o vuoi modificare qualcosa?"
 
 **Fase 4 — Creazione:**
-1. Chiama crea_agente con prompt costruito dalla conversazione E il campo connettore (es: "whatsapp", "google", "telegram", "fic", ecc.)
-2. L'agente verrà creato con SOLO quel connettore attivo
+1. Chiama crea_agente con prompt costruito dalla conversazione, il campo connettore (es: "whatsapp", "google", "telegram", "meta", "fic", ecc.) E il campo account_id con l'identificativo specifico dell'account (es: "@energizzo.it" per Instagram, "@nomebot" per Telegram, "+39xxx" per WhatsApp, "email@example.com" per Google)
+2. L'agente verrà creato con SOLO quell'account specifico attivo — non tutti gli account del connettore
 3. Conferma: "Agente creato! [nome] è pronto e ha accesso a [connettore]."
 
 **Fase 5 — Suggerimento flussi multi-connettore (IMPORTANTE):**
@@ -875,34 +876,34 @@ async function executeChatTool(
       }
 
       case "crea_agente": {
-        const input = toolInput as { nome: string; titolo: string; competenze: string; istruzioni: string; connettore?: string };
+        const input = toolInput as { nome: string; titolo: string; competenze: string; istruzioni: string; connettore?: string; account_id?: string };
         // Check for duplicate agent name (ignore terminated agents)
         const existing = await db.select({ id: agents.id, status: agents.status }).from(agents).where(and(eq(agents.companyId, companyId), eq(agents.name, input.nome), ne(agents.status, "terminated"))).then(r => r[0]);
         if (existing) return "Agente " + input.nome + " esiste gia (id: " + existing.id + "). Non creo duplicati.";
 
-        // Build connectors map — only the specified connector is active
-        const allConnectorKeys = ["gmail", "calendar", "drive", "sheets", "docs", "telegram", "whatsapp", "meta", "linkedin", "fal", "fic", "openapi", "voice"];
+        // Build connectors map — only the specified account is active
         const connectors: Record<string, boolean> = {};
-        for (const k of allConnectorKeys) connectors[k] = false;
-
-        // Activate connector-specific keys
         const conn = (input.connettore || "").toLowerCase();
+        const acctId = (input.account_id || "").replace(/^@/, ""); // remove @ prefix
+
         if (conn === "google") {
           connectors.gmail = true; connectors.calendar = true; connectors.drive = true; connectors.sheets = true; connectors.docs = true;
         } else if (conn === "telegram") {
-          // Activate all telegram bots
-          try {
-            const tgSecrets = await db.select({ description: companySecrets.description }).from(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "telegram_bots"))).then(r => r[0]);
-            if (tgSecrets?.description) {
-              const bots = JSON.parse(tgSecrets.description) as Array<{ username: string }>;
-              for (const bot of bots) connectors["tg_" + bot.username] = true;
-            }
-          } catch {}
-          connectors.telegram = true;
+          // Activate specific bot if account_id provided
+          if (acctId) {
+            connectors["tg_" + acctId] = true;
+          } else {
+            connectors.telegram = true;
+          }
         } else if (conn === "whatsapp") {
           connectors.whatsapp = true;
         } else if (conn === "meta") {
-          connectors.meta = true;
+          // Activate specific Instagram/Facebook account
+          if (acctId) {
+            connectors["ig_" + acctId] = true;
+          } else {
+            connectors.meta = true;
+          }
         } else if (conn === "linkedin") {
           connectors.linkedin = true;
         } else if (conn === "fal") {
