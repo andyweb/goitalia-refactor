@@ -4,6 +4,7 @@ import type { PluginRecord } from "@goitalia/shared";
 import { Link } from "@/lib/router";
 import { AlertTriangle, ChevronDown, Globe, Plus, Power, Puzzle, Settings, Trash } from "lucide-react";
 import { useCompany } from "@/context/CompanyContext";
+import { useOnboarding } from "@/context/OnboardingContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { pluginsApi } from "@/api/plugins";
 import { queryKeys } from "@/lib/queryKeys";
@@ -85,7 +86,7 @@ export function PluginManager() {
   const [oaiSaving, setOaiSaving] = useState(false);
   const [ficCompany, setFicCompany] = useState<string | null>(null);
   const [expandedConnector, setExpandedConnector] = useState<string | null>(null);
-  const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
+  const { step: onboardingStep } = useOnboarding();
 
 
 
@@ -233,17 +234,12 @@ export function PluginManager() {
 
   const isWaConnected = !!(waStatus?.connected && waStatus.numbers?.length);
   useEffect(() => {
-    if (!selectedCompany?.id) return;
-    fetch("/api/onboarding/onboarding-step/" + selectedCompany.id, { credentials: "include" })
-      .then((r) => r.json()).then((d) => {
-        setOnboardingStep(d.step ?? 99);
-        if (d.step === 3) {
-          if (isGoogleConnected) setExpandedConnector("google");
-          else if (isTelegramConnected) setExpandedConnector("telegram");
-          else if (isWaConnected) setExpandedConnector("whatsapp");
-        }
-      }).catch(() => {});
-  }, [selectedCompany?.id, isGoogleConnected, isTelegramConnected, isWaConnected]);
+    if (onboardingStep === 3) {
+      if (isGoogleConnected) setExpandedConnector("google");
+      else if (isTelegramConnected) setExpandedConnector("telegram");
+      else if (isWaConnected) setExpandedConnector("whatsapp");
+    }
+  }, [onboardingStep, isGoogleConnected, isTelegramConnected, isWaConnected]);
   const isMetaConnected = metaStatus?.connected ?? false;
   const isLinkedinConnected = linkedinStatus?.connected ?? false;
   const isVoiceConnected = voiceEnabled;

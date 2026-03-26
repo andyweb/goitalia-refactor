@@ -2,11 +2,13 @@ import { useState, useRef, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "../context/CompanyContext";
+import { useOnboarding } from "../context/OnboardingContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { agentsApi } from "../api/agents";
 import { queryKeys } from "../lib/queryKeys";
 import { Send, Paperclip, Bot, User, Loader2 } from "lucide-react";
 import { MarkdownBody } from "../components/MarkdownBody";
+import { useNavigate } from "@/lib/router";
 
 interface ChatMessage {
   id: string;
@@ -17,6 +19,8 @@ interface ChatMessage {
 
 export function ChatPage() {
   const { selectedCompanyId, selectedCompany } = useCompany();
+  const { step: onboardingStep, advanceStep } = useOnboarding();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { setBreadcrumbs } = useBreadcrumbs();
@@ -40,20 +44,20 @@ export function ChatPage() {
   const [onboardingReady, setOnboardingReady] = useState(false);
   const [showOnboardingButton, setShowOnboardingButton] = useState(false);
 
+  // Listen for onboarding-chat-start event (fired when user clicks "Ho capito" on step 1 tooltip)
   useEffect(() => {
     if (!selectedCompanyId) return;
-    fetch("/api/onboarding/onboarding-step/" + selectedCompanyId, { credentials: "include" })
-      .then((r) => r.json())
-      .then((d) => { if (d.step >= 2) setOnboardingReady(true); })
-      .catch(() => {});
+    // If step is already >= 2, we are ready
+    if (onboardingStep !== null && onboardingStep >= 2) {
+      setOnboardingReady(true);
+    }
     const onStart = () => {
       setOnboardingReady(true);
-      // Force trigger auto-start after a tick
       setTimeout(() => window.dispatchEvent(new Event("onboarding-force-send")), 100);
     };
     window.addEventListener("onboarding-chat-start", onStart);
     return () => window.removeEventListener("onboarding-chat-start", onStart);
-  }, [selectedCompanyId]);
+  }, [selectedCompanyId, onboardingStep]);
 
   // Check for pre-filled message from URL
   useEffect(() => {
@@ -61,7 +65,6 @@ export function ChatPage() {
     const prefillMsg = params.get("msg");
     if (prefillMsg && !isStreaming && selectedCompany?.id) {
       setInput(prefillMsg);
-      // Clean URL
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, [selectedCompany?.id]);
@@ -91,11 +94,10 @@ export function ChatPage() {
       .catch(() => { setHistoryLoaded(true); });
   }, [selectedCompany?.id]);
 
-  // Auto-send message from URL ?msg= param (e.g. from Crea agente button)
+  // Auto-send message from URL ?msg= param
   useEffect(() => {
     const msg = searchParams.get("msg");
     if (!msg || !ceoAgent || !selectedCompanyId || autoStarted || isStreaming) return;
-    // Clear the param from URL
     setSearchParams({}, { replace: true });
     setAutoStarted(true);
     const startMsg = { id: crypto.randomUUID(), role: "user" as const, content: msg, timestamp: new Date() };
@@ -103,9 +105,7 @@ export function ChatPage() {
     setIsStreaming(true);
     const aId = crypto.randomUUID();
     setMessages(prev => [...prev, { id: aId, role: "assistant", content: "", timestamp: new Date() }]);
-    // Advance onboarding to 99 (complete)
-    fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompanyId, step: 99 }) });
-    window.dispatchEvent(new Event("onboarding-step-changed"));
+    advanceStep(99);
     fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompanyId, agentId: ceoAgent.id, message: msg, history: [] }) })
       .then(async (res) => {
         if (!res.ok || !res.body) { setIsStreaming(false); return; }
@@ -168,7 +168,6 @@ export function ChatPage() {
   useEffect(() => {
     if (isOnboarding && !autoStarted && ceoAgent && messages.length === 0 && !isStreaming && historyLoaded && onboardingReady) {
       setAutoStarted(true);
-      // Simulate sending a start message
       const startMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: "user",
@@ -180,7 +179,6 @@ export function ChatPage() {
       const assistantId = crypto.randomUUID();
       setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", timestamp: new Date() }]);
 
-      const history = [{ role: "user" as const, content: startMsg.content }];
       fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -284,7 +282,6 @@ export function ChatPage() {
         return;
       }
 
-      // Parse SSE stream from Claude
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No reader");
 
@@ -298,7 +295,6 @@ export function ChatPage() {
 
         buffer += decoder.decode(value, { stream: true });
 
-        // Parse SSE events
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
 
@@ -314,20 +310,16 @@ export function ChatPage() {
                   prev.map((m) => m.id === assistantId ? { ...m, content: fullText } : m)
                 );
               }
-            } catch {
-              // Not JSON, skip
-            }
+            } catch {}
           }
         }
       }
 
-      // If no streaming text was parsed, try reading as regular JSON
       if (!fullText) {
         try {
           const text = decoder.decode();
           if (text) {
             buffer += text;
-            // Try to find content in accumulated buffer
             const jsonMatch = buffer.match(/"text"\s*:\s*"([^"]+)"/g);
             if (jsonMatch) {
               fullText = jsonMatch.map(m => {
@@ -335,7 +327,7 @@ export function ChatPage() {
               }).join("");
             }
           }
-        } catch { /* ignore */ }
+        } catch {}
 
         if (fullText) {
           setMessages((prev) =>
@@ -353,13 +345,23 @@ export function ChatPage() {
       );
     }
 
-    // Refresh sidebar in case agent was created/deleted
     if (selectedCompanyId) {
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(selectedCompanyId) });
     }
     setIsStreaming(false);
     inputRef.current?.focus();
   }
+
+  // Determine if we should show the "go to connettori" button
+  const shouldShowConnettoriButton = (() => {
+    if (onboardingStep !== 2) return false;
+    if (isStreaming) return false;
+    if (messages.length < 4) return false;
+    const lastMsg = messages[messages.length - 1];
+    if (!lastMsg || lastMsg.role !== "assistant") return false;
+    const content = lastMsg.content || "";
+    return content.includes("Connettori") || content.includes("connettori") || content.includes("collegare");
+  })();
 
   return (
     <div className="flex flex-col h-[calc(100vh-2rem)] max-w-5xl mx-auto">
@@ -387,10 +389,10 @@ export function ChatPage() {
             </p>
             <div className="flex flex-wrap gap-2 mt-4 max-w-md justify-center">
               {[
-                "Qual è lo stato delle vendite?",
+                "Qual e lo stato delle vendite?",
                 "Prepara un report mensile",
                 "Assegna un task al promotore",
-                "Riassumi le attività in corso",
+                "Riassumi le attivita in corso",
               ].map((suggestion) => (
                 <button
                   key={suggestion}
@@ -422,9 +424,7 @@ export function ChatPage() {
               </div>
             )}
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
-                msg.role === "user" ? "" : ""
-              }`}
+              className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm`}
               style={msg.role === "user" ? {
                 background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))",
                 color: "white",
@@ -451,29 +451,22 @@ export function ChatPage() {
             )}
           </div>
         ))}
-        {/* Ho capito button after CEO response during onboarding */}
-        {!isStreaming && messages.length >= 4 && messages[messages.length - 1]?.role === "assistant" && onboardingReady && !showOnboardingButton && (() => {
-          // Check if we should show the button (step 2 in DB = user chatted, CEO replied with summary)
-          const lastMsg = messages[messages.length - 1]?.content || "";
-          if (lastMsg.includes("Connettori") || lastMsg.includes("connettori") || lastMsg.includes("collegare") || lastMsg.length > 200) {
-            return (
-              <div className="flex justify-center my-4">
-                <button
-                  onClick={() => {
-                    setShowOnboardingButton(true);
-                    fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompanyId, step: 3 }) });
-                    window.location.href = window.location.pathname.replace("/chat", "/plugins");
-                  }}
-                  className="px-6 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:scale-105"
-                  style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", boxShadow: "0 4px 20px hsl(158 64% 42% / 0.4)" }}
-                >
-                  Ho capito, andiamo ai Connettori
-                </button>
-              </div>
-            );
-          }
-          return null;
-        })()}
+        {/* "Go to Connettori" button during onboarding step 2 */}
+        {shouldShowConnettoriButton && !showOnboardingButton && (
+          <div className="flex justify-center my-4">
+            <button
+              onClick={async () => {
+                setShowOnboardingButton(true);
+                await advanceStep(3);
+                navigate("/plugins");
+              }}
+              className="px-6 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:scale-105"
+              style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", boxShadow: "0 4px 20px hsl(158 64% 42% / 0.4)" }}
+            >
+              Ho capito, andiamo ai Connettori
+            </button>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 

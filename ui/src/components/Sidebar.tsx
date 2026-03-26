@@ -31,6 +31,7 @@ import { agentsApi } from "../api/agents";
 import { useDialog } from "../context/DialogContext";
 import { useLocation } from "@/lib/router";
 import { useCompany } from "../context/CompanyContext";
+import { useOnboarding } from "../context/OnboardingContext";
 import { heartbeatsApi } from "../api/heartbeats";
 import { authApi } from "../api/auth";
 import { queryKeys } from "../lib/queryKeys";
@@ -39,17 +40,10 @@ import { PluginSlotOutlet } from "@/plugins/slots";
 import { CompanyPatternIcon } from "./CompanyPatternIcon";
 import { useState, useEffect } from "react";
 
-const chatPulseStyle = `
-@keyframes chatPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; color: hsl(158 64% 52%); }
-}
-.chat-pulse { animation: chatPulse 1s ease-in-out infinite; }
-`;
-
 export function Sidebar() {
   const { openNewIssue } = useDialog();
   const { companies, selectedCompanyId, selectedCompany, setSelectedCompanyId } = useCompany();
+  const { step: onboardingStep } = useOnboarding();
   const { data: sidebarAgents } = useQuery({
     queryKey: queryKeys.agents.list(selectedCompanyId!),
     queryFn: () => agentsApi.list(selectedCompanyId!),
@@ -65,7 +59,6 @@ export function Sidebar() {
   const [hasFic, setHasFic] = useState(false);
   const [hasOpenapi, setHasOpenapi] = useState(false);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
-  const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
   const [telegramUnread, setTelegramUnread] = useState(0);
   const [waUnread, setWaUnread] = useState(0);
 
@@ -93,10 +86,8 @@ export function Sidebar() {
         .then((d) => setHasFic(d.connected || false))
         .catch(() => {});
       fetch("/api/onboarding/claude-key/" + selectedCompanyId, { credentials: "include" })
-      .then((r) => r.json()).then((d) => setHasApiKey(!!d.hasKey)).catch(() => {});
-      fetch("/api/onboarding/onboarding-step/" + selectedCompanyId, { credentials: "include" })
-        .then((r) => r.json()).then((d) => setOnboardingStep(d.step ?? 99)).catch(() => {});
-    fetch("/api/openapi-it/status?companyId=" + selectedCompanyId, { credentials: "include" })
+        .then((r) => r.json()).then((d) => setHasApiKey(!!d.hasKey)).catch(() => {});
+      fetch("/api/openapi-it/status?companyId=" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json())
         .then((d) => setHasOpenapi(d.connected || false))
         .catch(() => {});
@@ -116,7 +107,6 @@ export function Sidebar() {
         .catch(() => {});
     };
     fetchWaUnread();
-    // If user is already on WA/TG page, force 0
     if (location.pathname.includes("/whatsapp")) setWaUnread(0);
     if (location.pathname.includes("/telegram")) setTelegramUnread(0);
 
@@ -137,7 +127,6 @@ export function Sidebar() {
     };
     fetchUnread();
     const interval = setInterval(() => { fetchUnread(); fetchTgUnread(); fetchWaUnread();
-    // If user is already on WA/TG page, force 0
     if (location.pathname.includes("/whatsapp")) setWaUnread(0);
     if (location.pathname.includes("/telegram")) setTelegramUnread(0); }, 30000);
     const onMailUpdated = () => fetchUnread();
@@ -149,16 +138,15 @@ export function Sidebar() {
     return () => { clearInterval(interval); clearInterval(connectorInterval); window.removeEventListener("mail-updated", onMailUpdated); window.removeEventListener("telegram-read", onTgRead); window.removeEventListener("whatsapp-read", onWaRead); };
   }, [selectedCompanyId]);
 
-  const isClaudeApi = !!selectedCompanyId && (sidebarAgents ?? []).length > 0 && (sidebarAgents ?? []).every((a: any) => a.adapterType === "claude_api");
-  const isOnboarding = !!selectedCompanyId && (sidebarAgents ?? []).length > 0 && (sidebarAgents ?? []).every((a: any) => a.adapterType === "claude_api") && (sidebarAgents ?? []).filter((a: any) => a.role !== "ceo").length === 0;
+  // Listen for API key changes
   useEffect(() => {
-    const onStep = () => {
+    const handler = () => {
       if (!selectedCompanyId) return;
-      fetch("/api/onboarding/onboarding-step/" + selectedCompanyId, { credentials: "include" })
-        .then((r) => r.json()).then((d) => setOnboardingStep(d.step ?? 99)).catch(() => {});
+      fetch("/api/onboarding/claude-key/" + selectedCompanyId, { credentials: "include" })
+        .then((r) => r.json()).then((d) => setHasApiKey(!!d.hasKey)).catch(() => {});
     };
-    window.addEventListener("onboarding-step-changed", onStep);
-    return () => window.removeEventListener("onboarding-step-changed", onStep);
+    window.addEventListener("onboarding-step-changed", handler);
+    return () => window.removeEventListener("onboarding-step-changed", handler);
   }, [selectedCompanyId]);
 
   const inboxBadge = useInboxBadge(selectedCompanyId);
@@ -190,6 +178,19 @@ export function Sidebar() {
     companyPrefix: selectedCompany?.issuePrefix ?? null,
   };
 
+  // Determine disabled states based on onboarding step
+  // null (loading) or 99 (complete) = everything enabled
+  const isComplete = onboardingStep === null || onboardingStep >= 99;
+  const isStep0 = onboardingStep === 0;
+  const isStep1 = onboardingStep === 1;
+  const isStep2 = onboardingStep === 2;
+  const isStep3 = onboardingStep === 3;
+
+  const glowStyle = {
+    background: "hsl(158 64% 42% / 0.25)",
+    boxShadow: "0 0 15px hsl(158 64% 42% / 0.4)",
+  };
+
   return (
     <aside className="w-60 h-full min-h-0 flex flex-col" style={{
       background: "linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 50%, rgba(255, 255, 255, 0.01) 100%)",
@@ -214,72 +215,71 @@ export function Sidebar() {
 
       {/* Main nav */}
       <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide flex flex-col gap-1 px-2 py-2">
-        {/* Top items */}
-        <div className={"flex flex-col gap-0.5" + ((onboardingStep === null || onboardingStep < 99) ? " opacity-30 pointer-events-none" : "")}>
+        {/* Top items - disabled during onboarding steps 0-3 */}
+        <div className={"flex flex-col gap-0.5" + (!isComplete ? " opacity-30 pointer-events-none" : "")}>
           <SidebarNavItem to="/dashboard" label="Dashboard" icon={LayoutDashboard} liveCount={liveRunCount} />
           <SidebarNavItem to="/org" label="Organigramma" icon={Share2Icon} />
         </div>
 
         {/* Lavoro */}
         <SidebarSection label="Lavoro">
-          {hasApiKey && onboardingStep === 1 ? (
+          {isStep1 ? (
             <div className="relative" id="chat-ceo-nav">
-              <div className="absolute inset-0 rounded-lg animate-pulse" style={{ background: "hsl(158 64% 42% / 0.25)", boxShadow: "0 0 15px hsl(158 64% 42% / 0.4)" }} />
+              <div className="absolute inset-0 rounded-lg animate-pulse" style={glowStyle} />
               <SidebarNavItem to="/chat" label="Chat (CEO)" icon={MessageCircle} className="relative z-10 !text-white font-bold" />
               <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full animate-ping" style={{ background: "hsl(158 64% 42%)" }} />
               <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full" style={{ background: "hsl(158 64% 42%)" }} />
             </div>
+          ) : isStep2 ? (
+            <div id="chat-ceo-nav"><SidebarNavItem to="/chat" label="Chat (CEO)" icon={MessageCircle} /></div>
           ) : (
-            <div className={hasApiKey === false || (onboardingStep !== null && onboardingStep !== 1 && onboardingStep !== 2 && onboardingStep < 99) ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/chat" label="Chat (CEO)" icon={MessageCircle} /></div>
+            <div className={!isComplete && !isStep1 ? "opacity-30 pointer-events-none" : ""} id="chat-ceo-nav">
+              <SidebarNavItem to="/chat" label="Chat (CEO)" icon={MessageCircle} />
+            </div>
           )}
-        <div className={(onboardingStep === null || onboardingStep < 99) ? "opacity-30 pointer-events-none" : ""}>
-          {hasGoogle && <SidebarNavItem to="/mail" label="Mail" icon={Mail} badge={mailUnread > 0 ? mailUnread : undefined} />}
-          {hasWhatsApp && <SidebarNavItem to="/whatsapp" label="WhatsApp" icon={Phone} badge={waUnread > 0 ? waUnread : undefined} />}
-          {hasTelegram && <SidebarNavItem to="/telegram" label="Telegram" icon={MessageSquare} badge={telegramUnread > 0 ? telegramUnread : undefined} />}
-          {hasSocial && <SidebarNavItem to="/social" label="Social" icon={Share2Icon} />}
-          {hasFal && <SidebarNavItem to="/genera" label="Genera Contenuti" icon={Sparkles} />}
-          {hasFic && <SidebarNavItem to="/fatturazione" label="Fatture in Cloud" icon={Receipt} />}
-          {hasOpenapi && <SidebarNavItem to="/analisi-aziende" label="OpenAPI.it" icon={Globe} />}
-          {hasGoogle && <SidebarNavItem to="/calendario" label="Calendario" icon={Calendar} />}
-          {hasGoogle && <SidebarNavItem to="/documenti" label="Documenti" icon={HardDrive} />}
-
-
-        </div>
+          <div className={!isComplete ? "opacity-30 pointer-events-none" : ""}>
+            {hasGoogle && <SidebarNavItem to="/mail" label="Mail" icon={Mail} badge={mailUnread > 0 ? mailUnread : undefined} />}
+            {hasWhatsApp && <SidebarNavItem to="/whatsapp" label="WhatsApp" icon={Phone} badge={waUnread > 0 ? waUnread : undefined} />}
+            {hasTelegram && <SidebarNavItem to="/telegram" label="Telegram" icon={MessageSquare} badge={telegramUnread > 0 ? telegramUnread : undefined} />}
+            {hasSocial && <SidebarNavItem to="/social" label="Social" icon={Share2Icon} />}
+            {hasFal && <SidebarNavItem to="/genera" label="Genera Contenuti" icon={Sparkles} />}
+            {hasFic && <SidebarNavItem to="/fatturazione" label="Fatture in Cloud" icon={Receipt} />}
+            {hasOpenapi && <SidebarNavItem to="/analisi-aziende" label="OpenAPI.it" icon={Globe} />}
+            {hasGoogle && <SidebarNavItem to="/calendario" label="Calendario" icon={Calendar} />}
+            {hasGoogle && <SidebarNavItem to="/documenti" label="Documenti" icon={HardDrive} />}
+          </div>
         </SidebarSection>
 
-
-
         {/* Agents */}
-        <div className={(onboardingStep === null || onboardingStep < 99) ? "opacity-30 pointer-events-none" : ""}>
-        <SidebarAgents />
-
-        {/* Projects */}
-        <SidebarProjects />
-
+        <div className={!isComplete ? "opacity-30 pointer-events-none" : ""}>
+          <SidebarAgents />
+          <SidebarProjects />
         </div>
-        {/* Impostazioni - nel menu principale */}
+
+        {/* Impostazioni */}
         <SidebarSection label="Impostazioni">
-          {onboardingStep === 3 ? (
+          {isStep3 ? (
             <div className="relative" id="connettori-nav">
-              <div className="absolute inset-0 rounded-lg animate-pulse" style={{ background: "hsl(158 64% 42% / 0.25)", boxShadow: "0 0 15px hsl(158 64% 42% / 0.4)" }} />
+              <div className="absolute inset-0 rounded-lg animate-pulse" style={glowStyle} />
               <SidebarNavItem to="/plugins" label="Connettori" icon={Plug} className="relative z-10 !text-white font-bold" />
               <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full animate-ping" style={{ background: "hsl(158 64% 42%)" }} />
               <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full" style={{ background: "hsl(158 64% 42%)" }} />
             </div>
           ) : (
-            <div className={(onboardingStep === null || onboardingStep < 99) ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/plugins" label="Connettori" icon={Plug} /></div>
+            <div className={!isComplete ? "opacity-30 pointer-events-none" : ""} id="connettori-nav"><SidebarNavItem to="/plugins" label="Connettori" icon={Plug} /></div>
           )}
-          <div className={(onboardingStep === null || onboardingStep < 99) ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/company/settings" label="Profilo" icon={Settings} /></div>
-          {hasApiKey === false ? (
+          <div className={!isComplete ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/company/settings" label="Profilo" icon={Settings} /></div>
+          {isStep0 ? (
             <div className="relative" id="api-claude-nav">
-              <div className="absolute inset-0 rounded-lg animate-pulse" style={{ background: "hsl(158 64% 42% / 0.25)", boxShadow: "0 0 15px hsl(158 64% 42% / 0.4)" }} />
+              <div className="absolute inset-0 rounded-lg animate-pulse" style={glowStyle} />
               <SidebarNavItem to="/api-claude" label="API Claude" icon={Key} className="relative z-10 !text-white font-bold" />
               <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full animate-ping" style={{ background: "hsl(158 64% 42%)" }} />
               <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full" style={{ background: "hsl(158 64% 42%)" }} />
-
             </div>
           ) : (
-            <div className={(onboardingStep === null || onboardingStep < 99) && (onboardingStep ?? 0) > 0 ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/api-claude" label="API Claude" icon={Key} /></div>
+            <div className={!isComplete && onboardingStep !== null && onboardingStep > 0 ? "opacity-30 pointer-events-none" : ""} id="api-claude-nav">
+              <SidebarNavItem to="/api-claude" label="API Claude" icon={Key} />
+            </div>
           )}
           {session?.user?.email === "emanuele@unvrslabs.dev" && (
             <SidebarNavItem to="/admin" label="GoItalIA" icon={ShieldCheck} />
@@ -331,7 +331,6 @@ export function Sidebar() {
             <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground/40 transition-transform ${companyMenuOpen ? "rotate-180" : ""}`} />
           </button>
 
-          {/* Dropdown */}
           {companyMenuOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setCompanyMenuOpen(false)} />

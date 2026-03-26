@@ -7,6 +7,7 @@ import { BrowserRouter } from "@/lib/router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./App";
 import { CompanyProvider } from "./context/CompanyContext";
+import { OnboardingProvider } from "./context/OnboardingContext";
 import { LiveUpdatesProvider } from "./context/LiveUpdatesProvider";
 import { BreadcrumbProvider } from "./context/BreadcrumbContext";
 import { PanelProvider } from "./context/PanelContext";
@@ -44,6 +45,7 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <CompanyProvider>
+          <OnboardingProvider>
           <ToastProvider>
             <LiveUpdatesProvider>
               <BrowserRouter>
@@ -63,6 +65,7 @@ createRoot(document.getElementById("root")!).render(
               </BrowserRouter>
             </LiveUpdatesProvider>
           </ToastProvider>
+        </OnboardingProvider>
         </CompanyProvider>
       </ThemeProvider>
     </QueryClientProvider>

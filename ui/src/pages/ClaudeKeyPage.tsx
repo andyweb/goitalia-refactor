@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "@/lib/router";
 import { useCompany } from "../context/CompanyContext";
+import { useOnboarding } from "../context/OnboardingContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { Key, ExternalLink, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 
 export function ClaudeKeyPage() {
   const { selectedCompanyId } = useCompany();
+  const { advanceStep } = useOnboarding();
   const navigate = useNavigate();
   const { setBreadcrumbs } = useBreadcrumbs();
   const [apiKey, setApiKey] = useState("");
@@ -49,9 +51,8 @@ export function ClaudeKeyPage() {
       setApiKey("");
       setSuccess(true);
       setHasKey(true);
-      // Advance onboarding to step 1 (chat CEO)
-      fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompanyId, step: 1 }) });
-      window.dispatchEvent(new Event("onboarding-step-changed"));
+      // Advance onboarding to step 1 (chat CEO) via context
+      await advanceStep(1);
       setTimeout(() => navigate("/chat", { replace: true }), 1500);
     } catch {
       setError("Errore di connessione");
@@ -101,7 +102,7 @@ export function ClaudeKeyPage() {
         )}
       </div>
 
-      {/* Input - SOPRA al tutorial */}
+      {/* Input */}
       <div className="glass-card p-5 space-y-4">
         <h2 className="text-sm font-semibold">{hasKey ? "Aggiorna API key" : "Inserisci API key"}</h2>
 
@@ -175,7 +176,7 @@ export function ClaudeKeyPage() {
         </div>
       </div>
 
-      {/* Tutorial - SOTTO all'input */}
+      {/* Tutorial */}
       <div className="glass-card p-5 space-y-4">
         <h2 className="text-sm font-semibold">Come ottenere la API key</h2>
 

@@ -20,6 +20,7 @@ import { DevRestartBanner } from "./DevRestartBanner";
 import { useDialog } from "../context/DialogContext";
 import { usePanel } from "../context/PanelContext";
 import { useCompany } from "../context/CompanyContext";
+import { useOnboarding } from "../context/OnboardingContext";
 import { useSidebar } from "../context/SidebarContext";
 import { useTheme } from "../context/ThemeContext";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
@@ -160,9 +161,9 @@ export function Layout() {
   useEffect(() => {
     if (!isMobile) return;
 
-    const EDGE_ZONE = 30; // px from left edge to start open-swipe
-    const MIN_DISTANCE = 50; // minimum horizontal swipe distance
-    const MAX_VERTICAL = 75; // max vertical drift before we ignore
+    const EDGE_ZONE = 30;
+    const MIN_DISTANCE = 50;
+    const MAX_VERTICAL = 75;
 
     let startX = 0;
     let startY = 0;
@@ -178,15 +179,13 @@ export function Layout() {
       const dx = t.clientX - startX;
       const dy = Math.abs(t.clientY - startY);
 
-      if (dy > MAX_VERTICAL) return; // vertical scroll, ignore
+      if (dy > MAX_VERTICAL) return;
 
-      // Swipe right from left edge → open
       if (!sidebarOpen && startX < EDGE_ZONE && dx > MIN_DISTANCE) {
         setSidebarOpen(true);
         return;
       }
 
-      // Swipe left when open → close
       if (sidebarOpen && dx < -MIN_DISTANCE) {
         setSidebarOpen(false);
       }
@@ -332,7 +331,7 @@ export function Layout() {
               ) : (
                 <>
                   <Outlet />
-                  <OnboardingOverlay companyId={selectedCompanyId} />
+                  <OnboardingOverlay />
                 </>
               )}
             </main>
@@ -347,84 +346,104 @@ export function Layout() {
       <NewGoalDialog />
       <NewAgentDialog />
       <ToastViewport />
-      <OnboardingTooltipPopup companyId={selectedCompanyId} sidebarOpen={sidebarOpen} />
-      </div>
+      <OnboardingTooltip sidebarOpen={sidebarOpen} />
+    </div>
   );
 }
 
-function OnboardingOverlay({ companyId }: { companyId: string | null }) {
-  const [step, setStep] = useState<number | null>(null);
-  const [dismissed, setDismissed] = useState(false);
-  useEffect(() => {
-    if (!companyId) return;
-    fetch("/api/onboarding/onboarding-step/" + companyId, { credentials: "include" })
-      .then((r) => r.json()).then((d) => setStep(d.step ?? 99)).catch(() => {});
-    const onStep = () => {
-      fetch("/api/onboarding/onboarding-step/" + companyId, { credentials: "include" })
-        .then((r) => r.json()).then((d) => { setStep(d.step ?? 99); setDismissed(false); }).catch(() => {});
-    };
-    const onDismiss = () => setDismissed(true);
-    window.addEventListener("onboarding-step-changed", onStep);
-    window.addEventListener("onboarding-overlay-dismiss", onDismiss);
-    return () => { window.removeEventListener("onboarding-step-changed", onStep); window.removeEventListener("onboarding-overlay-dismiss", onDismiss); };
-  }, [companyId]);
-  if (step === null || step === 2 || step >= 4 || dismissed) return null;
+function OnboardingOverlay() {
+  const { step, tooltipDismissed } = useOnboarding();
+
+  // Show overlay for steps 0, 1, 3 only (not 2, not 99, not null/loading)
+  if (step === null || step === 2 || step >= 4) return null;
+  if (tooltipDismissed) return null;
+
   return <div className="absolute inset-0 z-[80] rounded-lg" style={{ background: "rgba(0,0,0,0.55)" }} />;
 }
 
-function OnboardingTooltipPopup({ companyId, sidebarOpen }: { companyId: string | null; sidebarOpen: boolean }) {
-  const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
-  const [dismissed, setDismissed] = useState(false);
+function OnboardingTooltip({ sidebarOpen }: { sidebarOpen: boolean }) {
+  const { step, tooltipDismissed, advanceStep, dismissTooltip } = useOnboarding();
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
 
-  useEffect(() => {
-    if (!companyId) return;
-    fetch("/api/onboarding/onboarding-step/" + companyId, { credentials: "include" })
-      .then((r) => r.json()).then((d) => { setOnboardingStep(d.step ?? 99); setDismissed(false); }).catch(() => {});
-  }, [companyId]);
-
-  useEffect(() => {
-    const onStep = () => {
-      if (!companyId) return;
-      fetch("/api/onboarding/onboarding-step/" + companyId, { credentials: "include" })
-        .then((r) => r.json()).then((d) => { setOnboardingStep(d.step ?? 99); setDismissed(false); }).catch(() => {});
-    };
-    window.addEventListener("onboarding-step-changed", onStep);
-    return () => window.removeEventListener("onboarding-step-changed", onStep);
-  }, [companyId]);
-
-  if (onboardingStep === null || onboardingStep === 2 || onboardingStep >= 4) return null;
-  if (dismissed) return null;
-  if (!sidebarOpen) return null;
-
-  const configs: Record<number, { title: string; text: string; top: string }> = {
-    0: { title: "Configura API Claude", text: "Per attivare il tuo CEO AI e sbloccare tutte le funzionalita, inserisci la tua API key di Anthropic nella sezione qui sotto.", top: "340px" },
-    1: { title: "Parla col tuo CEO AI", text: "Il tuo CEO AI e pronto! Premi Ho capito per iniziare: il CEO ti fara alcune domande per capire la tua azienda e configurare tutto al meglio.", top: "235px" },
-    3: { title: "Collega i Connettori", text: "Collega i tuoi servizi (Google, WhatsApp, Telegram, ecc.). Una volta collegato un connettore, premi il bottone Crea Agente che trovi nella pagina del connettore per creare il tuo primo agente AI specializzato.", top: "432px" },
+  const configs: Record<number, { title: string; text: string; targetId: string; fallbackTop: number }> = {
+    0: {
+      title: "Configura API Claude",
+      text: "Per attivare il tuo CEO AI e sbloccare tutte le funzionalita, inserisci la tua API key di Anthropic nella sezione qui sotto.",
+      targetId: "api-claude-nav",
+      fallbackTop: 340,
+    },
+    1: {
+      title: "Parla col tuo CEO AI",
+      text: "Il tuo CEO AI e pronto! Premi Ho capito per iniziare: il CEO ti fara alcune domande per capire la tua azienda e configurare tutto al meglio.",
+      targetId: "chat-ceo-nav",
+      fallbackTop: 235,
+    },
+    3: {
+      title: "Collega i Connettori",
+      text: "Collega i tuoi servizi (Google, WhatsApp, Telegram, ecc.). Una volta collegato un connettore, premi il bottone Crea Agente che trovi nella pagina del connettore per creare il tuo primo agente AI specializzato.",
+      targetId: "connettori-nav",
+      fallbackTop: 432,
+    },
   };
 
-  const cfg = configs[onboardingStep];
-  if (!cfg) return null;
+  const cfg = step !== null ? configs[step] : undefined;
 
-  const handleDismiss = () => {
-    setDismissed(true);
-    if (onboardingStep === 0) {
-      window.dispatchEvent(new Event("onboarding-overlay-dismiss"));
+  // Poll for target element position
+  useEffect(() => {
+    if (!cfg || !sidebarOpen) {
+      setPosition(null);
+      return;
     }
-    if (onboardingStep === 1 && companyId) {
-      fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId, step: 2 }) });
-      setOnboardingStep(2);
-      window.dispatchEvent(new Event("onboarding-step-changed"));
+
+    let found = false;
+    let attempts = 0;
+    const maxAttempts = 4; // 2 seconds at 500ms interval
+
+    const tryFind = () => {
+      const el = document.getElementById(cfg.targetId);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        setPosition({ top: rect.top + rect.height / 2 - 50, left: rect.right + 12 });
+        found = true;
+        return true;
+      }
+      attempts++;
+      if (attempts >= maxAttempts && !found) {
+        // Fallback position
+        setPosition({ top: cfg.fallbackTop, left: 252 });
+        return true;
+      }
+      return false;
+    };
+
+    if (tryFind()) return;
+
+    const interval = setInterval(() => {
+      if (tryFind()) clearInterval(interval);
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [cfg, sidebarOpen, step]);
+
+  if (step === null || step === 2 || step >= 4) return null;
+  if (tooltipDismissed) return null;
+  if (!sidebarOpen) return null;
+  if (!cfg || !position) return null;
+
+  const handleDismiss = async () => {
+    if (step === 0) {
+      // Just dismiss tooltip, user needs to enter key
+      dismissTooltip();
+    } else if (step === 1) {
+      await advanceStep(2);
       window.dispatchEvent(new Event("onboarding-chat-start"));
-    }
-    if (onboardingStep === 3 && companyId) {
-      fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId, step: 99 }) });
-      setOnboardingStep(99);
-      window.dispatchEvent(new Event("onboarding-step-changed"));
+    } else if (step === 3) {
+      await advanceStep(99);
     }
   };
 
   return (
-    <div className="fixed z-[200]" style={{ left: "252px", top: cfg.top, filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.5))" }}>
+    <div className="fixed z-[200]" style={{ left: position.left + "px", top: position.top + "px", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.5))" }}>
       <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2" style={{ width: 0, height: 0, borderTop: "10px solid transparent", borderBottom: "10px solid transparent", borderRight: "10px solid rgba(30, 40, 55, 0.97)" }} />
       <div className="rounded-xl p-4 w-72" style={{ background: "rgba(30, 40, 55, 0.97)", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(20px)" }}>
         <div className="flex items-center gap-2 mb-2">
