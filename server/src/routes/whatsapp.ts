@@ -477,7 +477,6 @@ export function whatsappWebhookRouter(db: Db) {
       const fromName = msg.pushName || msg.key?.cleanedSenderPn || "";
       // Extract real phone number for rubrica lookup (WaSender may use LID format in remoteJid)
       const senderPhone = msg.key?.cleanedSenderPn || msg.senderPn || msg.cleanedSenderPn || (remoteJid.includes("@lid") ? "" : remoteJid);
-      console.log(`[wa-webhook] msg keys: remoteJid=${remoteJid}, pushName=${msg.pushName}, cleanedSenderPn=${msg.key?.cleanedSenderPn}, senderPn=${msg.senderPn}, msgCleanedSenderPn=${msg.cleanedSenderPn}, fromName=${fromName}`);
       let text = msg.messageBody || msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
       
       // Handle voice messages
@@ -605,7 +604,6 @@ export function whatsappWebhookRouter(db: Db) {
               // Use senderPhone (real number) for lookup, fallback to remoteJid
               const lookupNumber = senderPhone || remoteJid;
               const contactInfo = lookupNumber ? await getContactContext(db, agent.id, lookupNumber) : null;
-              console.log(`[wa-webhook] rubrica: jid=${remoteJid}, senderPhone=${senderPhone}, lookup=${lookupNumber}, found=${!!contactInfo}, autoMode=${contactInfo?.autoMode || "n/a"}`);
 
               // Determina se rispondere in automatico
               let shouldAutoReply = agentAutoReply;
