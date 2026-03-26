@@ -614,21 +614,30 @@ export function PluginManager() {
               {isMetaConnected ? (
                 <>
                   {metaStatus!.instagram?.map((ig) => (
-                    <div key={ig.id} className={row} style={rowBg}>
+                    <div key={ig.id} className="flex items-center gap-2">
+                    <div className={row + " flex-1"} style={rowBg}>
                       {greenDot}
                       {miniIg}
                       <span className="flex-1 truncate">@{ig.username}</span>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <button onClick={() => navigateToChat("meta", "@" + ig.username)} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
+                      </div>
+                    </div>
                     </div>
                   ))}
                   {metaStatus!.pages?.map((p) => (
-                    <div key={p.id} className={row} style={rowBg}>
+                    <div key={p.id} className="flex items-center gap-2">
+                    <div className={row + " flex-1"} style={rowBg}>
                       {greenDot}
                       {miniFb}
                       <span className="flex-1 truncate">{p.name}</span>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <button onClick={() => navigateToChat("meta", p.name)} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
+                      </div>
+                    </div>
                     </div>
                   ))}
-                  <div className="flex items-center justify-between pt-2">
-                    {agentBtn("meta")}
+                  <div className="flex items-center justify-end pt-2">
                     <button className="text-red-400/50 hover:text-red-400 transition-colors shrink-0" onClick={() => {
                       showDisconnectDialog("Instagram + Facebook", "meta", async () => {
                         await fetch("/api/oauth/meta/disconnect?companyId=" + selectedCompany?.id, { method: "POST", credentials: "include" });
