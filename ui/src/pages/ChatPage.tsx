@@ -59,15 +59,7 @@ export function ChatPage() {
     return () => window.removeEventListener("onboarding-chat-start", onStart);
   }, [selectedCompanyId, onboardingStep]);
 
-  // Check for pre-filled message from URL
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const prefillMsg = params.get("msg");
-    if (prefillMsg && !isStreaming && selectedCompany?.id) {
-      setInput(prefillMsg);
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, [selectedCompany?.id]);
+  // Pre-fill removed — auto-send handles ?msg= param directly
   const [historyLoaded, setHistoryLoaded] = useState(false);
 
   useEffect(() => {
