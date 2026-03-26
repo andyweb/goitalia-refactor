@@ -358,7 +358,7 @@ function OnboardingOverlay() {
   if (step === null || step === 2 || step >= 3) return null;
   if (tooltipDismissed) return null;
 
-  return <div className="absolute inset-0 z-[80] rounded-lg" style={{ background: "rgba(0,0,0,0.55)" }} />;
+  return <div className="fixed inset-0 z-[80]" style={{ background: "rgba(0,0,0,0.55)", left: "240px" }} />;
 }
 
 function OnboardingTooltip({ sidebarOpen }: { sidebarOpen: boolean }) {
