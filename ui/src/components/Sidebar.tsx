@@ -259,7 +259,16 @@ export function Sidebar() {
         </div>
         {/* Impostazioni - nel menu principale */}
         <SidebarSection label="Impostazioni">
-          <div className={(onboardingStep === null || onboardingStep < 99) ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/plugins" label="Connettori" icon={Plug} /></div>
+          {onboardingStep === 2 ? (
+            <div className="relative" id="connettori-nav">
+              <div className="absolute inset-0 rounded-lg animate-pulse" style={{ background: "hsl(158 64% 42% / 0.25)", boxShadow: "0 0 15px hsl(158 64% 42% / 0.4)" }} />
+              <SidebarNavItem to="/plugins" label="Connettori" icon={Plug} className="relative z-10 !text-white font-bold" />
+              <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full animate-ping" style={{ background: "hsl(158 64% 42%)" }} />
+              <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full" style={{ background: "hsl(158 64% 42%)" }} />
+            </div>
+          ) : (
+            <div className={(onboardingStep === null || onboardingStep < 99) ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/plugins" label="Connettori" icon={Plug} /></div>
+          )}
           <div className={(onboardingStep === null || onboardingStep < 99) ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/company/settings" label="Profilo" icon={Settings} /></div>
           {hasApiKey === false ? (
             <div className="relative" id="api-claude-nav">

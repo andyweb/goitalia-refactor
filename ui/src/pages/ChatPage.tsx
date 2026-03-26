@@ -36,6 +36,7 @@ export function ChatPage() {
   const isOnboarding = otherAgents.length === 0 && !!ceoAgent && (ceoAgent as any).adapterType === "claude_api";
   const [autoStarted, setAutoStarted] = useState(false);
   const [onboardingReady, setOnboardingReady] = useState(false);
+  const [showOnboardingButton, setShowOnboardingButton] = useState(false);
 
   useEffect(() => {
     if (!selectedCompanyId) return;
@@ -411,6 +412,32 @@ export function ChatPage() {
             )}
           </div>
         ))}
+        {/* Ho capito button after CEO response during onboarding */}
+        {!isStreaming && messages.length >= 2 && messages[messages.length - 1]?.role === "assistant" && onboardingReady && !showOnboardingButton && (() => {
+          // Check if we should show the button (step 2 in DB = user chatted, CEO replied with summary)
+          const lastMsg = messages[messages.length - 1]?.content || "";
+          if (lastMsg.includes("Connettori") || lastMsg.includes("connettori") || lastMsg.includes("collegare") || lastMsg.length > 200) {
+            return (
+              <div className="flex justify-center my-4">
+                <button
+                  onClick={() => {
+                    setShowOnboardingButton(true);
+                    fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompanyId, step: 2 }) })
+                      .then(() => {
+                        window.dispatchEvent(new Event("onboarding-step-changed"));
+                        window.location.href = window.location.pathname.replace("/chat", "/plugins");
+                      });
+                  }}
+                  className="px-6 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:scale-105"
+                  style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", boxShadow: "0 4px 20px hsl(158 64% 42% / 0.4)" }}
+                >
+                  Ho capito, andiamo ai Connettori
+                </button>
+              </div>
+            );
+          }
+          return null;
+        })()}
         <div ref={messagesEndRef} />
       </div>
 

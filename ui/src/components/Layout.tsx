@@ -376,7 +376,7 @@ function OnboardingTooltip({ companyId, sidebarOpen }: { companyId: string | nul
   }, [companyId]);
 
   // Determine which element to point at
-  const targetId = onboardingStep === 0 ? "api-claude-nav" : onboardingStep === 1 ? "chat-ceo-nav" : null;
+  const targetId = onboardingStep === 0 ? "api-claude-nav" : onboardingStep === 1 ? "chat-ceo-nav" : onboardingStep === 2 ? "connettori-nav" : null;
 
   useEffect(() => {
     if (!targetId || !sidebarOpen || dismissed) { setPos(null); return; }
@@ -394,13 +394,15 @@ function OnboardingTooltip({ companyId, sidebarOpen }: { companyId: string | nul
   // Step 0: no key -> show tooltip for API Claude
   // Step 1: has key, hasn't seen chat -> show tooltip for Chat CEO
   // Step 2+: done
-  if (onboardingStep === null || onboardingStep >= 2) return null;
+  if (onboardingStep === null || onboardingStep >= 3) return null;
   if (onboardingStep === 0 && hasApiKey !== false) return null;
   if (dismissed) return null;
 
   const stepConfig = onboardingStep === 0
     ? { title: "Configura API Claude", text: "Per attivare il tuo CEO AI e sbloccare tutte le funzionalita, inserisci la tua API key di Anthropic nella sezione qui sotto." }
-    : { title: "Parla col tuo CEO AI", text: "Il tuo CEO AI e pronto! Premi Ho capito per iniziare: il CEO ti fara alcune domande per capire la tua azienda e configurare tutto al meglio." };
+    : onboardingStep === 1
+    ? { title: "Parla col tuo CEO AI", text: "Il tuo CEO AI e pronto! Premi Ho capito per iniziare: il CEO ti fara alcune domande per capire la tua azienda e configurare tutto al meglio." }
+    : { title: "Collega i Connettori", text: "Collega i tuoi servizi (Google, WhatsApp, Telegram, ecc.) per permettere ai tuoi agenti AI di lavorare al meglio." };
 
   const handleDismiss = () => {
     setDismissed(true);
@@ -410,6 +412,11 @@ function OnboardingTooltip({ companyId, sidebarOpen }: { companyId: string | nul
       setDismissed(true);
       window.dispatchEvent(new Event("onboarding-step-changed"));
       window.dispatchEvent(new Event("onboarding-chat-start"));
+    }
+    if (onboardingStep === 2 && companyId) {
+      fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId, step: 3 }) });
+      setOnboardingStep(3);
+      window.dispatchEvent(new Event("onboarding-step-changed"));
     }
   };
 
