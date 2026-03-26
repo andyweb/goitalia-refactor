@@ -1031,7 +1031,7 @@ export function AgentDetail() {
 
       {activeView === "skills" && (
         (agent.adapterType as string) === "claude_api" ? (
-          <AgentConnectorsTab companyId={resolvedCompanyId ?? undefined} agentRole={agent.role} />
+          <AgentConnectorsTab companyId={resolvedCompanyId ?? undefined} agentRole={agent.role} agentId={agent.id} />
         ) : (
           <AgentSkillsTab
             agent={agent}
@@ -2455,7 +2455,7 @@ function PromptEditorSkeleton() {
 
 /* ---- Connectors Tab (for claude_api agents) ---- */
 
-function AgentConnectorsTab({ companyId, agentRole }: { companyId?: string; agentRole?: string }) {
+function AgentConnectorsTab({ companyId, agentRole, agentId }: { companyId?: string; agentRole?: string; agentId?: string }) {
   const [googleStatus, setGoogleStatus] = useState<{ connected: boolean; accounts?: string[] } | null>(null);
   const [telegramStatus, setTelegramStatus] = useState<{ connected: boolean; bots?: Array<{ username: string; name: string }> } | null>(null);
   const [whatsappStatus, setWhatsappStatus] = useState<{ connected: boolean; numbers?: Array<{ phoneNumber: string }> } | null>(null);
@@ -2472,34 +2472,26 @@ function AgentConnectorsTab({ companyId, agentRole }: { companyId?: string; agen
 
   // Load agent connector settings
   useEffect(() => {
-    if (!companyId) return;
-    // Find the agent to get its adapterConfig
-    fetch("/api/companies/" + companyId + "/agents", { credentials: "include" })
+    if (!companyId || !agentId) return;
+    fetch("/api/agents/" + agentId + "?companyId=" + companyId, { credentials: "include" })
       .then((r) => r.json())
-      .then((agents: any[]) => {
-        // We don't have agentId here directly, but we can use window location
-        const path = window.location.pathname;
-        const match = agents.find((a: any) => path.includes(a.id) || path.includes(a.urlKey));
-        if (match) {
-          const config = match.adapterConfig || {};
-          setAgentConnectors(config.connectors || {});
-        }
+      .then((agent: any) => {
+        const config = agent.adapterConfig || {};
+        setAgentConnectors(config.connectors || {});
       })
-  }, [companyId]);
+      .catch(() => {});
+  }, [companyId, agentId]);
 
   const toggleConnector = async (key: string) => {
     const newVal = { ...agentConnectors, [key]: !agentConnectors[key] };
     setAgentConnectors(newVal);
     setSavingConnectors(true);
     try {
-      // Get current agent config and update connectors
-      const path = window.location.pathname;
-      const agentId = path.split("/agents/")[1]?.split("/")[0];
       if (agentId) {
         const res = await fetch("/api/agents/" + agentId + "?companyId=" + companyId, { credentials: "include" });
         if (res.ok) {
-          const agent = await res.json();
-          const config = agent.adapterConfig || {};
+          const a = await res.json();
+          const config = a.adapterConfig || {};
           config.connectors = newVal;
           await fetch("/api/agents/" + agentId + "?companyId=" + companyId, {
             method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
