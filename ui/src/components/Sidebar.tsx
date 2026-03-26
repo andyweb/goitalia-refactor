@@ -65,7 +65,7 @@ export function Sidebar() {
   const [hasFic, setHasFic] = useState(false);
   const [hasOpenapi, setHasOpenapi] = useState(false);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
-  const [onboardingStep, setOnboardingStep] = useState<number>(99);
+  const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
   const [telegramUnread, setTelegramUnread] = useState(0);
   const [waUnread, setWaUnread] = useState(0);
 
@@ -215,7 +215,7 @@ export function Sidebar() {
       {/* Main nav */}
       <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide flex flex-col gap-1 px-2 py-2">
         {/* Top items */}
-        <div className={"flex flex-col gap-0.5" + (onboardingStep < 99 ? " opacity-30 pointer-events-none" : "")}>
+        <div className={"flex flex-col gap-0.5" + ((onboardingStep === null || onboardingStep < 99) ? " opacity-30 pointer-events-none" : "")}>
           <SidebarNavItem to="/dashboard" label="Dashboard" icon={LayoutDashboard} liveCount={liveRunCount} />
           <SidebarNavItem to="/org" label="Organigramma" icon={Share2Icon} />
         </div>
@@ -232,7 +232,7 @@ export function Sidebar() {
           ) : (
             <div className={hasApiKey === false ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/chat" label="Chat (CEO)" icon={MessageCircle} /></div>
           )}
-        <div className={hasApiKey === false || (hasApiKey && onboardingStep < 2) ? "opacity-30 pointer-events-none" : ""}>
+        <div className={(onboardingStep === null || onboardingStep < 99) ? "opacity-30 pointer-events-none" : ""}>
           {hasGoogle && <SidebarNavItem to="/mail" label="Mail" icon={Mail} badge={mailUnread > 0 ? mailUnread : undefined} />}
           {hasWhatsApp && <SidebarNavItem to="/whatsapp" label="WhatsApp" icon={Phone} badge={waUnread > 0 ? waUnread : undefined} />}
           {hasTelegram && <SidebarNavItem to="/telegram" label="Telegram" icon={MessageSquare} badge={telegramUnread > 0 ? telegramUnread : undefined} />}
@@ -250,7 +250,7 @@ export function Sidebar() {
 
 
         {/* Agents */}
-        <div className={hasApiKey === false || (hasApiKey && onboardingStep < 2) ? "opacity-30 pointer-events-none" : ""}>
+        <div className={(onboardingStep === null || onboardingStep < 99) ? "opacity-30 pointer-events-none" : ""}>
         <SidebarAgents />
 
         {/* Projects */}
@@ -259,8 +259,8 @@ export function Sidebar() {
         </div>
         {/* Impostazioni - nel menu principale */}
         <SidebarSection label="Impostazioni">
-          <div className={onboardingStep < 99 ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/plugins" label="Connettori" icon={Plug} /></div>
-          <div className={onboardingStep < 99 ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/company/settings" label="Profilo" icon={Settings} /></div>
+          <div className={(onboardingStep === null || onboardingStep < 99) ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/plugins" label="Connettori" icon={Plug} /></div>
+          <div className={(onboardingStep === null || onboardingStep < 99) ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/company/settings" label="Profilo" icon={Settings} /></div>
           {hasApiKey === false ? (
             <div className="relative" id="api-claude-nav">
               <div className="absolute inset-0 rounded-lg animate-pulse" style={{ background: "hsl(158 64% 42% / 0.25)", boxShadow: "0 0 15px hsl(158 64% 42% / 0.4)" }} />
@@ -270,7 +270,7 @@ export function Sidebar() {
 
             </div>
           ) : (
-            <div className={onboardingStep < 99 && onboardingStep > 0 ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/api-claude" label="API Claude" icon={Key} /></div>
+            <div className={(onboardingStep === null || onboardingStep < 99) && (onboardingStep ?? 0) > 0 ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/api-claude" label="API Claude" icon={Key} /></div>
           )}
           {session?.user?.email === "emanuele@unvrslabs.dev" && (
             <SidebarNavItem to="/admin" label="GoItalIA" icon={ShieldCheck} />

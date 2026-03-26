@@ -38,10 +38,12 @@ export function ChatPage() {
   const [onboardingReady, setOnboardingReady] = useState(false);
 
   useEffect(() => {
-    const onComplete = () => setOnboardingReady(true);
-    window.addEventListener("onboarding-step-complete", onComplete);
-    return () => window.removeEventListener("onboarding-step-complete", onComplete);
-  }, []);
+    if (!selectedCompanyId) return;
+    fetch("/api/onboarding/onboarding-step/" + selectedCompanyId, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { if (d.step >= 2) setOnboardingReady(true); })
+      .catch(() => {});
+  }, [selectedCompanyId]);
 
   // Check for pre-filled message from URL
   useEffect(() => {
