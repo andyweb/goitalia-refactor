@@ -820,7 +820,7 @@ export function routineService(db: Db, deps: { heartbeat?: IssueAssignmentWakeup
     },
 
     create: async (companyId: string, input: CreateRoutine, actor: Actor): Promise<Routine> => {
-      await assertProject(companyId, input.projectId);
+      if (input.projectId) await assertProject(companyId, input.projectId);
       await assertAssignableAgent(companyId, input.assigneeAgentId);
       if (input.goalId) await assertGoal(companyId, input.goalId);
       if (input.parentIssueId) await assertParentIssue(companyId, input.parentIssueId);
