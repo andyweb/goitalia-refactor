@@ -24,10 +24,15 @@ interface ContactFile {
   createdAt: string;
 }
 
-const autoModeLabels: Record<string, { label: string; color: string }> = {
-  auto: { label: "Risposta automatica", color: "bg-green-500/20 text-green-400 border-green-500/30" },
-  manual: { label: "Risposta manuale", color: "bg-red-500/20 text-red-400 border-red-500/30" },
-  inherit: { label: "Default agente", color: "bg-white/10 text-white/60 border-white/20" },
+const autoModeLabels: Record<string, { label: string; color: string; dot: string }> = {
+  auto: { label: "Risposta automatica", color: "bg-white/5 text-white/80 border-white/10 hover:border-green-500/30 hover:bg-green-500/5", dot: "bg-green-400" },
+  manual: { label: "Risposta manuale", color: "bg-white/5 text-white/80 border-white/10 hover:border-red-500/30 hover:bg-red-500/5", dot: "bg-red-400" },
+  inherit: { label: "Default agente", color: "bg-white/5 text-white/50 border-white/10 hover:border-white/20", dot: "bg-white/30" },
+};
+const autoModeActive: Record<string, string> = {
+  auto: "!bg-green-500/10 !border-green-500/25 !text-green-300",
+  manual: "!bg-red-500/10 !border-red-500/25 !text-red-300",
+  inherit: "!bg-white/8 !border-white/20 !text-white/70",
 };
 
 export function WhatsappContactsTab({ agentId, companyId }: { agentId: string; companyId: string }) {
@@ -224,7 +229,8 @@ export function WhatsappContactsTab({ agentId, companyId }: { agentId: string; c
             <span className="text-xs font-medium text-white/70 mr-1">Modalità risposta:</span>
             {(["inherit", "auto", "manual"] as const).map(mode => (
               <button key={mode} onClick={() => setNewAutoMode(mode)}
-                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${newAutoMode === mode ? autoModeLabels[mode].color + " font-medium" : "border-white/10 text-white/30 hover:text-white/50 hover:border-white/20"}`}>
+                className={`inline-flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg border backdrop-blur-sm transition-all ${newAutoMode === mode ? autoModeLabels[mode].color + " " + autoModeActive[mode] : "border-white/10 text-white/30 hover:text-white/50 hover:border-white/20"}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${newAutoMode === mode ? autoModeLabels[mode].dot : "bg-white/20"}`} />
                 {autoModeLabels[mode].label}
               </button>
             ))}
@@ -266,7 +272,8 @@ export function WhatsappContactsTab({ agentId, companyId }: { agentId: string; c
                 {contact.notes && <p className="text-xs text-muted-foreground truncate mt-0.5">{contact.notes}</p>}
               </div>
               <button onClick={(e) => { e.stopPropagation(); cycleAutoMode(contact); }}
-                className={`text-xs px-2 py-0.5 rounded border shrink-0 ${mode.color}`}>
+                className={`inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg border backdrop-blur-sm shrink-0 transition-all ${mode.color} ${autoModeActive[contact.autoMode] || ""}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${mode.dot}`} />
                 {mode.label}
               </button>
               {contact.files.length > 0 && (
@@ -299,6 +306,20 @@ export function WhatsappContactsTab({ agentId, companyId }: { agentId: string; c
                   <EditableField label="Note" value={contact.notes || ""} onSave={v => updateContact(contact.id, { notes: v || null } as any)} />
                 </div>
                 <EditableField label="Istruzioni agente" value={contact.customInstructions || ""} onSave={v => updateContact(contact.id, { customInstructions: v || null } as any)} multiline />
+
+                {/* Banner export chat */}
+                {contact.files.length === 0 && (
+                  <div className="rounded-lg bg-blue-500/5 border border-blue-500/15 px-3 py-2.5 flex items-start gap-2.5">
+                    <Upload className="w-4 h-4 text-blue-400/60 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-[11px] text-white/70 leading-relaxed">
+                        <span className="font-medium text-white/90">Esporta la chat WhatsApp</span> con questo contatto (senza media) e caricala qui.
+                        Le istruzioni per l'agente verranno generate automaticamente.
+                      </p>
+                      <p className="text-[10px] text-white/30 mt-1">WhatsApp → Chat → Esporta chat → Senza media</p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Files — compact inline */}
                 <div className="space-y-1.5">
