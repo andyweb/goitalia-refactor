@@ -230,7 +230,7 @@ export function Sidebar() {
               <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full" style={{ background: "hsl(158 64% 42%)" }} />
             </div>
           ) : (
-            <div className={hasApiKey === false ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/chat" label="Chat (CEO)" icon={MessageCircle} /></div>
+            <div className={hasApiKey === false || (onboardingStep !== null && onboardingStep !== 1 && onboardingStep !== 2 && onboardingStep < 99) ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/chat" label="Chat (CEO)" icon={MessageCircle} /></div>
           )}
         <div className={(onboardingStep === null || onboardingStep < 99) ? "opacity-30 pointer-events-none" : ""}>
           {hasGoogle && <SidebarNavItem to="/mail" label="Mail" icon={Mail} badge={mailUnread > 0 ? mailUnread : undefined} />}
