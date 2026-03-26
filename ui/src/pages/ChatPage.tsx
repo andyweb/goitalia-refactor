@@ -144,25 +144,28 @@ export function ChatPage() {
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
           let fullText = "";
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            for (const ln of chunk.split(String.fromCharCode(10))) {
-              if (!ln.startsWith("data: ")) continue;
-              try {
-                const d = JSON.parse(ln.slice(6));
-                if (d.type === "text" || d.type === "content_block_delta") { fullText += d.text || d.delta?.text || ""; setMessages(prev => prev.map(m => m.id === aId ? { ...m, content: fullText } : m)); }
-              } catch {}
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              const chunk = decoder.decode(value, { stream: true });
+              for (const ln of chunk.split(String.fromCharCode(10))) {
+                if (!ln.startsWith("data: ")) continue;
+                try {
+                  const d = JSON.parse(ln.slice(6));
+                  if (d.type === "text" || d.type === "content_block_delta") { fullText += d.text || d.delta?.text || ""; setMessages(prev => prev.map(m => m.id === aId ? { ...m, content: fullText } : m)); }
+                } catch {}
+              }
             }
+          } finally {
+            if (!fullText) setMessages(prev => prev.map(m => m.id === aId && !m.content ? { ...m, content: "Ciao! Raccontami della tua impresa." } : m));
+            setIsStreaming(false);
           }
-          if (!fullText) setMessages(prev => prev.map(m => m.id === aId && !m.content ? { ...m, content: "Ciao! Raccontami della tua impresa." } : m));
-          setIsStreaming(false);
         }).catch(() => setIsStreaming(false));
     };
     window.addEventListener("onboarding-force-send", onForce);
     return () => window.removeEventListener("onboarding-force-send", onForce);
-  });
+  }, [ceoAgent, selectedCompanyId, autoStarted]);
 
   // Auto-start onboarding conversation
   useEffect(() => {
