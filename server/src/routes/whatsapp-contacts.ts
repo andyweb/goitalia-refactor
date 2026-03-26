@@ -164,7 +164,7 @@ export function whatsappContactsRoutes(db: Db) {
       customInstructions: customInstructions ?? undefined,
       autoMode: autoMode ?? undefined,
       updatedAt: new Date(),
-    }).where(eq(whatsappContacts.id, req.params.id)).returning();
+    }).where(eq(whatsappContacts.id, req.params.id as string)).returning();
 
     if (!updated) { res.status(404).json({ error: "Contatto non trovato" }); return; }
     res.json({ contact: updated });
@@ -174,7 +174,7 @@ export function whatsappContactsRoutes(db: Db) {
   router.delete("/whatsapp-contacts/:id", async (req, res) => {
     const actor = req.actor as { userId?: string } | undefined;
     if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
-    await db.delete(whatsappContacts).where(eq(whatsappContacts.id, req.params.id));
+    await db.delete(whatsappContacts).where(eq(whatsappContacts.id, req.params.id as string));
     res.json({ deleted: true });
   });
 
@@ -190,7 +190,7 @@ export function whatsappContactsRoutes(db: Db) {
       const contentText = extractTextFromBuffer(file.buffer, file.mimetype, file.originalname);
 
       const [inserted] = await db.insert(whatsappContactFiles).values({
-        contactId: req.params.id, companyId,
+        contactId: req.params.id as string, companyId,
         name: file.originalname, type: "upload",
         mimeType: file.mimetype, sizeBytes: file.size,
         contentText: contentText || null,
@@ -223,7 +223,7 @@ export function whatsappContactsRoutes(db: Db) {
     }
 
     const [inserted] = await db.insert(whatsappContactFiles).values({
-      contactId: req.params.id, companyId, name, type: "drive_link",
+      contactId: req.params.id as string, companyId, name, type: "drive_link",
       driveUrl, driveFileId: fileId || null, contentText,
     }).returning();
 
@@ -234,7 +234,7 @@ export function whatsappContactsRoutes(db: Db) {
   router.delete("/whatsapp-contacts/:id/files/:fileId", async (req, res) => {
     const actor = req.actor as { userId?: string } | undefined;
     if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
-    await db.delete(whatsappContactFiles).where(eq(whatsappContactFiles.id, req.params.fileId));
+    await db.delete(whatsappContactFiles).where(eq(whatsappContactFiles.id, req.params.fileId as string));
     res.json({ deleted: true });
   });
 
