@@ -90,7 +90,8 @@ export function ChatPage() {
   const pendingMsgRef = useRef<string | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const msg = params.get("msg");
+    let msg = params.get("msg");
+    if (!msg) { msg = sessionStorage.getItem("goitalia_pending_msg"); sessionStorage.removeItem("goitalia_pending_msg"); }
     if (msg) {
       pendingMsgRef.current = msg;
       setInput(msg);

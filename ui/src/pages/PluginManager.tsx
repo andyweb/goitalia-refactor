@@ -253,16 +253,19 @@ export function PluginManager() {
   const rowBg = { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" } as React.CSSProperties;
   const greenDot = <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />;
   const toggleBtn = (active: boolean, onClick: () => void) => (
-    <button onClick={onClick} style={{ width: 44, height: 24, minWidth: 44, borderRadius: 12, background: active ? "#16a34a" : "rgba(255,255,255,0.15)", position: "relative", display: "inline-flex", alignItems: "center", flexShrink: 0, transition: "background 0.2s", border: "none", cursor: "pointer", padding: 0 }}>
-      <span style={{ width: 18, height: 18, borderRadius: 9, background: "white", position: "absolute", left: active ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
-    </button>
+    <label style={{ position: "relative", display: "inline-block", width: 48, height: 28, minWidth: 48, flexShrink: 0 }}>
+      <input type="checkbox" checked={active} onChange={onClick} style={{ opacity: 0, width: 0, height: 0, position: "absolute" }} />
+      <span style={{ position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0, background: active ? "#16a34a" : "rgba(255,255,255,0.15)", borderRadius: 14, transition: "background 0.2s" }}>
+        <span style={{ position: "absolute", content: '""', height: 22, width: 22, left: active ? 23 : 3, bottom: 3, background: "white", borderRadius: 11, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+      </span>
+    </label>
   );
   const actionRow = "flex items-center gap-2 pt-2";
   const actionBtn = (label: string, onClick: () => void, style?: React.CSSProperties) => (
     <button onClick={onClick} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={style || { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}>{label}</button>
   );
   const agentBtn = (msg: string) => (
-    <button onClick={() => { if (selectedCompany?.id) fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, step: 99 }) }); window.location.href = "/" + (selectedCompany?.issuePrefix || "") + "/chat?msg=" + encodeURIComponent(msg); }} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={{ background: "linear-gradient(135deg, hsl(158 64% 42% / 0.15), hsl(158 64% 42% / 0.08))", border: "1px solid hsl(158 64% 42% / 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
+    <button onClick={() => { if (selectedCompany?.id) fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, step: 99 }) }); sessionStorage.setItem("goitalia_pending_msg", msg); window.location.href = "/" + (selectedCompany?.issuePrefix || "") + "/chat"; }} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={{ background: "linear-gradient(135deg, hsl(158 64% 42% / 0.15), hsl(158 64% 42% / 0.08))", border: "1px solid hsl(158 64% 42% / 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
   );
   const connectBtn = (label: string, onClick: () => void) => (
     <button onClick={onClick} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-1" style={{ background: "rgba(66, 133, 244, 0.15)", border: "1px solid rgba(66, 133, 244, 0.3)", color: "rgba(255,255,255,0.9)" }}>{label}</button>
