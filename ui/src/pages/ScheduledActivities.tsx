@@ -26,7 +26,7 @@ type TabKey = "all" | "pending";
 export function ScheduledActivities() {
   const { selectedCompanyId } = useCompany();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const { pushToast } = useToast();
   const [activeTab, setActiveTab] = useState<TabKey>("all");
 
   useBreadcrumbs();
@@ -48,7 +48,7 @@ export function ScheduledActivities() {
       routinesApi.update(routineId, { approvalRequired }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(selectedCompanyId!) });
-      toast({ title: "Routine aggiornata", variant: "default" });
+      pushToast({ title: "Routine aggiornata", tone: "success" });
     },
   });
 
@@ -57,7 +57,7 @@ export function ScheduledActivities() {
       api.post(`/routines/${routineId}/runs/${runId}/approve`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pending-runs", selectedCompanyId] });
-      toast({ title: "Run approvato", variant: "default" });
+      pushToast({ title: "Approvata", tone: "success" });
     },
   });
 
@@ -66,7 +66,7 @@ export function ScheduledActivities() {
       api.post(`/routines/${routineId}/runs/${runId}/reject`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pending-runs", selectedCompanyId] });
-      toast({ title: "Run rifiutato", variant: "default" });
+      pushToast({ title: "Rifiutata", tone: "success" });
     },
   });
 
