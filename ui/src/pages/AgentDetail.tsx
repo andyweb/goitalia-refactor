@@ -2666,6 +2666,16 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
 
   const hasAnyConnector = googleStatus?.connected || (telegramStatus?.connected && telegramStatus.bots?.length) || whatsappStatus?.connected || metaStatus?.connected || linkedinStatus?.connected || falStatus?.connected || ficStatus?.connected || oaiStatus?.connected;
 
+  // Agent-level connector checks (what the agent actually uses)
+  const agentHasGoogle = ["gmail", "calendar", "drive", "sheets", "docs"].some((k) => agentConnectors[k] === true);
+  const agentHasTelegram = Object.keys(agentConnectors).some((k) => k.startsWith("tg_") && agentConnectors[k] === true);
+  const agentHasWhatsApp = agentConnectors.whatsapp === true;
+  const agentHasMeta = Object.keys(agentConnectors).some((k) => (k.startsWith("ig_") || k.startsWith("fb_")) && agentConnectors[k] === true) || agentConnectors.meta === true;
+  const agentHasLinkedIn = agentConnectors.linkedin === true;
+  const agentHasFal = Object.keys(agentConnectors).some((k) => k.startsWith("fal") && agentConnectors[k] === true) || agentConnectors.fal === true;
+  const agentHasFic = agentConnectors.fic === true;
+  const agentHasOpenapi = Object.keys(agentConnectors).some((k) => k.startsWith("oai_") && agentConnectors[k] === true);
+
   // Order connectors: primary first (order 0), others after (order 1)
   const connOrder = (connKey: string) => connKey === primaryConnector ? 0 : 1;
 
@@ -2694,15 +2704,14 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
           </div>
           <div className="flex-1">
             <div className="text-sm font-semibold">Google Workspace</div>
-            {googleStatus?.connected ? (
+            {agentHasGoogle ? (
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Connesso</span>
-                <span className="text-xs text-muted-foreground">{(googleStatus.accounts || []).length} account</span>
+                <span className="text-xs text-muted-foreground">{(googleStatus?.accounts || []).length} account</span>
               </div>
             ) : (
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">Non connesso</span>
-                <a href={"/" + (selectedCompany?.issuePrefix || "") + "/plugins"} className="text-xs text-blue-400 hover:underline">Collega da Plugin</a>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">Non attivo</span>
               </div>
             )}
           </div>
@@ -2754,15 +2763,13 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
           </div>
           <div className="flex-1">
             <div className="text-sm font-semibold">Telegram Bot</div>
-            {telegramStatus?.connected && telegramStatus.bots?.length ? (
+            {agentHasTelegram ? (
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Connesso</span>
-                <span className="text-xs text-muted-foreground">{telegramStatus.bots.length} bot</span>
               </div>
             ) : (
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">Non connesso</span>
-                <a href={"/" + (selectedCompany?.issuePrefix || "") + "/plugins"} className="text-xs text-blue-400 hover:underline">Collega da Plugin</a>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">Non attivo</span>
               </div>
             )}
           </div>
@@ -2795,15 +2802,14 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
           </div>
           <div className="flex-1">
             <div className="text-sm font-semibold">WhatsApp</div>
-            {whatsappStatus?.connected ? (
+            {agentHasWhatsApp ? (
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Connesso</span>
-                <span className="text-xs text-muted-foreground">{(whatsappStatus.numbers || []).length} numero</span>
+                <span className="text-xs text-muted-foreground">{whatsappStatus?.numbers?.[0]?.phoneNumber || ""}</span>
               </div>
             ) : (
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">Non connesso</span>
-                <a href={"/" + (selectedCompany?.issuePrefix || "") + "/plugins"} className="text-xs text-blue-400 hover:underline">Collega da Plugin</a>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">Non attivo</span>
               </div>
             )}
           </div>
@@ -2829,15 +2835,14 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
           </div>
           <div className="flex-1">
             <div className="text-sm font-semibold">Instagram + Facebook</div>
-            {metaStatus?.connected ? (
+            {agentHasMeta ? (
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Connesso</span>
-                <span className="text-xs text-muted-foreground">{(metaStatus.instagram?.length || 0) + (metaStatus.pages?.length || 0)} account</span>
+                <span className="text-xs text-muted-foreground">{Object.keys(agentConnectors).filter((k) => (k.startsWith("ig_") || k.startsWith("fb_")) && agentConnectors[k]).length} account</span>
               </div>
             ) : (
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">Non connesso</span>
-                <a href={"/" + (selectedCompany?.issuePrefix || "") + "/plugins"} className="text-xs text-blue-400 hover:underline">Collega da Plugin</a>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">Non attivo</span>
               </div>
             )}
           </div>
@@ -2883,15 +2888,13 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
           </div>
           <div className="flex-1">
             <div className="text-sm font-semibold">LinkedIn</div>
-            {linkedinStatus?.connected ? (
+            {agentHasLinkedIn ? (
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Connesso</span>
-                <span className="text-xs text-muted-foreground">1 account</span>
               </div>
             ) : (
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">Non connesso</span>
-                <a href={"/" + (selectedCompany?.issuePrefix || "") + "/plugins"} className="text-xs text-blue-400 hover:underline">Collega da Plugin</a>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">Non attivo</span>
               </div>
             )}
           </div>
@@ -2921,7 +2924,11 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
             </div>
             <div className="flex-1">
               <div className="text-sm font-semibold">Fal.ai</div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Connesso</span>
+              {agentHasFal ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Connesso</span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">Non attivo</span>
+              )}
             </div>
           </div>
           {expandedConn === "fal" && (<div className="space-y-1.5 pt-2 px-4 pb-4">
@@ -2954,7 +2961,11 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
             </div>
             <div className="flex-1">
               <div className="text-sm font-semibold">Fatture in Cloud</div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Connesso</span>
+              {agentHasFic ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Connesso</span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">Non attivo</span>
+              )}
             </div>
           </div>
           {expandedConn === "fic" && (<div className="space-y-1.5 pt-2 px-4 pb-4">
@@ -2980,7 +2991,11 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
             </div>
             <div className="flex-1">
               <div className="text-sm font-semibold">OpenAPI.it</div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Connesso</span>
+              {agentHasOpenapi ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Connesso</span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">Non attivo</span>
+              )}
             </div>
           </div>
           {expandedConn === "openapi" && (<div className="space-y-1.5 pt-2 px-4 pb-4">
