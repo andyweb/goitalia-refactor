@@ -405,9 +405,11 @@ function OnboardingTooltip({ companyId, sidebarOpen }: { companyId: string | nul
   const handleDismiss = () => {
     setDismissed(true);
     if (onboardingStep === 1 && companyId) {
-      fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId, step: 2 }) })
-        .then(() => window.location.reload());
-      return;
+      fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId, step: 2 }) });
+      setOnboardingStep(2);
+      setDismissed(true);
+      window.dispatchEvent(new Event("onboarding-step-changed"));
+      window.dispatchEvent(new Event("onboarding-chat-start"));
     }
   };
 

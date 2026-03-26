@@ -43,6 +43,9 @@ export function ChatPage() {
       .then((r) => r.json())
       .then((d) => { if (d.step >= 2) setOnboardingReady(true); })
       .catch(() => {});
+    const onStart = () => setOnboardingReady(true);
+    window.addEventListener("onboarding-chat-start", onStart);
+    return () => window.removeEventListener("onboarding-chat-start", onStart);
   }, [selectedCompanyId]);
 
   // Check for pre-filled message from URL
