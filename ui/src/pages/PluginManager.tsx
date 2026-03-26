@@ -489,8 +489,8 @@ export function PluginManager() {
               ) : waQrCode ? (
                 <div className="space-y-3 mt-2">
                   <p className="text-xs text-muted-foreground">Scansiona il QR code con WhatsApp sul telefono</p>
-                  <div className="flex justify-center p-3 bg-white rounded-xl">
-                    <img src={"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(waQrCode)} alt="QR Code WhatsApp" className="w-48 h-48" />
+                  <div className="flex justify-center">
+                    <img src={"https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data=" + encodeURIComponent(waQrCode)} alt="QR Code WhatsApp" className="w-48 h-48 rounded-lg" />
                   </div>
                   <p className="text-[10px] text-muted-foreground text-center">Il QR scade ogni 45 secondi. Se non funziona, riprova.</p>
                   <button onClick={async () => {
