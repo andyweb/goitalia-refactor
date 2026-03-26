@@ -4,7 +4,6 @@ import { Clock, User, ToggleLeft, ToggleRight, Check, X, CalendarClock } from "l
 import { routinesApi } from "../api/routines";
 import { api } from "../api/client";
 import { useCompany } from "../context/CompanyContext";
-import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useToast } from "../context/ToastContext";
 import { queryKeys } from "../lib/queryKeys";
 import { PageSkeleton } from "../components/PageSkeleton";
@@ -28,8 +27,6 @@ export function ScheduledActivities() {
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const [activeTab, setActiveTab] = useState<TabKey>("all");
-
-  useBreadcrumbs();
 
   const routinesQuery = useQuery({
     queryKey: [...queryKeys.routines.list(selectedCompanyId!), "scheduled"],
