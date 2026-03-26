@@ -35,7 +35,7 @@ export function ChatPage() {
   const otherAgents = (agents ?? []).filter((a) => a.role !== "ceo");
   const isOnboarding = otherAgents.length === 0 && !!ceoAgent && (ceoAgent as any).adapterType === "claude_api";
   const [autoStarted, setAutoStarted] = useState(false);
-  const [onboardingReady, setOnboardingReady] = useState(() => parseInt(localStorage.getItem("goitalia_onboarding") || "0") >= 2);
+  const [onboardingReady, setOnboardingReady] = useState(false);
 
   useEffect(() => {
     const onComplete = () => setOnboardingReady(true);

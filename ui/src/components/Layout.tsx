@@ -355,33 +355,25 @@ function OnboardingTooltip({ companyId, sidebarOpen }: { companyId: string | nul
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const [dismissed, setDismissed] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState<number>(() => {
-    try { return parseInt(localStorage.getItem("goitalia_onboarding") || "0"); } catch { return 0; }
-  });
+  const [onboardingStep, setOnboardingStep] = useState<number>(99);
 
   useEffect(() => {
     if (!companyId) return;
     fetch("/api/onboarding/claude-key/" + companyId, { credentials: "include" })
-      .then((r) => r.json()).then((d) => {
-        setHasApiKey(!!d.hasKey);
-        if (d.hasKey) {
-          const s = parseInt(localStorage.getItem("goitalia_onboarding") || "0");
-          if (s < 1) { localStorage.setItem("goitalia_onboarding", "1"); setOnboardingStep(1); }
-          else { setOnboardingStep(s); }
-        }
-      }).catch(() => {});
+      .then((r) => r.json()).then((d) => setHasApiKey(!!d.hasKey)).catch(() => {});
+    fetch("/api/onboarding/onboarding-step/" + companyId, { credentials: "include" })
+      .then((r) => r.json()).then((d) => setOnboardingStep(d.step ?? 99)).catch(() => {});
   }, [companyId]);
 
-  // Listen for storage changes (when sidebar updates the step)
   useEffect(() => {
-    const onStorage = () => {
-      const s = parseInt(localStorage.getItem("goitalia_onboarding") || "0");
-      setOnboardingStep(s);
+    const onStep = () => {
+      if (!companyId) return;
+      fetch("/api/onboarding/onboarding-step/" + companyId, { credentials: "include" })
+        .then((r) => r.json()).then((d) => setOnboardingStep(d.step ?? 99)).catch(() => {});
     };
-    window.addEventListener("storage", onStorage);
-    const id = setInterval(onStorage, 500);
-    return () => { window.removeEventListener("storage", onStorage); clearInterval(id); };
-  }, []);
+    window.addEventListener("onboarding-step-changed", onStep);
+    return () => window.removeEventListener("onboarding-step-changed", onStep);
+  }, [companyId]);
 
   // Determine which element to point at
   const targetId = onboardingStep === 0 ? "api-claude-nav" : onboardingStep === 1 ? "chat-ceo-nav" : null;
@@ -412,10 +404,11 @@ function OnboardingTooltip({ companyId, sidebarOpen }: { companyId: string | nul
 
   const handleDismiss = () => {
     setDismissed(true);
-    if (onboardingStep === 1) {
-      localStorage.setItem("goitalia_onboarding", "2");
+    if (onboardingStep === 1 && companyId) {
+      fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId, step: 2 }) });
       setOnboardingStep(2);
       window.dispatchEvent(new Event("onboarding-step-complete"));
+      window.dispatchEvent(new Event("onboarding-step-changed"));
     }
   };
 

@@ -65,9 +65,7 @@ export function Sidebar() {
   const [hasFic, setHasFic] = useState(false);
   const [hasOpenapi, setHasOpenapi] = useState(false);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
-  const [onboardingStep, setOnboardingStep] = useState<number>(() => {
-    try { return parseInt(localStorage.getItem("goitalia_onboarding") || "0"); } catch { return 0; }
-  });
+  const [onboardingStep, setOnboardingStep] = useState<number>(99);
   const [telegramUnread, setTelegramUnread] = useState(0);
   const [waUnread, setWaUnread] = useState(0);
 
@@ -95,7 +93,9 @@ export function Sidebar() {
         .then((d) => setHasFic(d.connected || false))
         .catch(() => {});
       fetch("/api/onboarding/claude-key/" + selectedCompanyId, { credentials: "include" })
-      .then((r) => r.json()).then((d) => { setHasApiKey(!!d.hasKey); if (d.hasKey) { const s = parseInt(localStorage.getItem('goitalia_onboarding') || '0'); if (s < 1) { localStorage.setItem('goitalia_onboarding', '1'); setOnboardingStep(1); } } }).catch(() => {});
+      .then((r) => r.json()).then((d) => setHasApiKey(!!d.hasKey)).catch(() => {});
+      fetch("/api/onboarding/onboarding-step/" + selectedCompanyId, { credentials: "include" })
+        .then((r) => r.json()).then((d) => setOnboardingStep(d.step ?? 99)).catch(() => {});
     fetch("/api/openapi-it/status?companyId=" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json())
         .then((d) => setHasOpenapi(d.connected || false))
@@ -151,6 +151,16 @@ export function Sidebar() {
 
   const isClaudeApi = !!selectedCompanyId && (sidebarAgents ?? []).length > 0 && (sidebarAgents ?? []).every((a: any) => a.adapterType === "claude_api");
   const isOnboarding = !!selectedCompanyId && (sidebarAgents ?? []).length > 0 && (sidebarAgents ?? []).every((a: any) => a.adapterType === "claude_api") && (sidebarAgents ?? []).filter((a: any) => a.role !== "ceo").length === 0;
+  useEffect(() => {
+    const onStep = () => {
+      if (!selectedCompanyId) return;
+      fetch("/api/onboarding/onboarding-step/" + selectedCompanyId, { credentials: "include" })
+        .then((r) => r.json()).then((d) => setOnboardingStep(d.step ?? 99)).catch(() => {});
+    };
+    window.addEventListener("onboarding-step-changed", onStep);
+    return () => window.removeEventListener("onboarding-step-changed", onStep);
+  }, [selectedCompanyId]);
+
   const inboxBadge = useInboxBadge(selectedCompanyId);
   const queryClient = useQueryClient();
   const [companyMenuOpen, setCompanyMenuOpen] = useState(false);

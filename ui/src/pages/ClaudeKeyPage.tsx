@@ -49,8 +49,9 @@ export function ClaudeKeyPage() {
       setApiKey("");
       setSuccess(true);
       setHasKey(true);
-      // Advance onboarding to step 2 (chat CEO)
-      localStorage.setItem("goitalia_onboarding", "1");
+      // Advance onboarding to step 1 (chat CEO)
+      fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompanyId, step: 1 }) });
+      window.dispatchEvent(new Event("onboarding-step-changed"));
       setTimeout(() => navigate("/chat", { replace: true }), 1500);
     } catch {
       setError("Errore di connessione");

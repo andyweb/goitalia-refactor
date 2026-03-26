@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { Db } from "@goitalia/db";
 import { companySecrets, companyMemberships } from "@goitalia/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { createHash, randomBytes, createCipheriv, createDecipheriv } from "node:crypto";
 import { companyService } from "../services/companies.js";
 import { agentService } from "../services/agents.js";
@@ -411,6 +411,33 @@ REGOLE:
       res.json({ hasKey: !!secret });
     } catch {
       res.json({ hasKey: false });
+    }
+  });
+
+
+  // GET onboarding step for a company
+  router.get("/onboarding-step/:companyId", async (req, res) => {
+    try {
+      const { companyId } = req.params;
+      await assertCompanyAccess(req, companyId, db);
+      const result: any = await db.execute(sql`SELECT onboarding_step FROM companies WHERE id = ${companyId}`);
+      const step = (result.rows[0] as any)?.onboarding_step ?? 0;
+      res.json({ step });
+    } catch {
+      res.json({ step: 0 });
+    }
+  });
+
+  // POST update onboarding step
+  router.post("/onboarding-step", async (req, res) => {
+    try {
+      const { companyId, step } = req.body;
+      if (!companyId || step === undefined) { res.status(400).json({ error: "Missing companyId or step" }); return; }
+      await assertCompanyAccess(req, companyId, db);
+      await db.execute(sql`UPDATE companies SET onboarding_step = ${step} WHERE id = ${companyId}`);
+      res.json({ ok: true, step });
+    } catch {
+      res.status(500).json({ error: "Errore" });
     }
   });
 

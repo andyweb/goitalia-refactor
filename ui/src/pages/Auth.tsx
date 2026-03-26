@@ -48,9 +48,14 @@ export function AuthPage() {
           const data = await res.json();
           if (!data.hasKey) { navigate("/" + prefix + "/api-claude", { replace: true }); return; }
         } catch {}
-        // Check onboarding step
-        const step = parseInt(localStorage.getItem("goitalia_onboarding") || "0");
-        if (step < 2) { navigate("/" + prefix + "/chat", { replace: true }); return; }
+        // Check onboarding step from DB
+        try {
+          const stepRes = await fetch("/api/onboarding/onboarding-step/" + companies[0].id, { credentials: "include" });
+          const stepData = await stepRes.json();
+          if (stepData.step === 0) { navigate("/" + prefix + "/api-claude", { replace: true }); return; }
+          if (stepData.step === 1) { navigate("/" + prefix + "/chat", { replace: true }); return; }
+          if (stepData.step === 2) { navigate("/" + prefix + "/plugins", { replace: true }); return; }
+        } catch {}
         navigate("/" + prefix + "/dashboard", { replace: true });
       } else {
         navigate("/", { replace: true });
