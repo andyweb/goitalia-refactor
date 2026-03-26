@@ -32,7 +32,7 @@ export function ScheduledActivities() {
   useBreadcrumbs([{ label: "Attività Programmate" }]);
 
   const routinesQuery = useQuery({
-    queryKey: [...queryKeys.routines(selectedCompanyId!), "scheduled"],
+    queryKey: [...queryKeys.routines.list(selectedCompanyId!), "scheduled"],
     queryFn: () => routinesApi.list(selectedCompanyId!),
     enabled: !!selectedCompanyId,
   });
@@ -47,7 +47,7 @@ export function ScheduledActivities() {
     mutationFn: ({ routineId, approvalRequired }: { routineId: string; approvalRequired: boolean }) =>
       routinesApi.update(routineId, { approvalRequired }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.routines(selectedCompanyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(selectedCompanyId!) });
       toast({ title: "Routine aggiornata", variant: "default" });
     },
   });
