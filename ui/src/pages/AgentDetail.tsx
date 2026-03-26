@@ -2619,7 +2619,7 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
   };
 
   const nativeToggle = (active: boolean, onClick: () => void) => (
-    <label style={{ position: "relative", display: "inline-block", width: 48, height: 28, minWidth: 48, flexShrink: 0 }}>
+    <label onClick={(e) => e.stopPropagation()} style={{ position: "relative", display: "inline-block", width: 48, height: 28, minWidth: 48, flexShrink: 0 }}>
       <input type="checkbox" checked={active} onChange={onClick} style={{ opacity: 0, width: 0, height: 0, position: "absolute" }} />
       <span style={{ position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0, background: active ? "#16a34a" : "rgba(255,255,255,0.15)", borderRadius: 14, transition: "background 0.2s" }}>
         <span style={{ position: "absolute", height: 22, width: 22, left: active ? 23 : 3, bottom: 3, background: "white", borderRadius: 11, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
