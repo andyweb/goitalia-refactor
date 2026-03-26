@@ -32,6 +32,7 @@ import { pecRoutes } from "./routes/pec.js";
 import { billingRoutes, billingWebhookRouter } from "./routes/billing.js";
 import { stripeConnectorRoutes } from "./routes/stripe-connector.js";
 import { projectFilesRoutes } from "./routes/project-files.js";
+import { whatsappContactsRoutes } from "./routes/whatsapp-contacts.js";
 import { socialRoutes } from "./routes/social.js";
 import { connectorAccountRoutes } from "./routes/connector-accounts.js";
 import { companySkillRoutes } from "./routes/company-skills.js";
@@ -251,6 +252,7 @@ app.use(express.json({
   api.use(pecRoutes(db));
   api.use(stripeConnectorRoutes(db));
   api.use(projectFilesRoutes(db));
+  api.use(whatsappContactsRoutes(db));
   api.use(billingRoutes(db));
   api.use(socialRoutes(db));
   api.use("/companies", companyRoutes(db, opts.storageService));

@@ -57,3 +57,5 @@ export { connectorAccounts } from "./connector_accounts.js";
 export { agentConnectorAccounts } from "./agent_connector_accounts.js";
 export { whatsappSubscriptions } from "./whatsapp_subscriptions.js";
 export { projectFiles } from "./project_files.js";
+export { whatsappContacts } from "./whatsapp_contacts.js";
+export { whatsappContactFiles } from "./whatsapp_contact_files.js";

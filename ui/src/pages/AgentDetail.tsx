@@ -75,6 +75,7 @@ import {
   Play,
   Wallet,
   Globe,
+  Phone,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -96,6 +97,7 @@ import {
 } from "@goitalia/shared";
 import { redactHomePathUserSegments, redactHomePathUserSegmentsInValue } from "@goitalia/adapter-utils";
 import { agentRouteRef } from "../lib/utils";
+import { WhatsappContactsTab } from "../components/WhatsappContactsTab";
 import {
   applyAgentSkillSnapshot,
   arraysEqual,
@@ -227,13 +229,14 @@ function scrollToContainerBottom(container: ScrollContainer, behavior: ScrollBeh
   container.scrollTo({ top: container.scrollHeight, behavior });
 }
 
-type AgentDetailView = "dashboard" | "instructions" | "configuration" | "skills" | "runs" | "budget";
+type AgentDetailView = "dashboard" | "instructions" | "configuration" | "skills" | "runs" | "budget" | "contacts";
 
 function parseAgentDetailView(value: string | null): AgentDetailView {
   if (value === "instructions" || value === "prompts") return "instructions";
   if (value === "configure" || value === "configuration") return "configuration";
   if (value === "skills") return "skills";
   if (value === "budget") return "budget";
+  if (value === "contacts") return "contacts";
   if (value === "runs") return value;
   return "instructions";
 }
@@ -657,6 +660,8 @@ export function AgentDetail() {
               ? "runs"
               : activeView === "budget"
                 ? "budget"
+                : activeView === "contacts"
+                  ? "contacts"
               : "dashboard";
     if (routeAgentRef !== canonicalAgentRef || urlTab !== canonicalTab) {
       navigate(`/agents/${canonicalAgentRef}/${canonicalTab}`, { replace: true });
@@ -780,6 +785,8 @@ export function AgentDetail() {
         crumbs.push({ label: "Runs" });
       } else if (activeView === "budget") {
         crumbs.push({ label: "Budget" });
+      } else if (activeView === "contacts") {
+        crumbs.push({ label: "Rubrica" });
       } else {
         crumbs.push({ label: "Dashboard" });
       }
@@ -939,6 +946,7 @@ export function AgentDetail() {
               ...((agent.adapterType as string) !== "claude_api" ? [{ value: "configuration", label: "Configurazione", icon: <Settings className="h-4 w-4" /> }] : []),
               ...((agent.adapterType as string) !== "claude_api" ? [{ value: "runs", label: "Esecuzioni", icon: <Play className="h-4 w-4" /> }] : []),
               { value: "budget", label: "Budget", icon: <Wallet className="h-4 w-4" /> },
+              ...((agent.adapterType as string) === "claude_api" ? [{ value: "contacts", label: "Rubrica", icon: <Phone className="h-4 w-4" /> }] : []),
             ]}
             value={activeView}
             onValueChange={(value) => navigate(`/agents/${canonicalAgentRef}/${value}`)}
@@ -1061,6 +1069,10 @@ export function AgentDetail() {
           />
         </div>
       ) : null}
+
+      {activeView === "contacts" && resolvedCompanyId && (
+        <WhatsappContactsTab agentId={agent.id} companyId={resolvedCompanyId} />
+      )}
     </div>
   );
 }

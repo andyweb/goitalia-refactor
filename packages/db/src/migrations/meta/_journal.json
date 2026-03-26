@@ -323,6 +323,13 @@
       "when": 1774600000000,
       "tag": "0045_project_files",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1774800000000,
+      "tag": "0046_whatsapp_contacts",
+      "breakpoints": true
     }
   ]
 }

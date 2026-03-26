@@ -6,6 +6,7 @@ import { eq, and, sql } from "drizzle-orm";
 import crypto from "node:crypto";
 import { encrypt, decrypt } from "../utils/crypto.js";
 import { upsertConnectorAccount, removeConnectorAccount } from "../utils/connector-sync.js";
+import { getContactContext, normalizePhoneNumber } from "./whatsapp-contacts.js";
 
 const WASENDER_API = "https://www.wasenderapi.com/api";
 function getWasenderPat() { return process.env.WASENDER_PAT || ""; }
@@ -594,59 +595,79 @@ export function whatsappWebhookRouter(db: Db) {
 
           if (agentLink) {
             const agent = await db.select().from(agents).where(eq(agents.id, agentLink.agentId)).then(r => r[0]);
-            if (agent && (agent.adapterConfig as any)?.autoReply === true) {
-              const claudeSecret = await db.select().from(companySecrets)
-                .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "claude_api_key")))
-                .then(r => r[0]);
-              if (claudeSecret?.description) {
-                const claudeKey = decrypt(claudeSecret.description);
-                const adapterConfig = agent.adapterConfig as Record<string, unknown>;
-                const prompt = (adapterConfig?.promptTemplate as string) || `Sei ${agent.name}. Rispondi in italiano in modo conciso.`;
+            if (agent) {
+              const agentAutoReply = (agent.adapterConfig as any)?.autoReply === true;
 
-                // Get conversation history for context
-                let history: Array<{ role: "user" | "assistant"; content: string }> = [];
-                try {
-                  const rows = await db.execute(sql`SELECT message_text, direction FROM whatsapp_messages WHERE company_id = ${companyId} AND remote_jid = ${remoteJid} ORDER BY created_at ASC LIMIT 20`);
-                  history = (rows as any[]).map((r: any) => ({
-                    role: r.direction === "incoming" ? "user" as const : "assistant" as const,
-                    content: r.message_text,
-                  }));
-                } catch {}
-                if (history.length === 0) {
-                  history = [{ role: "user", content: text }];
-                }
+              // Lookup rubrica contatto per override autoMode e contesto
+              const contactInfo = await getContactContext(db, agent.id, remoteJid);
 
-                const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", "x-api-key": claudeKey, "anthropic-version": "2023-06-01" },
-                  body: JSON.stringify({
-                    model: (adapterConfig?.model as string) || "claude-haiku-4-5-20251001",
-                    max_tokens: 1024,
-                    system: prompt,
-                    messages: history,
-                  }),
-                });
+              // Determina se rispondere in automatico
+              let shouldAutoReply = agentAutoReply;
+              if (contactInfo) {
+                if (contactInfo.autoMode === "auto") shouldAutoReply = true;
+                else if (contactInfo.autoMode === "manual") shouldAutoReply = false;
+                // "inherit" → segue il default dell'agente
+              }
 
-                if (claudeRes.ok) {
-                  const data = await claudeRes.json() as { content?: Array<{ text?: string }> };
-                  const reply = data.content?.find(b => b.text)?.text;
-                  if (reply) {
-                    // Send reply via WaSender API
-                    const waSecret = await db.select().from(companySecrets)
-                      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
-                      .then(r => r[0]);
-                    if (waSecret?.description) {
-                      const sessions = JSON.parse(decrypt(waSecret.description));
-                      const session = Array.isArray(sessions) ? sessions[0] : sessions;
-                      if (session?.apiKey) {
-                        await fetch(WASENDER_API + "/send-message", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.apiKey },
-                          body: JSON.stringify({ to: remoteJid.replace("@s.whatsapp.net", "").replace("@g.us", ""), text: reply }),
-                        });
-                        try {
-                          await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction) VALUES (${companyId}, ${remoteJid}, ${agent.name || "Bot"}, ${reply}, ${"outgoing"})`);
-                        } catch {}
+              if (shouldAutoReply) {
+                const claudeSecret = await db.select().from(companySecrets)
+                  .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "claude_api_key")))
+                  .then(r => r[0]);
+                if (claudeSecret?.description) {
+                  const claudeKey = decrypt(claudeSecret.description);
+                  const adapterConfig = agent.adapterConfig as Record<string, unknown>;
+                  let prompt = (adapterConfig?.promptTemplate as string) || `Sei ${agent.name}. Rispondi in italiano in modo conciso.`;
+
+                  // Arricchisci il prompt con contesto del contatto dalla rubrica
+                  if (contactInfo?.context) {
+                    prompt += contactInfo.context;
+                  }
+
+                  // Get conversation history for context
+                  let history: Array<{ role: "user" | "assistant"; content: string }> = [];
+                  try {
+                    const rows = await db.execute(sql`SELECT message_text, direction FROM whatsapp_messages WHERE company_id = ${companyId} AND remote_jid = ${remoteJid} ORDER BY created_at ASC LIMIT 20`);
+                    history = (rows as any[]).map((r: any) => ({
+                      role: r.direction === "incoming" ? "user" as const : "assistant" as const,
+                      content: r.message_text,
+                    }));
+                  } catch {}
+                  if (history.length === 0) {
+                    history = [{ role: "user", content: text }];
+                  }
+
+                  const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "x-api-key": claudeKey, "anthropic-version": "2023-06-01" },
+                    body: JSON.stringify({
+                      model: (adapterConfig?.model as string) || "claude-haiku-4-5-20251001",
+                      max_tokens: 1024,
+                      system: prompt,
+                      messages: history,
+                    }),
+                  });
+
+                  if (claudeRes.ok) {
+                    const data = await claudeRes.json() as { content?: Array<{ text?: string }> };
+                    const reply = data.content?.find(b => b.text)?.text;
+                    if (reply) {
+                      // Send reply via WaSender API
+                      const waSecret = await db.select().from(companySecrets)
+                        .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
+                        .then(r => r[0]);
+                      if (waSecret?.description) {
+                        const sessions = JSON.parse(decrypt(waSecret.description));
+                        const session = Array.isArray(sessions) ? sessions[0] : sessions;
+                        if (session?.apiKey) {
+                          await fetch(WASENDER_API + "/send-message", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.apiKey },
+                            body: JSON.stringify({ to: remoteJid.replace("@s.whatsapp.net", "").replace("@g.us", ""), text: reply }),
+                          });
+                          try {
+                            await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction) VALUES (${companyId}, ${remoteJid}, ${agent.name || "Bot"}, ${reply}, ${"outgoing"})`);
+                          } catch {}
+                        }
                       }
                     }
                   }
