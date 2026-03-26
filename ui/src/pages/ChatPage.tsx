@@ -88,6 +88,7 @@ export function ChatPage() {
 
   // Auto-send message from connector create-agent flow or legacy ?msg= param
   const pendingMsgRef = useRef<string | null>(null);
+  const [pendingMsgTrigger, setPendingMsgTrigger] = useState(0);
   const CONNECTOR_LABELS: Record<string, string> = {
     google: "Google Workspace (Gmail, Calendar, Drive)",
     telegram: "Telegram Bot",
@@ -137,6 +138,7 @@ export function ChatPage() {
     if (msg) {
       pendingMsgRef.current = msg;
       setInput(msg);
+      setPendingMsgTrigger(t => t + 1);
       window.history.replaceState({}, "", window.location.pathname);
     }
   };
@@ -182,7 +184,7 @@ export function ChatPage() {
         }
         setIsStreaming(false);
       }).catch(() => setIsStreaming(false));
-  }, [ceoAgent, selectedCompanyId, isStreaming]);
+  }, [ceoAgent, selectedCompanyId, isStreaming, pendingMsgTrigger]);
 
   // Also trigger on force-send event
   useEffect(() => {
