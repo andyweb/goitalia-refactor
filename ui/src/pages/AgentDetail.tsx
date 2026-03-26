@@ -2559,7 +2559,7 @@ function AgentConnectorsTab({ companyId, agentRole }: { companyId?: string; agen
 
   const isCeo = agentRole === "ceo";
   // For non-CEO agents, only show connectors that are in their agentConnectors config
-  const agentHasConnector = (keys: string[]) => isCeo || keys.some(k => agentConnectors[k] === true || agentConnectors[k] === false);
+  const agentHasConnector = (keys: string[]) => isCeo || keys.some(k => agentConnectors[k] === true);
   const hasAnyConnector = googleStatus?.connected || (telegramStatus?.connected && telegramStatus.bots?.length) || whatsappStatus?.connected || metaStatus?.connected || linkedinStatus?.connected || falStatus?.connected || ficStatus?.connected || oaiStatus?.connected;
   // For non-CEO: check if any of their assigned connectors match what's connected
   const hasRelevantConnector = isCeo ? hasAnyConnector : Object.keys(agentConnectors).length > 0;
