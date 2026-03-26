@@ -363,12 +363,13 @@ export function PluginManager() {
               {isTelegramConnected ? (
                 <>
                   {telegramStatus!.bots!.map((bot) => (
-                    <div key={bot.username} className={row} style={rowBg}>
+                    <div key={bot.username} className="flex items-center gap-2">
+                    <div className={row + " flex-1"} style={rowBg}>
                       {greenDot}
                       {miniTg}
                       <span className="flex-1 truncate">@{bot.username}</span>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button onClick={() => { if (selectedCompany?.id) fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, step: 99 }) }); sessionStorage.setItem("goitalia_pending_msg", "Ho collegato il bot Telegram @" + bot.username + ". Crea un agente dedicato per rispondere ai messaggi di questo bot."); window.location.href = "/" + (selectedCompany?.issuePrefix || "") + "/chat"; }} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid rgba(34, 197, 94, 0.3)", color: "rgba(255,255,255,0.9)" }}>Crea agente</button>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <button onClick={() => { if (selectedCompany?.id) fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, step: 99 }) }); sessionStorage.setItem("goitalia_pending_msg", "Ho collegato il bot Telegram @" + bot.username + ". Crea un agente dedicato per rispondere ai messaggi di questo bot."); window.location.href = "/" + (selectedCompany?.issuePrefix || "") + "/chat"; }} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
                         {toggleBtn(telegramAutoReply[bot.username] ?? true, async () => {
                             const newVal = !telegramAutoReply[bot.username];
                             setTelegramAutoReply({ ...telegramAutoReply, [bot.username]: newVal });
@@ -377,13 +378,14 @@ export function PluginManager() {
                               body: JSON.stringify({ companyId: selectedCompany?.id, autoReply: newVal, botUsername: bot.username }),
                             });
                           })}
-                        <button className="text-red-400/50 hover:text-red-400 transition-colors ml-1" onClick={async () => {
-                          if (!confirm("Sei sicuro di voler disconnettere questo bot?")) return;
-                          await fetch("/api/telegram/disconnect?companyId=" + selectedCompany?.id + "&bot=" + bot.username, { method: "POST", credentials: "include" });
-                          const newBots = (telegramStatus!.bots || []).filter((b) => b.username !== bot.username);
-                          setTelegramStatus(newBots.length > 0 ? { connected: true, bots: newBots } : { connected: false });
-                        }} title="Disconnetti">{xIcon}</button>
                       </div>
+                    </div>
+                    <button className="text-red-400/50 hover:text-red-400 transition-colors shrink-0" onClick={async () => {
+                      if (!confirm("Sei sicuro di voler disconnettere questo bot?")) return;
+                      await fetch("/api/telegram/disconnect?companyId=" + selectedCompany?.id + "&bot=" + bot.username, { method: "POST", credentials: "include" });
+                      const newBots = (telegramStatus!.bots || []).filter((b) => b.username !== bot.username);
+                      setTelegramStatus(newBots.length > 0 ? { connected: true, bots: newBots } : { connected: false });
+                    }} title="Disconnetti">{xIcon}</button>
                     </div>
                   ))}
                   <div className={actionRow}>
