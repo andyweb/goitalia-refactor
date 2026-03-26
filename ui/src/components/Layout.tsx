@@ -347,6 +347,7 @@ export function Layout() {
       <NewGoalDialog />
       <NewAgentDialog />
       <ToastViewport />
+      <OnboardingTooltipPopup companyId={selectedCompanyId} sidebarOpen={sidebarOpen} />
       </div>
   );
 }
