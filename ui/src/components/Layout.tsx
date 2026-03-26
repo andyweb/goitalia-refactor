@@ -332,7 +332,7 @@ export function Layout() {
               ) : (
                 <>
                   <Outlet />
-                  <OnboardingTooltip companyId={selectedCompanyId} sidebarOpen={sidebarOpen} />
+                  <OnboardingOverlay companyId={selectedCompanyId} />
                 </>
               )}
             </main>
@@ -351,12 +351,28 @@ export function Layout() {
   );
 }
 
-function OnboardingTooltip({ companyId, sidebarOpen }: { companyId: string | null; sidebarOpen: boolean }) {
+function OnboardingOverlay({ companyId }: { companyId: string | null }) {
+  const [step, setStep] = useState<number | null>(null);
+  useEffect(() => {
+    if (!companyId) return;
+    fetch("/api/onboarding/onboarding-step/" + companyId, { credentials: "include" })
+      .then((r) => r.json()).then((d) => setStep(d.step ?? 99)).catch(() => {});
+    const onStep = () => {
+      fetch("/api/onboarding/onboarding-step/" + companyId, { credentials: "include" })
+        .then((r) => r.json()).then((d) => setStep(d.step ?? 99)).catch(() => {});
+    };
+    window.addEventListener("onboarding-step-changed", onStep);
+    return () => window.removeEventListener("onboarding-step-changed", onStep);
+  }, [companyId]);
+  if (step === null || step === 2 || step >= 4) return null;
+  return <div className="absolute inset-0 z-[80] rounded-lg" style={{ background: "rgba(0,0,0,0.55)" }} />;
+}
+
+function OnboardingTooltipPopup({ companyId, sidebarOpen }: { companyId: string | null; sidebarOpen: boolean }) {
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
+  const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const [dismissed, setDismissed] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
-
   useEffect(() => {
     if (!companyId) return;
     fetch("/api/onboarding/claude-key/" + companyId, { credentials: "include" })
@@ -364,20 +380,16 @@ function OnboardingTooltip({ companyId, sidebarOpen }: { companyId: string | nul
     fetch("/api/onboarding/onboarding-step/" + companyId, { credentials: "include" })
       .then((r) => r.json()).then((d) => setOnboardingStep(d.step ?? 99)).catch(() => {});
   }, [companyId]);
-
   useEffect(() => {
     const onStep = () => {
       if (!companyId) return;
       fetch("/api/onboarding/onboarding-step/" + companyId, { credentials: "include" })
-        .then((r) => r.json()).then((d) => setOnboardingStep(d.step ?? 99)).catch(() => {});
+        .then((r) => r.json()).then((d) => { setOnboardingStep(d.step ?? 99); setDismissed(false); }).catch(() => {});
     };
     window.addEventListener("onboarding-step-changed", onStep);
     return () => window.removeEventListener("onboarding-step-changed", onStep);
   }, [companyId]);
-
-  // Determine which element to point at
   const targetId = onboardingStep === 0 ? "api-claude-nav" : onboardingStep === 1 ? "chat-ceo-nav" : onboardingStep === 3 ? "connettori-nav" : null;
-
   useEffect(() => {
     if (!targetId || !sidebarOpen || dismissed) { setPos(null); return; }
     const update = () => {
@@ -390,26 +402,19 @@ function OnboardingTooltip({ companyId, sidebarOpen }: { companyId: string | nul
     const id = setInterval(update, 500);
     return () => clearInterval(id);
   }, [targetId, sidebarOpen, dismissed]);
-
-  // Step 0: no key -> show tooltip for API Claude
-  // Step 1: has key, hasn't seen chat -> show tooltip for Chat CEO
-  // Step 2+: done
   if (onboardingStep === null || onboardingStep === 2 || onboardingStep >= 4) return null;
   if (onboardingStep === 0 && hasApiKey !== false) return null;
   if (dismissed) return null;
-
   const stepConfig = onboardingStep === 0
     ? { title: "Configura API Claude", text: "Per attivare il tuo CEO AI e sbloccare tutte le funzionalita, inserisci la tua API key di Anthropic nella sezione qui sotto." }
     : onboardingStep === 1
     ? { title: "Parla col tuo CEO AI", text: "Il tuo CEO AI e pronto! Premi Ho capito per iniziare: il CEO ti fara alcune domande per capire la tua azienda e configurare tutto al meglio." }
     : { title: "Collega i Connettori", text: "Collega i tuoi servizi (Google, WhatsApp, Telegram, ecc.). Una volta collegato un connettore, premi il bottone Crea Agente che trovi nella pagina del connettore per creare il tuo primo agente AI specializzato." };
-
   const handleDismiss = () => {
     setDismissed(true);
     if (onboardingStep === 1 && companyId) {
       fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId, step: 2 }) });
       setOnboardingStep(2);
-      setDismissed(true);
       window.dispatchEvent(new Event("onboarding-step-changed"));
       window.dispatchEvent(new Event("onboarding-chat-start"));
     }
@@ -419,29 +424,22 @@ function OnboardingTooltip({ companyId, sidebarOpen }: { companyId: string | nul
       window.dispatchEvent(new Event("onboarding-step-changed"));
     }
   };
-
+  if (!sidebarOpen || !pos) return null;
   return (
-    <>
-      {/* Overlay solo sul contenuto main */}
-      <div className="absolute inset-0 z-[80] rounded-lg" style={{ background: "rgba(0,0,0,0.55)" }} />
-      {/* Tooltip */}
-      {sidebarOpen && pos && (
-        <div className="fixed z-[100]" style={{ left: pos.left, top: pos.top, transform: "translateY(-50%)", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.5))" }}>
-          <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2" style={{ width: 0, height: 0, borderTop: "10px solid transparent", borderBottom: "10px solid transparent", borderRight: "10px solid rgba(30, 40, 55, 0.97)" }} />
-          <div className="rounded-xl p-4 w-72" style={{ background: "rgba(30, 40, 55, 0.97)", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(20px)" }}>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "hsl(158 64% 42%)" }}>
-                <Key className="w-3.5 h-3.5 text-white" />
-              </div>
-              <h3 className="text-sm font-bold text-white">{stepConfig.title}</h3>
-            </div>
-            <p className="text-xs text-white/60 leading-relaxed mb-3">{stepConfig.text}</p>
-            <button onClick={handleDismiss} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all hover:brightness-110 w-full justify-center" style={{ background: "hsl(158 64% 42%)", color: "white" }}>
-              Ho capito
-            </button>
+    <div className="fixed z-[200]" style={{ left: pos.left, top: pos.top, transform: "translateY(-50%)", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.5))" }}>
+      <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2" style={{ width: 0, height: 0, borderTop: "10px solid transparent", borderBottom: "10px solid transparent", borderRight: "10px solid rgba(30, 40, 55, 0.97)" }} />
+      <div className="rounded-xl p-4 w-72" style={{ background: "rgba(30, 40, 55, 0.97)", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(20px)" }}>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "hsl(158 64% 42%)" }}>
+            <Key className="w-3.5 h-3.5 text-white" />
           </div>
+          <h3 className="text-sm font-bold text-white">{stepConfig.title}</h3>
         </div>
-      )}
-    </>
+        <p className="text-xs text-white/60 leading-relaxed mb-3">{stepConfig.text}</p>
+        <button onClick={handleDismiss} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all hover:brightness-110 w-full justify-center" style={{ background: "hsl(158 64% 42%)", color: "white" }}>
+          Ho capito
+        </button>
+      </div>
+    </div>
   );
 }
