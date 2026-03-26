@@ -1083,13 +1083,13 @@ export function chatRoutes(db: Db) {
         if (!hasGoogle && !hasTelegram) dynamicContext += "- Nessun connettore attivo\n";
 
         dynamicContext += "\nConnettori disponibili ma non attivi:\n";
-        if (!hasGoogle) dynamicContext += "- Google Workspace (vai su Plugin per collegare)\n";
-        if (!hasTelegram) dynamicContext += "- Telegram Bot (vai su Plugin per collegare)\n";
+        if (!hasGoogle) dynamicContext += "- Google Workspace (vai su Connettori per collegare)\n";
+        if (!hasTelegram) dynamicContext += "- Telegram Bot (vai su Connettori per collegare)\n";
         dynamicContext += "- Microsoft 365 (prossimamente)\n";
 
         if (!hasClaudeKey) dynamicContext += "\n⚠️ API key Claude NON configurata!\n";
 
-        dynamicContext += "--- FINE STATO ---\n\nUsa queste informazioni per rispondere. NON creare agenti duplicati. Se l'utente chiede qualcosa che richiede un connettore non attivo, suggerisci di attivarlo da Plugin.";
+        dynamicContext += "--- FINE STATO ---\n\nUsa queste informazioni per rispondere. NON creare agenti duplicati. Se l'utente chiede qualcosa che richiede un connettore non attivo, suggerisci di attivarlo da Connettori.";
       } catch (e) {
         console.error("Dynamic context error:", e);
       }
