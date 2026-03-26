@@ -419,6 +419,7 @@ REGOLE:
   router.get("/onboarding-step/:companyId", async (req, res) => {
     try {
       const { companyId } = req.params;
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       const result: any = await db.execute(sql`SELECT onboarding_step FROM companies WHERE id = ${companyId}`);
       const row = result.rows ? result.rows[0] : result[0];
       const step = row?.onboarding_step ?? 0;

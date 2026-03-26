@@ -43,7 +43,11 @@ export function ChatPage() {
       .then((r) => r.json())
       .then((d) => { if (d.step >= 2) setOnboardingReady(true); })
       .catch(() => {});
-    const onStart = () => setOnboardingReady(true);
+    const onStart = () => {
+      setOnboardingReady(true);
+      // Force trigger auto-start after a tick
+      setTimeout(() => window.dispatchEvent(new Event("onboarding-force-send")), 100);
+    };
     window.addEventListener("onboarding-chat-start", onStart);
     return () => window.removeEventListener("onboarding-chat-start", onStart);
   }, [selectedCompanyId]);
@@ -83,6 +87,42 @@ export function ChatPage() {
       })
       .catch(() => { setHistoryLoaded(true); });
   }, [selectedCompany?.id]);
+
+  // Also trigger on force-send event
+  useEffect(() => {
+    const onForce = () => {
+      if (!ceoAgent || !selectedCompanyId || autoStarted) return;
+      setAutoStarted(true);
+      const startMsg = { id: crypto.randomUUID(), role: "user" as const, content: "Ciao! Ho appena registrato la mia impresa. Aiutami a configurare gli agenti AI.", timestamp: new Date() };
+      setMessages([startMsg]);
+      setIsStreaming(true);
+      const aId = crypto.randomUUID();
+      setMessages(prev => [...prev, { id: aId, role: "assistant", content: "", timestamp: new Date() }]);
+      fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompanyId, agentId: ceoAgent.id, message: startMsg.content, history: [] }) })
+        .then(async (res) => {
+          if (!res.ok || !res.body) { setIsStreaming(false); return; }
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let fullText = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            for (const ln of chunk.split(String.fromCharCode(10))) {
+              if (!ln.startsWith("data: ")) continue;
+              try {
+                const d = JSON.parse(ln.slice(6));
+                if (d.type === "text" || d.type === "content_block_delta") { fullText += d.text || d.delta?.text || ""; setMessages(prev => prev.map(m => m.id === aId ? { ...m, content: fullText } : m)); }
+              } catch {}
+            }
+          }
+          if (!fullText) setMessages(prev => prev.map(m => m.id === aId && !m.content ? { ...m, content: "Ciao! Raccontami della tua impresa." } : m));
+          setIsStreaming(false);
+        }).catch(() => setIsStreaming(false));
+    };
+    window.addEventListener("onboarding-force-send", onForce);
+    return () => window.removeEventListener("onboarding-force-send", onForce);
+  });
 
   // Auto-start onboarding conversation
   useEffect(() => {
