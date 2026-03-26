@@ -13,7 +13,7 @@ import { privateHostnameGuard, resolvePrivateHostnameAllowSet } from "./middlewa
 import { healthRoutes } from "./routes/health.js";
 import { companyRoutes } from "./routes/companies.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
-import { chatRoutes } from "./routes/chat.js";
+import { chatRoutes, getCeoPromptBase } from "./routes/chat.js";
 import { googleOAuthRoutes } from "./routes/google-oauth.js";
 import { gmailRoutes } from "./routes/gmail.js";
 import { calendarRoutes } from "./routes/calendar.js";
@@ -192,6 +192,7 @@ app.use(express.json({
   );
   api.use("/onboarding", onboardingRoutes(db, opts.serverPort));
   api.use(chatRoutes(db));
+  api.get("/ceo-prompt-base", (_req, res) => { res.json({ prompt: getCeoPromptBase() }); });
   api.use(googleOAuthRoutes(db));
   api.use(gmailRoutes(db));
   api.use(calendarRoutes(db));

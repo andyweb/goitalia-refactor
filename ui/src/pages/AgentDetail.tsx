@@ -1595,11 +1595,23 @@ function PromptTemplateEditor({
   const queryClient = useQueryClient();
   const config = (agent.adapterConfig ?? {}) as Record<string, unknown>;
   const savedPrompt = (config.promptTemplate as string) ?? "";
-  const [draft, setDraft] = useState<string>(savedPrompt);
+  const savedCustom = (config.customInstructions as string) ?? "";
+  const [draft, setDraft] = useState<string>(savedCustom);
   const [saving, setSaving] = useState(false);
-  const isDirty = draft !== savedPrompt;
+  const [ceoPrompt, setCeoPrompt] = useState<string>("");
+  const isDirty = draft !== savedCustom;
 
-  useEffect(() => { setDraft(savedPrompt); }, [savedPrompt]);
+  // Fetch CEO prompt base for display
+  useEffect(() => {
+    if (agent.role === "ceo") {
+      fetch("/api/ceo-prompt-base", { credentials: "include" })
+        .then((r) => r.json())
+        .then((d) => setCeoPrompt(d.prompt || ""))
+        .catch(() => {});
+    }
+  }, [agent.role]);
+
+  useEffect(() => { setDraft(savedCustom); }, [savedCustom]);
   useEffect(() => { onDirtyChange(isDirty); }, [onDirtyChange, isDirty]);
   useEffect(() => { onSavingChange(saving); }, [onSavingChange, saving]);
 
@@ -1608,7 +1620,7 @@ function PromptTemplateEditor({
       const save = async () => {
         setSaving(true);
         try {
-          const newConfig = { ...config, promptTemplate: draft };
+          const newConfig = { ...config, customInstructions: draft };
           await agentsApi.update(agent.id, { adapterConfig: newConfig }, companyId);
           // Invalidate all agent queries to refresh UI
           await queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.id) });
@@ -1638,13 +1650,13 @@ function PromptTemplateEditor({
 
   useEffect(() => {
     onCancelActionChange(anyDirty ? () => {
-      setDraft(savedPrompt);
+      setDraft(savedCustom);
       setNameDraft((agentObj.name as string) || "");
       setTitleDraft((agentObj.title as string) || "");
       setCapDraft((agentObj.capabilities as string) || "");
       setModelDraft((config.model as string) || "claude-opus-4-6");
     } : null);
-  }, [anyDirty, onCancelActionChange, savedPrompt, agentObj, config]);
+  }, [anyDirty, onCancelActionChange, savedCustom, agentObj, config]);
 
   useEffect(() => {
     onSaveActionChange(anyDirty ? () => {
@@ -1655,7 +1667,7 @@ function PromptTemplateEditor({
           // Always send adapterConfig if model or prompt changed
           const modelChanged = modelDraft !== ((config.model as string) || "claude-opus-4-6");
           if (isDirty || modelChanged) {
-            updates.adapterConfig = { ...config, promptTemplate: draft, model: modelDraft };
+            updates.adapterConfig = { ...config, customInstructions: draft, model: modelDraft };
           }
           // Always send identity fields if any changed
           const nameChanged = nameDraft !== ((agentObj.name as string) || "");
@@ -1721,24 +1733,26 @@ function PromptTemplateEditor({
             Il prompt di sistema che definisce il comportamento dell&apos;agente.
           </p>
         </div>
-        {agent.role === "ceo" && (
-          <div className="space-y-2">
-            <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-300">
-              Il CEO ha un prompt di sistema predefinito che non può essere modificato. Puoi aggiungere istruzioni aggiuntive nel campo sotto.
-            </div>
-            <div className="min-h-[200px] max-h-[400px] rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 font-mono text-[11px] text-muted-foreground overflow-auto whitespace-pre-wrap leading-relaxed">
-              Sei il CEO, il direttore operativo AI dell'azienda del cliente sulla piattaforma GoItalIA.\n\n## IL TUO RUOLO\nSei il punto di riferimento principale per il cliente (PMI). Coordini tutto: agenti, connettori, task, analisi.\nIl cliente parla SOLO con te. Tu decidi cosa fare, a chi delegare, e rispondi sempre in prima persona.\n\n## REGOLE FONDAMENTALI\n- Rispondi SEMPRE in italiano\n- Sii conciso e operativo: fai le cose, non descrivere cosa faresti\n- Usa i tool per eseguire le richieste\n\n## GESTIONE AGENTI\n- Usa lista_agenti per vedere chi c'è\n- Usa crea_agente per creare nuovi agenti\n- Usa esegui_task_agente per delegare compiti\n\n## CONNETTORI DISPONIBILI\nGoogle Workspace, Telegram, WhatsApp, Instagram+Facebook, LinkedIn, Fal.ai, Fatture in Cloud, OpenAPI.it\n\n## MEMORIA\nSalva e leggi info aziendali, note e preferenze del cliente.
-            </div>
-            <div className="text-[10px] text-muted-foreground pt-1">Istruzioni aggiuntive (opzionale):</div>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">Prompt di sistema</div>
+            <div className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-muted-foreground/50">read-only</div>
           </div>
-        )}
-        <textarea
-          className={(agent.role === "ceo" ? "min-h-[100px]" : "min-h-[420px]") + " w-full rounded-2xl border border-white/10 bg-transparent px-3 py-2 font-mono text-sm outline-none resize-y placeholder:text-muted-foreground"}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder={agent.role === "ceo" ? "Aggiungi istruzioni personalizzate al CEO..." : "Scrivi qui le istruzioni per l'agente..."}
-          spellCheck={false}
-        />
+          <div className="min-h-[200px] max-h-[400px] rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 font-mono text-[11px] text-muted-foreground overflow-auto whitespace-pre-wrap leading-relaxed">
+            {agent.role === "ceo" ? (ceoPrompt || "Caricamento...") : (savedPrompt || "Nessun prompt configurato. Il CEO creerà il prompt durante la configurazione dell'agente.")}
+          </div>
+        </div>
+        <div className="space-y-2 pt-2">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">Istruzioni personalizzate</div>
+          <textarea
+            className="min-h-[120px] w-full rounded-2xl border border-white/10 bg-transparent px-3 py-2 font-mono text-sm outline-none resize-y placeholder:text-muted-foreground"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Aggiungi istruzioni personalizzate che verranno aggiunte al prompt di sistema..."
+            spellCheck={false}
+          />
+          <div className="text-[10px] text-muted-foreground/50">Queste istruzioni vengono aggiunte in fondo al prompt di sistema.</div>
+        </div>
       </div>
     </div>
   );

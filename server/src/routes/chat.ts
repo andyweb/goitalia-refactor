@@ -762,7 +762,9 @@ async function executeAgentTask(
   const capabilities = agent.capabilities ?? "";
 
   // 2. Build agent system prompt
-  const systemPrompt = promptTemplate || `Sei ${agent.name}, ${agent.title ?? agent.role} presso l'azienda del cliente.\nCompetenze: ${capabilities}\nEsegui il compito assegnato usando i tool a disposizione. Rispondi in italiano, in modo conciso e operativo.`;
+  const basePrompt = promptTemplate || `Sei ${agent.name}, ${agent.title ?? agent.role} presso l'azienda del cliente.\nCompetenze: ${capabilities}\nEsegui il compito assegnato usando i tool a disposizione. Rispondi in italiano, in modo conciso e operativo.`;
+  const customInstructions = typeof adapterConfig?.customInstructions === "string" ? adapterConfig.customInstructions : "";
+  const systemPrompt = customInstructions.trim() ? basePrompt + "\n\n## ISTRUZIONI AGGIUNTIVE\n" + customInstructions : basePrompt;
 
   // 3. Get agent's tools based on connectors
   const agentTools = filterToolsForAgent(agent.role || "general", connectors);
@@ -1243,6 +1245,11 @@ async function executeChatTool(
 
 
 
+// Expose CEO prompt for UI display
+export function getCeoPromptBase(): string {
+  return CEO_PROMPT_BASE;
+}
+
 export function chatRoutes(db: Db) {
   const router = Router();
 
@@ -1382,8 +1389,15 @@ export function chatRoutes(db: Db) {
           // CEO gets the hardcoded prompt, other agents get their custom prompt
           if (agent.role === "ceo") {
             systemPrompt = buildCeoPrompt();
+            // Append custom instructions if any
+            const customInstructions = typeof adapterConfig?.customInstructions === "string" ? adapterConfig.customInstructions : "";
+            if (customInstructions.trim()) {
+              systemPrompt += "\n\n## ISTRUZIONI PERSONALIZZATE DAL CLIENTE\n" + customInstructions;
+            }
           } else {
-            systemPrompt = promptTemplate || `Sei ${agent.name}, ${agent.title ?? agent.role} presso l'azienda del cliente.\n\nCompetenze: ${capabilities}\n\nEsegui il compito assegnato usando i tool a disposizione. Rispondi in italiano, in modo professionale e conciso.`;
+            const basePrompt = promptTemplate || `Sei ${agent.name}, ${agent.title ?? agent.role} presso l'azienda del cliente.\n\nCompetenze: ${capabilities}\n\nEsegui il compito assegnato usando i tool a disposizione. Rispondi in italiano, in modo professionale e conciso.`;
+            const customInstructions = typeof adapterConfig?.customInstructions === "string" ? adapterConfig.customInstructions : "";
+            systemPrompt = customInstructions.trim() ? basePrompt + "\n\n## ISTRUZIONI AGGIUNTIVE\n" + customInstructions : basePrompt;
           }
         }
       }
