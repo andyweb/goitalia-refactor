@@ -1031,7 +1031,7 @@ export function AgentDetail() {
 
       {activeView === "skills" && (
         (agent.adapterType as string) === "claude_api" ? (
-          <AgentConnectorsTab companyId={resolvedCompanyId ?? undefined} agentRole={agent.role} agentId={agent.id} primaryConnector={(agent.adapterConfig as any)?.primaryConnector} />
+          <AgentConnectorsTab companyId={resolvedCompanyId ?? undefined} agentRole={agent.role} agentId={agent.id} primaryConnector={(agent.adapterConfig as any)?.primaryConnector} autoReply={(agent.adapterConfig as any)?.autoReply === true} />
         ) : (
           <AgentSkillsTab
             agent={agent}
@@ -2469,7 +2469,28 @@ function PromptEditorSkeleton() {
 
 /* ---- Connectors Tab (for claude_api agents) ---- */
 
-function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector }: { companyId?: string; agentRole?: string; agentId?: string; primaryConnector?: string }) {
+function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, autoReply }: { companyId?: string; agentRole?: string; agentId?: string; primaryConnector?: string; autoReply?: boolean }) {
+  const [autoReplyDraft, setAutoReplyDraft] = useState(autoReply ?? false);
+
+  const toggleAutoReply = async () => {
+    const newVal = !autoReplyDraft;
+    setAutoReplyDraft(newVal);
+    try {
+      const res = await fetch("/api/agents/" + agentId + "?companyId=" + companyId, { credentials: "include" });
+      if (res.ok) {
+        const a = await res.json();
+        const config = a.adapterConfig || {};
+        config.autoReply = newVal;
+        await fetch("/api/agents/" + agentId + "?companyId=" + companyId, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ adapterConfig: config }),
+        });
+      }
+    } catch {}
+  };
+
   const [googleStatus, setGoogleStatus] = useState<{ connected: boolean; accounts?: string[] } | null>(null);
   const [telegramStatus, setTelegramStatus] = useState<{ connected: boolean; bots?: Array<{ username: string; name: string }> } | null>(null);
   const [whatsappStatus, setWhatsappStatus] = useState<{ connected: boolean; numbers?: Array<{ phoneNumber: string }> } | null>(null);
@@ -2650,6 +2671,15 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector }:
 
   return (
     <div className="flex flex-col gap-4">
+      {agentRole !== "ceo" && (
+        <div className="flex items-center justify-between px-3 py-3 rounded-xl mb-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div>
+            <div className="text-sm font-medium">Risposta automatica</div>
+            <div className="text-[10px] text-muted-foreground">L'agente risponde automaticamente ai messaggi in arrivo</div>
+          </div>
+          {nativeToggle(autoReplyDraft, toggleAutoReply)}
+        </div>
+      )}
       {!hasAnyConnector && (
         <div className="glass-card p-8 text-center space-y-3">
           <Boxes className="w-10 h-10 text-muted-foreground/40 mx-auto" />

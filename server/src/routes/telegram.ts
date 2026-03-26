@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import type { Db } from "@goitalia/db";
-import { companySecrets, agents } from "@goitalia/db";
+import { companySecrets, agents, agentConnectorAccounts, connectorAccounts } from "@goitalia/db";
 import { eq, and, sql } from "drizzle-orm";
 import crypto from "node:crypto";
 import { encrypt, decrypt } from "../utils/crypto.js";
@@ -562,54 +562,69 @@ export function telegramWebhookRouter(db: Db) {
       const botIdx = parseInt((req.params as any).botIndex || '0') || 0;
       await db.execute(sql`INSERT INTO telegram_messages (company_id, chat_id, from_name, from_username, message_text, direction, telegram_message_id, bot_index) VALUES (${companyId}, ${String(msg.chat.id)}, ${msg.from?.first_name || ''}, ${msg.from?.username || ''}, ${msg.text}, 'incoming', ${String(msg.message_id)}, ${String(botIdx)})`);
     } catch (e) { console.error("[tg-wh] save err:", e); }
-    // Auto-reply
+    // Auto-reply via agent_connector_accounts → agents.adapterConfig.autoReply
     try {
-      const sRow = await db.select().from(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "telegram_settings"))).then((r) => r[0]);
-      const s = sRow?.description ? JSON.parse(sRow.description) : {};
-      // Check per-bot or global autoReply
-      let isAutoReply = false;
-      if (s.bots) {
-        // Get bot username for this webhook
-        try {
-          const botsSecret = await db.select().from(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "telegram_bots"))).then((r) => r[0]);
-          if (botsSecret?.description) {
-            const bots = JSON.parse(decrypt(botsSecret.description));
-            const botArr = Array.isArray(bots) ? bots : [bots];
-            const botIdx = parseInt((req.params as any).botIndex || "0") || 0;
-            const botUser = botArr[botIdx]?.username || "";
-            isAutoReply = s.bots[botUser]?.autoReply === true;
-          }
-        } catch {}
-      } else {
-        isAutoReply = s.autoReply === true;
-      }
-      
-      if (!isAutoReply) return;
-      const tok = await getTelegramToken(db, companyId);
-      if (!tok) { console.info("[tg-wh] no token"); return; }
+      // Resolve bot username for this webhook
+      const botsSecret = await db.select().from(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "telegram_bots"))).then((r) => r[0]);
+      if (!botsSecret?.description) return;
+      const bots = JSON.parse(decrypt(botsSecret.description));
+      const botArr = Array.isArray(bots) ? bots : [bots];
+      const botIdx = parseInt((req.params as any).botIndex || "0") || 0;
+      const botUsername = botArr[botIdx]?.username || "";
+      const botToken = botArr[botIdx]?.token || "";
+      if (!botUsername || !botToken) return;
+
+      // Find agent linked to this bot via connector_accounts
+      const agentLink = await db.select({ agentId: agentConnectorAccounts.agentId })
+        .from(agentConnectorAccounts)
+        .innerJoin(connectorAccounts, eq(agentConnectorAccounts.connectorAccountId, connectorAccounts.id))
+        .where(and(
+          eq(connectorAccounts.companyId, companyId),
+          eq(connectorAccounts.connectorType, "telegram"),
+          eq(connectorAccounts.accountId, botUsername),
+        ))
+        .then(r => r[0]);
+
+      if (!agentLink) return;
+
+      const agent = await db.select().from(agents).where(eq(agents.id, agentLink.agentId)).then(r => r[0]);
+      if (!agent || (agent.adapterConfig as any)?.autoReply !== true) return;
+
+      // Get Claude API key
       const keyRow = await db.select().from(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "claude_api_key"))).then((r) => r[0]);
-      let reply = "Grazie per il messaggio!";
-      if (keyRow?.description) {
-        const ck = decrypt(keyRow.description);
-        
-        const cr = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-api-key": ck, "anthropic-version": "2023-06-01" },
-          body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 512, system: "Sei un assistente. Rispondi in italiano, breve e cordiale.", messages: [{ role: "user", content: msg.text }] }),
-        });
-        console.info("[tg-wh] claude status:", cr.status);
-        if (cr.ok) {
-          const cd = await cr.json() as any;
-          reply = (cd.content || []).map((c: any) => c.text).join("") || reply;
-        } else { console.error("[tg-wh] claude err:", await cr.text()); }
-      }
-      console.info("[tg-wh] sending:", reply.substring(0, 50));
-      const sr = await fetch("https://api.telegram.org/bot" + tok + "/sendMessage", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: msg.chat.id, text: reply }),
+      if (!keyRow?.description) return;
+      const apiKey = decrypt(keyRow.description);
+
+      const adapterConfig = agent.adapterConfig as Record<string, unknown>;
+      const prompt = (adapterConfig?.promptTemplate as string) || `Sei ${agent.name}. Rispondi in italiano in modo conciso.`;
+      const chatId = msg.chat.id;
+      const messageText = msg.text;
+
+      const cr = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: (adapterConfig?.model as string) || "claude-haiku-4-5-20251001",
+          max_tokens: 1024,
+          system: prompt,
+          messages: [{ role: "user", content: messageText }],
+        }),
       });
-      console.info("[tg-wh] send status:", sr.status);
-      try { await db.execute(sql`INSERT INTO telegram_messages (company_id, chat_id, from_name, message_text, direction, telegram_message_id) VALUES (${companyId}, ${String(msg.chat.id)}, ${"Bot"}, ${reply}, ${"outgoing"}, ${"0"})`); } catch {}
+      console.info("[tg-wh] claude status:", cr.status);
+      if (cr.ok) {
+        const data = await cr.json() as { content?: Array<{ text?: string }> };
+        const reply = data.content?.find(b => b.text)?.text;
+        if (reply) {
+          console.info("[tg-wh] sending:", reply.substring(0, 50));
+          const sr = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, text: reply }),
+          });
+          console.info("[tg-wh] send status:", sr.status);
+          try { await db.execute(sql`INSERT INTO telegram_messages (company_id, chat_id, from_name, message_text, direction, telegram_message_id, bot_index) VALUES (${companyId}, ${String(chatId)}, ${"Bot"}, ${reply}, ${"outgoing"}, ${"0"}, ${String(botIdx)})`); } catch {}
+        }
+      } else { console.error("[tg-wh] claude err:", await cr.text()); }
     } catch (e) { console.error("[tg-wh] auto-reply err:", e); }
   });
   router.post("/telegram/webhook/:companyId", async (req, res) => {
