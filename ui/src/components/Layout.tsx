@@ -403,7 +403,7 @@ function OnboardingTooltip({ sidebarOpen }: { sidebarOpen: boolean }) {
       const el = document.getElementById(cfg.targetId);
       if (el) {
         const rect = el.getBoundingClientRect();
-        setPosition({ top: rect.top + rect.height / 2 - 50, left: rect.right + 12 });
+        setPosition({ top: rect.top + rect.height / 2, left: rect.right + 12 });
         found = true;
         return true;
       }
@@ -443,7 +443,7 @@ function OnboardingTooltip({ sidebarOpen }: { sidebarOpen: boolean }) {
   };
 
   return (
-    <div className="fixed z-[200]" style={{ left: position.left + "px", top: position.top + "px", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.5))" }}>
+    <div className="fixed z-[200]" style={{ left: position.left + "px", top: position.top + "px", transform: "translateY(-50%)", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.5))" }}>
       <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2" style={{ width: 0, height: 0, borderTop: "10px solid transparent", borderBottom: "10px solid transparent", borderRight: "10px solid rgba(30, 40, 55, 0.97)" }} />
       <div className="rounded-xl p-4 w-72" style={{ background: "rgba(30, 40, 55, 0.97)", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(20px)" }}>
         <div className="flex items-center gap-2 mb-2">
