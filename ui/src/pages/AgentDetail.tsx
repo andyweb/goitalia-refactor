@@ -2645,14 +2645,15 @@ function AgentConnectorsTab({ companyId, agentRole, agentId }: { companyId?: str
           <div className="space-y-1.5 pt-2">
             {telegramStatus.bots.map((bot) => {
               const key = "tg_" + bot.username;
+              const isOn = agentConnectors[key] === true || agentConnectors.telegram === true;
               return (
                 <div key={bot.username} className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                   <div className="flex items-center gap-2">
-                    <span className={"w-2 h-2 rounded-full shrink-0 " + (agentConnectors[key] === true ? "bg-green-500" : "bg-white/20")} />
+                    <span className={"w-2 h-2 rounded-full shrink-0 " + (isOn ? "bg-green-500" : "bg-white/20")} />
                     <div className="text-xs font-medium">@{bot.username}</div>
                     <div className="text-[10px] text-muted-foreground">{bot.name}</div>
                   </div>
-                  {nativeToggle(agentConnectors[key] === true, () => toggleConnector(key))}
+                  {nativeToggle(isOn, () => toggleConnector(key))}
                 </div>
               );
             })}
