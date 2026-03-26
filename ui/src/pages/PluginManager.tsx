@@ -308,14 +308,18 @@ export function PluginManager() {
   );
   const navigateToChat = (connector: string, detail?: string) => {
     if (selectedCompany?.id) fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, step: 99 }) });
-    // Pass everything in URL — no sessionStorage, no caching issues
+    // Use hidden form submission — guarantees full page reload, no SPA interception
     sessionStorage.removeItem("goitalia_create_agent");
     sessionStorage.removeItem("goitalia_pending_msg");
-    const params = new URLSearchParams();
-    params.set("create_agent", connector);
-    if (detail) params.set("detail", detail);
-    params.set("_t", String(Date.now()));
-    window.location.href = window.location.origin + "/" + (selectedCompany?.issuePrefix || "") + "/chat?" + params.toString();
+    const form = document.createElement("form");
+    form.method = "GET";
+    form.action = "/" + (selectedCompany?.issuePrefix || "") + "/chat";
+    const addField = (name: string, value: string) => { const input = document.createElement("input"); input.type = "hidden"; input.name = name; input.value = value; form.appendChild(input); };
+    addField("create_agent", connector);
+    if (detail) addField("detail", detail);
+    addField("_t", String(Date.now()));
+    document.body.appendChild(form);
+    form.submit();
   };
   const agentBtn = (connector: string, detail?: string) => (
     <button onClick={() => navigateToChat(connector, detail)} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
