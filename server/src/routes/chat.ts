@@ -1054,6 +1054,11 @@ export async function executeChatTool(
 
       case "crea_attivita_programmata": {
         const input = toolInput as { agente_id: string; titolo: string; descrizione: string; orario: string; approvazione?: boolean };
+        // Check for duplicate
+        const existingRoutine = await db.select({ id: routines.id }).from(routines)
+          .where(and(eq(routines.companyId, companyId), eq(routines.title, input.titolo), ne(routines.status, "archived")))
+          .then(r => r[0]);
+        if (existingRoutine) return "Attività '" + input.titolo + "' esiste già (id: " + existingRoutine.id + "). Non creo duplicati.";
         // Verify agent exists
         const targetAgent = await db.select({ id: agents.id, name: agents.name }).from(agents)
           .where(and(eq(agents.id, input.agente_id), eq(agents.companyId, companyId), ne(agents.status, "terminated")))
