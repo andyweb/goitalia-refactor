@@ -503,11 +503,16 @@ export function whatsappWebhookRouter(db: Db) {
                   headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.apiKey },
                   body: JSON.stringify({ data: { messages: msg } }),
                 });
-                if (decryptRes.ok) {
-                  const decData = await decryptRes.json() as any;
-                  if (decData.data?.url) {
-                    const audioRes = await fetch(decData.data.url);
+                const decryptText = await decryptRes.text();
+                console.log(`[wa-voice] decrypt-media status=${decryptRes.status}, body=${decryptText.substring(0, 500)}`);
+                if (decryptRes.ok || decryptRes.status === 200) {
+                  let decData: any = {};
+                  try { decData = JSON.parse(decryptText); } catch {}
+                  const audioUrl = decData.data?.url || decData.publicUrl;
+                  if (audioUrl) {
+                    const audioRes = await fetch(audioUrl);
                     const audioBuffer = await audioRes.arrayBuffer();
+                    console.log(`[wa-voice] audio downloaded: ${audioBuffer.byteLength} bytes`);
                     const openaiKey = decrypt(openaiSecret.description);
                     const formData = new FormData();
                     formData.append("file", new Blob([audioBuffer], { type: "audio/ogg" }), "voice.ogg");
@@ -516,10 +521,14 @@ export function whatsappWebhookRouter(db: Db) {
                     const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
                       method: "POST", headers: { Authorization: "Bearer " + openaiKey }, body: formData,
                     });
+                    const whisperText = await whisperRes.text();
+                    console.log(`[wa-voice] whisper status=${whisperRes.status}, body=${whisperText.substring(0, 300)}`);
                     if (whisperRes.ok) {
-                      const result = await whisperRes.json() as { text?: string };
+                      const result = JSON.parse(whisperText) as { text?: string };
                       text = "🎤 " + (result.text || "[vocale non comprensibile]");
                     }
+                  } else {
+                    console.log(`[wa-voice] no audio URL in decrypt response`);
                   }
                 }
               }
