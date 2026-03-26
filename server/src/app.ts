@@ -260,6 +260,53 @@ app.use(express.json({
   api.use(sidebarBadgeRoutes(db));
   api.use(instanceSettingsRoutes(db));
 
+  // --- Scheduled Activities: approve/reject/pending endpoints ---
+  api.get("/routines/pending", async (req, res) => {
+    const companyId = req.query.companyId as string;
+    if (!companyId) { res.status(400).json({ error: "companyId required" }); return; }
+    const { routineRuns: rr, routines: rt, agents: ag } = await import("@goitalia/db");
+    const pending = await db.select({
+      runId: rr.id,
+      routineId: rr.routineId,
+      routineTitle: rt.title,
+      agentName: ag.name,
+      result: rr.triggerPayload,
+      triggeredAt: rr.triggeredAt,
+    }).from(rr)
+      .innerJoin(rt, eq(rr.routineId, rt.id))
+      .leftJoin(ag, eq(rt.assigneeAgentId, ag.id))
+      .where(and(eq(rr.companyId, companyId), eq(rr.status, "pending_approval")));
+    res.json(pending);
+  });
+
+  api.post("/routines/:routineId/runs/:runId/approve", async (req, res) => {
+    const { runId, routineId } = req.params;
+    const { routineRuns: rr, routines: rt } = await import("@goitalia/db");
+    const run = await db.select().from(rr)
+      .where(and(eq(rr.id, runId), eq(rr.routineId, routineId)))
+      .then(r => r[0]);
+    if (!run) { res.status(404).json({ error: "Run non trovata" }); return; }
+    if (run.status !== "pending_approval") { res.status(400).json({ error: "Non in attesa di approvazione" }); return; }
+
+    // Mark as completed (the draft was already generated, approval means it's accepted)
+    await db.update(rr).set({
+      status: "completed",
+      completedAt: new Date(),
+    }).where(eq(rr.id, runId));
+    res.json({ ok: true });
+  });
+
+  api.post("/routines/:routineId/runs/:runId/reject", async (req, res) => {
+    const { runId } = req.params;
+    const { routineRuns: rr } = await import("@goitalia/db");
+    await db.update(rr).set({
+      status: "failed",
+      failureReason: "Rifiutata dall'utente",
+      completedAt: new Date(),
+    }).where(eq(rr.id, runId));
+    res.json({ ok: true });
+  });
+
   // One-shot migration: populate connector_accounts from company_secrets
   api.post("/migrate-connectors", async (req, res) => {
     const { decrypt: dec } = await import("./utils/crypto.js");
@@ -512,6 +559,13 @@ app.use(express.json({
 
   jobCoordinator.start();
   scheduler.start();
+
+  // Start routine scheduler for cron-based scheduled activities
+  const { createRoutineScheduler } = await import("./services/routine-scheduler.js");
+  const { createRoutineExecutor } = await import("./services/routine-executor.js");
+  const routineExecutor = createRoutineExecutor(db);
+  const routineScheduler = createRoutineScheduler(db, routineExecutor.executeRun);
+  routineScheduler.start();
   void toolDispatcher.initialize().catch((err) => {
     logger.error({ err }, "Failed to initialize plugin tool dispatcher");
   });
