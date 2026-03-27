@@ -14,8 +14,8 @@ import { Download, Network, Upload } from "lucide-react";
 import { AGENT_ROLE_LABELS, type Agent } from "@goitalia/shared";
 
 // Layout constants
-const CARD_W = 200;
-const CARD_H = 100;
+const CARD_W = 240;
+const CARD_H = 90;
 const GAP_X = 32;
 const GAP_Y = 80;
 const PADDING = 60;
@@ -358,7 +358,7 @@ export function OrgChart() {
                 key={`${parent.id}-${child.id}`}
                 d={`M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`}
                 fill="none"
-                stroke="var(--border)"
+                stroke="rgba(255,255,255,0.1)"
                 strokeWidth={1.5}
               />
             );
@@ -382,39 +382,39 @@ export function OrgChart() {
             <div
               key={node.id}
               data-org-card
-              className="absolute bg-card glass-card shadow-sm hover:shadow-md hover:border-foreground/20 transition-[box-shadow,border-color] duration-150 cursor-pointer select-none"
+              className="absolute cursor-pointer select-none transition-all duration-200 hover:scale-[1.03]"
               style={{
                 left: node.x,
                 top: node.y,
                 width: CARD_W,
                 minHeight: CARD_H,
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 16,
+                backdropFilter: "blur(12px)",
+                boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
               }}
               onClick={() => navigate(agent ? agentUrl(agent) : `/agents/${node.id}`)}
             >
-              <div className="flex items-center px-4 py-3 gap-3">
+              <div className="flex items-center px-4 py-3.5 gap-3">
                 {/* Agent icon + status dot */}
                 <div className="relative shrink-0">
-                  <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
-                    <AgentIcon icon={agent?.icon} className="h-4.5 w-4.5 text-foreground/70" />
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                    <AgentIcon icon={agent?.icon} className="h-5 w-5 text-foreground/70" />
                   </div>
                   <span
-                    className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card"
-                    style={{ backgroundColor: dotColor }}
+                    className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full"
+                    style={{ backgroundColor: dotColor, border: "2px solid rgba(0,0,0,0.3)" }}
                   />
                 </div>
-                {/* Name + role + adapter type */}
+                {/* Name + role */}
                 <div className="flex flex-col items-start min-w-0 flex-1">
-                  <span className="text-sm font-semibold text-foreground leading-tight">
+                  <span className="text-[13px] font-semibold text-foreground leading-tight truncate w-full">
                     {node.name}
                   </span>
-                  <span className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                  <span className="text-[11px] text-muted-foreground leading-tight mt-0.5 truncate w-full">
                     {agent?.title ?? roleLabel(node.role)}
                   </span>
-                  {agent && (
-                    <span className="text-[10px] text-muted-foreground/60 font-mono leading-tight mt-1">
-                      {adapterLabels[agent.adapterType] ?? agent.adapterType}
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
