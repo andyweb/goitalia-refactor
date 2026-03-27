@@ -182,7 +182,10 @@ export function ChatPage() {
   useEffect(() => {
     const msg = pendingMsgRef.current;
     if (!msg || !ceoAgent || !selectedCompanyId || isStreaming) return;
-    pendingMsgRef.current = null;
+    // Small delay to ensure UI is ready
+    const timer = setTimeout(() => {
+      if (!pendingMsgRef.current) return;
+      pendingMsgRef.current = null;
     setInput("");
     const startMsg = { id: crypto.randomUUID(), role: "user" as const, content: msg, timestamp: new Date() };
     setMessages(prev => [...prev, startMsg]);
@@ -210,6 +213,8 @@ export function ChatPage() {
         }
         setIsStreaming(false);
       }).catch(() => setIsStreaming(false));
+    }, 500);
+    return () => clearTimeout(timer);
   }, [ceoAgent, selectedCompanyId, isStreaming, pendingMsgTrigger]);
 
   // Also trigger on force-send event
