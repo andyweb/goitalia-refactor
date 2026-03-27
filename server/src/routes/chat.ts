@@ -84,12 +84,13 @@ export const TOOLS = [
   },
   {
     name: "esegui_task_agente",
-    description: "Delega un compito a un agente specifico. L'agente lo eseguirà usando i suoi tool e connettori, poi ti restituirà il risultato. Usa lista_agenti per trovare l'agente giusto.",
+    description: "Delega un compito a un agente specifico. L'agente lo eseguirà usando i suoi tool e connettori, poi ti restituirà il risultato. Usa lista_agenti per trovare l'agente giusto. Passa sempre il contesto rilevante dalla conversazione (info cliente, dati menzionati, richieste specifiche).",
     input_schema: {
       type: "object" as const,
       properties: {
         agente_id: { type: "string", description: "ID dell'agente a cui delegare il compito" },
         istruzioni: { type: "string", description: "Istruzioni dettagliate su cosa deve fare l'agente" },
+        contesto: { type: "string", description: "Contesto rilevante dalla conversazione: info cliente, dati aziendali, riferimenti a messaggi precedenti. L'agente non ha accesso alla tua conversazione, quindi passa tutto ciò che serve." },
       },
       required: ["agente_id", "istruzioni"],
     },
@@ -699,7 +700,7 @@ export const TOOL_CONNECTOR: Record<string, string | null> = {
   stripe_verifica_abbonamento: "stripe",
   riassunto_conversazioni_wa: "whatsapp",
   genera_immagine: "fal",
-  pubblica_social: null, // CEO always has access, checks connectors internally
+  pubblica_social: "meta", // delegato all'agente con connettore Meta attivo
   // Catalogo prodotti
   lista_prodotti: null,
   aggiungi_prodotto: null,
@@ -810,13 +811,43 @@ Se il cliente ha PIÙ connettori attivi, DOPO aver creato l'agente suggerisci:
 "Tip: [nome agente] ora ha accesso solo a [connettore]. Se vuoi creare flussi avanzati (per esempio generare una fattura e inviarla via WhatsApp, o creare un post social con un'immagine generata da Fal.ai), puoi andare nella pagina dell'agente → tab Connettori e abilitare altri servizi."
 Proponi 1-2 esempi concreti di flussi basati sui connettori che il cliente ha effettivamente attivi.
 
-## ORCHESTRAZIONE — Dopo la creazione
+## ORCHESTRAZIONE — Delegazione Obbligatoria
 
-Una volta creati, gli agenti sono il tuo team. Tu orchestra:
-- SINGOLO AGENTE: delega diretta (es: "Manda fattura" → Agente FattureCloud)
-- MULTI-AGENTE: coordina catena (es: "Fai fattura a Rossi e avvisalo" → FattureCloud emette + WhatsApp notifica)
-- NESSUN AGENTE: "Per questo serve il connettore [X]. Vuoi attivarlo?"
-- NON fare tu il lavoro se c'è un agente specializzato — delega con esegui_task_agente!
+Tu NON hai tool per i connettori (Gmail, Drive, Fatture, PEC, Stripe, WhatsApp, social, generazione immagini, OpenAPI).
+Per QUALSIASI operazione che richiede un connettore, DEVI delegare a un agente specializzato.
+
+### Flusso di delegazione
+1. Quando l'utente chiede qualcosa che richiede un connettore (es: "manda una mail", "fai una fattura", "pubblica su Instagram"):
+2. Usa lista_agenti per vedere quali agenti ci sono e quali connettori hanno
+3. Trova l'agente giusto per il compito
+4. Usa esegui_task_agente con istruzioni DETTAGLIATE e CONTESTO completo (info cliente, dati dalla conversazione, riferimenti)
+5. L'agente esegue con i suoi tool
+6. Tu riporti il risultato all'utente
+
+### Se non c'è un agente per il compito
+Se l'utente chiede qualcosa che richiede un connettore attivo ma nessun agente lo ha:
+1. Crea l'agente automaticamente con crea_agente — nome formato "AG. [identificativo]", connettore giusto, istruzioni di base
+2. Poi delega subito il compito con esegui_task_agente
+3. Dì all'utente: "Ho creato l'agente [nome] per gestire [connettore]. [risultato dell'operazione]"
+
+### Se il connettore non è attivo
+Se il compito richiede un connettore che l'azienda non ha collegato:
+- Dì: "Per fare questo serve collegare [connettore]. Vai su Connettori nella sidebar per attivarlo."
+
+### Multi-agente
+Per operazioni che coinvolgono più connettori, coordina più agenti in sequenza:
+- Esempio: "Fai fattura a Rossi e mandagliela via PEC" → delega a AG. Fatture per creare la fattura, poi a AG. PEC per inviarla
+- Passa il risultato del primo agente come contesto al secondo
+
+### Contesto nella delegazione
+SEMPRE passa contesto rilevante quando deleghi:
+- Info sul cliente/destinatario dalla conversazione
+- Dati aziendali pertinenti
+- Risultati di operazioni precedenti
+- Preferenze espresse dall'utente
+
+### Regola d'oro
+NON dire "Non posso farlo direttamente". Tu per l'utente fai tutto — delega dietro le quinte. L'utente non deve sapere che stai delegando. Agisci e comunica il risultato.
 
 ## ATTIVITÀ PROGRAMMATE
 Puoi creare attività che vengono eseguite automaticamente a orari predefiniti:
@@ -1045,31 +1076,16 @@ function buildConnectorGuides(): string {
   return s;
 }
 
-// Build tool list section dynamically from TOOLS + TOOL_CONNECTOR
+// Build tool list section dynamically — CEO sees only orchestration tools
 function buildToolList(): string {
-  let s = "\n\n## TOOL DISPONIBILI\n\n### Sempre disponibili\n";
-  // Group connector tools by parent connector key
-  const connectorTools: Record<string, string[]> = {};
-  // Map sub-keys to parent connector (e.g. oai_company → openapi)
-  const subKeyMap: Record<string, string> = {
-    oai_company: "openapi", oai_risk: "openapi", oai_cap: "openapi",
-  };
+  let s = "\n\n## I TUOI TOOL\n\nQuesti sono i tool che puoi usare direttamente:\n";
   for (const tool of TOOLS) {
-    const req = TOOL_CONNECTOR[tool.name];
-    if (req === null || req === undefined) {
+    if (CEO_TOOLS.has(tool.name)) {
       s += `- ${tool.name}: ${tool.description}\n`;
-    } else {
-      const parentKey = subKeyMap[req] || req;
-      if (!connectorTools[parentKey]) connectorTools[parentKey] = [];
-      connectorTools[parentKey].push(`${tool.name}: ${tool.description}`);
     }
   }
-  for (const [connector, tools] of Object.entries(connectorTools)) {
-    const guide = CONNECTOR_GUIDES.find(g => g.key === connector);
-    const label = guide?.label || connector;
-    s += `\n### ${label} (se connesso)\n`;
-    for (const t of tools) s += `- ${t}\n`;
-  }
+  s += "\n### Tool disponibili tramite agenti (usa esegui_task_agente)\n";
+  s += "Gli agenti specializzati hanno accesso ai tool dei connettori collegati (Gmail, Calendar, Drive, Fatture in Cloud, PEC, Stripe, WhatsApp, social, generazione immagini, OpenAPI). Delega a loro.\n";
   return s;
 }
 
@@ -1103,15 +1119,54 @@ function buildCeoPrompt(): string {
   return CEO_PROMPT_BASE + buildConnectorGuides() + A2A_PROMPT_GUIDE + buildToolList();
 }
 
+// Tools the CEO can use directly (orchestration only, no connector tools)
+const CEO_TOOLS = new Set([
+  // Orchestrazione agenti
+  "lista_agenti",
+  "crea_agente",
+  "elimina_agente",
+  "esegui_task_agente",
+  // Task management
+  "crea_task",
+  "stato_task",
+  "commenta_task",
+  // Memoria e info aziendali
+  "salva_info_azienda",
+  "cerca_piva_onboarding",
+  "salva_nota",
+  "leggi_memoria",
+  // File progetto
+  "leggi_file_progetto",
+  // Attività programmate
+  "crea_attivita_programmata",
+  "lista_attivita_programmate",
+  "elimina_attivita_programmata",
+  // Catalogo prodotti
+  "lista_prodotti",
+  "aggiungi_prodotto",
+  "modifica_prodotto",
+  "elimina_prodotto",
+  // A2A Rete B2B
+  "cerca_azienda_a2a",
+  "lista_partner_a2a",
+  "invia_task_a2a",
+  "rispondi_task_a2a",
+  "lista_task_a2a",
+  "aggiorna_stato_task_a2a",
+  "messaggio_a2a",
+]);
+
 export function filterToolsForAgent(agentRole: string, connectors: Record<string, boolean>): typeof TOOLS {
-  // CEO/Direttore gets all tools
-  if (agentRole === "ceo") return TOOLS;
-  
+  if (agentRole === "ceo") {
+    // CEO gets only orchestration tools, not connector tools
+    return TOOLS.filter((tool) => CEO_TOOLS.has(tool.name));
+  }
+
   return TOOLS.filter((tool) => {
     const required = TOOL_CONNECTOR[tool.name];
     // Tool with no connector requirement = always available
     if (required === null || required === undefined) return true;
-    // Check if connector is explicitly enabled (default is false for non-ceo)
+    // Check if connector is explicitly enabled
     return connectors[required] === true;
   });
 }
@@ -1250,6 +1305,7 @@ async function executeAgentTask(
   targetAgentId: string,
   istruzioni: string,
   apiKey: string,
+  contesto?: string,
 ): Promise<string> {
   // 1. Load the target agent
   const agent = await db.select().from(agents)
@@ -1277,10 +1333,13 @@ async function executeAgentTask(
     return "Errore: l'agente " + agent.name + " non ha connettori attivi. Attiva i connettori dalla pagina dell'agente.";
   }
 
-  // 4. Execute multi-turn tool loop (max 3 turns)
-  const MAX_AGENT_TURNS = 3;
+  // 4. Execute multi-turn tool loop (stop-reason based, safety cap 10)
+  const MAX_AGENT_TURNS = 10;
+  const userMessage = contesto
+    ? `## CONTESTO\n${contesto}\n\n## COMPITO\n${istruzioni}`
+    : istruzioni;
   const messages: Array<{ role: string; content: unknown }> = [
-    { role: "user", content: istruzioni },
+    { role: "user", content: userMessage },
   ];
 
   let finalResult = "";
@@ -2004,9 +2063,10 @@ export async function executeChatTool(
         if (!apiKey) return "Errore: API key non disponibile per esecuzione agente.";
         const targetId = toolInput.agente_id as string;
         const instructions = toolInput.istruzioni as string;
+        const context = toolInput.contesto as string | undefined;
         if (!targetId || !instructions) return "Errore: agente_id e istruzioni sono obbligatori.";
         console.log("[direttore] Delegating task to agent:", targetId, "->", instructions.substring(0, 100));
-        const result = await executeAgentTask(db, companyId, targetId, instructions, apiKey);
+        const result = await executeAgentTask(db, companyId, targetId, instructions, apiKey, context);
         console.log("[direttore] Agent result:", result.substring(0, 200));
         return result;
       }
@@ -2859,9 +2919,13 @@ export function chatRoutes(db: Db) {
         dynamicContext = "\n\n--- STATO ATTUALE DELL'IMPRESA ---\n";
 
         if (companyAgents.length > 0) {
-          dynamicContext += "Agenti:\n";
+          dynamicContext += "Agenti e loro connettori:\n";
           for (const a of companyAgents) {
-            dynamicContext += "- " + a.name + " (" + (a.title || a.role || "") + ") — id: " + a.id + " — stato: " + (a.status || "idle") + "\n";
+            if (a.status === "terminated") continue;
+            const agentConn = await getAgentConnectorsFromDb(db, a.id);
+            const connKeys = Object.keys(agentConn).filter(k => agentConn[k]);
+            const connStr = connKeys.length > 0 ? connKeys.join(", ") : "nessun connettore";
+            dynamicContext += `- ${a.name} (${a.title || a.role || ""}) — id: ${a.id} — connettori: ${connStr}\n`;
           }
         } else {
           dynamicContext += "Nessun agente creato.\n";
@@ -2887,7 +2951,7 @@ export function chatRoutes(db: Db) {
 
         if (!hasClaudeKey) dynamicContext += "\n⚠️ API key Claude NON configurata!\n";
 
-        dynamicContext += "--- FINE STATO ---\n\nUsa queste informazioni per rispondere. NON creare agenti duplicati. Se l'utente chiede qualcosa che richiede un connettore non attivo, suggerisci di attivarlo da Connettori.";
+        dynamicContext += "--- FINE STATO ---\n\nUsa lista_agenti + esegui_task_agente per delegare operazioni ai tuoi agenti. Se un connettore è attivo ma non ha un agente, crealo con crea_agente prima di delegare. Se il connettore non è attivo, suggerisci al cliente di attivarlo da Connettori.";
       } catch (e) {
         console.error("Dynamic context error:", e);
       }
@@ -2930,7 +2994,7 @@ export function chatRoutes(db: Db) {
             max_tokens: 4096,
             system: systemPrompt,
             messages,
-            tools: agentId ? filterToolsForAgent(agentRole || 'general', agentConnectors || {}) : TOOLS,
+            tools: filterToolsForAgent(agentRole, agentConnectors),
           }),
         });
 
