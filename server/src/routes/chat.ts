@@ -1665,7 +1665,24 @@ export async function executeChatTool(
         try {
           const fetchOpts: RequestInit = { method: action.method, headers, signal: AbortSignal.timeout(30000) };
           if (["POST", "PUT", "PATCH"].includes(action.method) && Object.keys(bodyObj).length > 0) {
-            fetchOpts.body = JSON.stringify(bodyObj);
+            // HubSpot-specific body formatting
+            const isHubspot = connector.baseUrl.includes("hubapi.com");
+            if (isHubspot && action.path.includes("/search")) {
+              // Build HubSpot search filter from params
+              const filters: any[] = [];
+              if (bodyObj.email) filters.push({ propertyName: "email", operator: "CONTAINS_TOKEN", value: bodyObj.email });
+              if (bodyObj.nome) filters.push({ propertyName: "firstname", operator: "CONTAINS_TOKEN", value: bodyObj.nome });
+              fetchOpts.body = JSON.stringify({
+                filterGroups: filters.length > 0 ? [{ filters }] : [],
+                properties: ["email", "firstname", "lastname", "phone", "company"],
+                limit: 10,
+              });
+            } else if (isHubspot && action.path.startsWith("/crm/") && action.method === "POST") {
+              // HubSpot wraps create body in { properties: {...} }
+              fetchOpts.body = JSON.stringify({ properties: bodyObj });
+            } else {
+              fetchOpts.body = JSON.stringify(bodyObj);
+            }
           }
           const r = await fetch(url, fetchOpts);
           const text = await r.text();
