@@ -352,7 +352,7 @@ export function CompanySettings() {
         <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           Profilo Aziendale
         </div>
-        <p className="text-xs text-muted-foreground">Questi dati vengono usati dal CEO AI come contesto. Puoi modificarli in qualsiasi momento.</p>
+        <p className="text-xs text-muted-foreground">Dati usati dal CEO AI come contesto. Compilati automaticamente dalla Partita IVA. Puoi modificarli in qualsiasi momento.</p>
 
         {/* Identità */}
         <div className="glass-card px-5 py-5 space-y-3">
@@ -362,7 +362,10 @@ export function CompanySettings() {
               { key: "ragione_sociale", label: "Ragione Sociale" },
               { key: "partita_iva", label: "Partita IVA" },
               { key: "codice_fiscale", label: "Codice Fiscale" },
-              { key: "settore", label: "Settore / Attività" },
+              { key: "settore", label: "Settore / Attività (ATECO)" },
+              { key: "forma_giuridica", label: "Forma Giuridica" },
+              { key: "stato_attivita", label: "Stato Attività" },
+              { key: "data_inizio", label: "Data Inizio Attività" },
             ].map((f) => (
               <Field key={f.key} label={f.label}>
                 <input className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none" type="text" value={profile[f.key] || ""} onChange={(e) => setProfile((prev) => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.label} />
@@ -380,9 +383,12 @@ export function CompanySettings() {
               { key: "citta", label: "Città" },
               { key: "cap", label: "CAP" },
               { key: "provincia", label: "Provincia" },
+              { key: "regione", label: "Regione" },
               { key: "telefono", label: "Telefono" },
               { key: "email", label: "Email Contatto" },
+              { key: "whatsapp", label: "WhatsApp" },
               { key: "pec", label: "PEC" },
+              { key: "codice_sdi", label: "Codice SDI" },
               { key: "sito_web", label: "Sito Web" },
             ].map((f) => (
               <Field key={f.key} label={f.label}>
@@ -392,17 +398,48 @@ export function CompanySettings() {
           </div>
         </div>
 
-        {/* Fatturazione */}
+        {/* Dati Economici */}
         <div className="glass-card px-5 py-5 space-y-3">
-          <div className="text-xs font-medium pb-1">Fatturazione e Azienda</div>
+          <div className="text-xs font-medium pb-1">Dati Economici e Bilancio</div>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { key: "dipendenti", label: "Numero Dipendenti" },
+              { key: "dipendenti", label: "Dipendenti" },
+              { key: "fatturato", label: "Fatturato" },
+              { key: "patrimonio_netto", label: "Patrimonio Netto" },
+              { key: "capitale_sociale", label: "Capitale Sociale" },
+              { key: "totale_attivo", label: "Totale Attivo" },
             ].map((f) => (
               <Field key={f.key} label={f.label}>
                 <input className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none" type="text" value={profile[f.key] || ""} onChange={(e) => setProfile((prev) => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.label} />
               </Field>
             ))}
+          </div>
+        </div>
+
+        {/* Affidabilità */}
+        <div className="glass-card px-5 py-5 space-y-3">
+          <div className="text-xs font-medium pb-1">Affidabilità (Credit Score)</div>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { key: "risk_score", label: "Risk Score" },
+              { key: "rating", label: "Rating" },
+              { key: "risk_severity", label: "Severità Rischio" },
+              { key: "credit_limit", label: "Limite Credito Operativo" },
+            ].map((f) => (
+              <Field key={f.key} label={f.label}>
+                <input className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none" type="text" value={profile[f.key] || ""} onChange={(e) => setProfile((prev) => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.label} />
+              </Field>
+            ))}
+          </div>
+        </div>
+
+        {/* Soci */}
+        <div className="glass-card px-5 py-5 space-y-3">
+          <div className="text-xs font-medium pb-1">Soci</div>
+          <div className="grid grid-cols-1 gap-3">
+            <Field label="Soci (dal registro)">
+              <input className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none" type="text" value={profile.soci || ""} onChange={(e) => setProfile((prev) => ({ ...prev, soci: e.target.value }))} placeholder="Es: Mario Rossi (60%), Luca Bianchi (40%)" />
+            </Field>
           </div>
         </div>
 
