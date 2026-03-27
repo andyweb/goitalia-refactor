@@ -159,17 +159,34 @@ export async function executeA2aTool(
         });
       }
 
-      // Fire-and-forget: auto-process with destination CEO
+      // Call destination CEO and WAIT for response
       const senderProfile = await db.select({ ragioneSociale: companyProfiles.ragioneSociale })
         .from(companyProfiles).where(eq(companyProfiles.companyId, companyId)).then((r) => r[0]);
-      processIncomingA2ATask(
-        db, created[0].id, toCompanyId,
-        senderProfile?.ragioneSociale || "Azienda",
-        title, description, type,
-      ).catch((err) => console.error("[a2a-tool] auto-respond error:", err));
+
+      try {
+        await processIncomingA2ATask(
+          db, created[0].id, toCompanyId,
+          senderProfile?.ragioneSociale || "Azienda",
+          title, description, type,
+        );
+      } catch (err) {
+        console.error("[a2a-tool] auto-respond error:", err);
+      }
+
+      // Read the response from the destination CEO
+      const responseMessages = await db.select({ content: a2aMessages.content, fromCompanyId: a2aMessages.fromCompanyId })
+        .from(a2aMessages)
+        .where(and(eq(a2aMessages.taskId, created[0].id), eq(a2aMessages.fromCompanyId, toCompanyId)))
+        .orderBy(asc(a2aMessages.createdAt));
 
       const partnerLabel = conn?.relationshipLabel || targetProfile.legalName || toCompanyId;
-      return `Task inviato a ${partnerLabel}!\nID: ${created[0].id}\nTipo: ${type}\nTitolo: ${title}\nStato: creato — il CEO dell'azienda destinataria sta elaborando la risposta.`;
+
+      if (responseMessages.length > 0) {
+        const response = responseMessages[responseMessages.length - 1].content;
+        return `Risposta da ${partnerLabel}:\n\n${response}`;
+      }
+
+      return `Task inviato a ${partnerLabel}. Il CEO dell'azienda destinataria non ha ancora risposto. Puoi controllare lo stato con lista_task_a2a.`;
     }
 
     case "rispondi_task_a2a": {
