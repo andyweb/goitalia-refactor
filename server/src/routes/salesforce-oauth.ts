@@ -91,8 +91,8 @@ const SALESFORCE_ACTIONS = [
   ], body_template: null },
 ];
 
-// State store for OAuth
-const oauthStates = new Map<string, { companyId: string; userId: string; prefix: string; expiresAt: number }>();
+// State store for OAuth (includes PKCE code_verifier)
+const oauthStates = new Map<string, { companyId: string; userId: string; prefix: string; codeVerifier: string; expiresAt: number }>();
 setInterval(() => { const now = Date.now(); for (const [k, v] of oauthStates) { if (v.expiresAt < now) oauthStates.delete(k); } }, 300000);
 
 export function salesforceOAuthRoutes(db: Db) {
@@ -119,7 +119,12 @@ export function salesforceOAuthRoutes(db: Db) {
 
     const state = crypto.randomBytes(32).toString("hex");
     const prefix = (req.query.prefix as string) || "";
-    oauthStates.set(state, { companyId, userId: actor.userId, prefix, expiresAt: Date.now() + 600000 });
+
+    // PKCE: generate code_verifier and code_challenge
+    const codeVerifier = crypto.randomBytes(32).toString("base64url");
+    const codeChallenge = crypto.createHash("sha256").update(codeVerifier).digest("base64url");
+
+    oauthStates.set(state, { companyId, userId: actor.userId, prefix, codeVerifier, expiresAt: Date.now() + 600000 });
 
     const authUrl = new URL("https://login.salesforce.com/services/oauth2/authorize");
     authUrl.searchParams.set("response_type", "code");
@@ -127,6 +132,8 @@ export function salesforceOAuthRoutes(db: Db) {
     authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
     authUrl.searchParams.set("state", state);
     authUrl.searchParams.set("scope", "api refresh_token");
+    authUrl.searchParams.set("code_challenge", codeChallenge);
+    authUrl.searchParams.set("code_challenge_method", "S256");
 
     res.redirect(authUrl.toString());
   });
@@ -153,6 +160,7 @@ export function salesforceOAuthRoutes(db: Db) {
           client_secret: SF_CLIENT_SECRET,
           redirect_uri: REDIRECT_URI,
           code,
+          code_verifier: stateData.codeVerifier,
         }),
       });
 
