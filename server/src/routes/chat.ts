@@ -1156,6 +1156,29 @@ const CEO_TOOLS = new Set([
   "messaggio_a2a",
 ]);
 
+// Tools that ONLY the CEO can use (agents must never have these)
+const CEO_ONLY_TOOLS = new Set([
+  "lista_agenti",
+  "crea_agente",
+  "elimina_agente",
+  "esegui_task_agente",
+  "crea_task",
+  "stato_task",
+  "commenta_task",
+  "cerca_piva_onboarding",
+  "crea_attivita_programmata",
+  "lista_attivita_programmate",
+  "elimina_attivita_programmata",
+  // A2A — only CEO orchestrates B2B
+  "cerca_azienda_a2a",
+  "lista_partner_a2a",
+  "invia_task_a2a",
+  "rispondi_task_a2a",
+  "lista_task_a2a",
+  "aggiorna_stato_task_a2a",
+  "messaggio_a2a",
+]);
+
 export function filterToolsForAgent(agentRole: string, connectors: Record<string, boolean>): typeof TOOLS {
   if (agentRole === "ceo") {
     // CEO gets only orchestration tools, not connector tools
@@ -1163,8 +1186,10 @@ export function filterToolsForAgent(agentRole: string, connectors: Record<string
   }
 
   return TOOLS.filter((tool) => {
+    // Agents never get CEO-only tools
+    if (CEO_ONLY_TOOLS.has(tool.name)) return false;
     const required = TOOL_CONNECTOR[tool.name];
-    // Tool with no connector requirement = always available
+    // Tool with no connector requirement = always available (memoria, catalogo, file)
     if (required === null || required === undefined) return true;
     // Check if connector is explicitly enabled
     return connectors[required] === true;
