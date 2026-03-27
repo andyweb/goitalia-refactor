@@ -97,6 +97,19 @@ export function PluginManager() {
   const [ficCompany, setFicCompany] = useState<string | null>(null);
   const [stripeConnected, setStripeConnected] = useState(false);
   const [stripeAccountName, setStripeAccountName] = useState<string | null>(null);
+  // Custom API connectors
+  const [customConnectors, setCustomConnectors] = useState<Array<{ id: string; name: string; slug: string; baseUrl: string; description?: string; actions: any[] }>>([]);
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customName, setCustomName] = useState("");
+  const [customUrl, setCustomUrl] = useState("");
+  const [customApiKey, setCustomApiKey] = useState("");
+  const [customDesc, setCustomDesc] = useState("");
+  const [customSaving, setCustomSaving] = useState(false);
+  const [customActionForm, setCustomActionForm] = useState<string | null>(null);
+  const [customActionName, setCustomActionName] = useState("");
+  const [customActionMethod, setCustomActionMethod] = useState("GET");
+  const [customActionPath, setCustomActionPath] = useState("");
+  const [customActionDesc, setCustomActionDesc] = useState("");
   const [stripeKey, setStripeKey] = useState("");
   const [stripeSaving, setStripeSaving] = useState(false);
   const [expandedConnector, setExpandedConnector] = useState<string | null>(() => {
@@ -200,6 +213,7 @@ export function PluginManager() {
     fetch("/api/fic/status?companyId=" + selectedCompany.id, { credentials: "include" }).then((r) => r.json()).then((d) => { setFicConnected(d.connected || false); setFicCompany(d.companyName || null); }).catch(() => {});
     fetch("/api/pec/status?companyId=" + selectedCompany.id, { credentials: "include" }).then((r) => r.json()).then((d) => { setPecConnected(d.connected || false); setPecEmail(d.email || null); }).catch(() => {});
     fetch("/api/stripe/status?companyId=" + selectedCompany.id, { credentials: "include" }).then((r) => r.json()).then((d) => { setStripeConnected(d.connected || false); setStripeAccountName(d.accountName || null); }).catch(() => {});
+    fetch("/api/custom-connectors?companyId=" + selectedCompany.id, { credentials: "include" }).then((r) => r.json()).then((d) => { if (Array.isArray(d)) setCustomConnectors(d); }).catch(() => {});
     fetch("/api/openapi-it/status?companyId=" + selectedCompany.id, { credentials: "include" }).then((r) => r.json()).then((d) => { setOaiConnected(d.connected || false); setOaiServices(d.services || []); }).catch(() => {});
     fetch("/api/voice/status?companyId=" + selectedCompany.id, { credentials: "include" })
       .then((r) => r.json())
@@ -1207,7 +1221,128 @@ export function PluginManager() {
           )}
         </div>
 
-        {/* 12. Prossimamente */}
+        {/* 12. API Custom */}
+        <div className="rounded-xl overflow-hidden" style={glass.cardStyle}>
+          <button onClick={() => toggle("custom")} className="w-full px-4 py-3 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)" }}>
+              <Globe className="w-4 h-4" style={{ color: "rgb(96,165,250)" }} />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <div className="text-sm font-medium">API Custom</div>
+              <div className="text-xs text-muted-foreground">Collega qualsiasi servizio con API REST</div>
+            </div>
+            <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-medium border shrink-0", customConnectors.length > 0 ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-white/10 text-muted-foreground border-white/10")}>
+              {customConnectors.length > 0 ? `${customConnectors.length} connesso` : "Nessuno"}
+            </span>
+            <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform shrink-0", expandedConnector === "custom" && "rotate-180")} />
+          </button>
+          {expandedConnector === "custom" && (
+            <div className="px-4 pb-4 pt-3 space-y-3 border-t border-white/5">
+              {/* Lista connettori esistenti */}
+              {customConnectors.map((c) => (
+                <div key={c.id} className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className={row + " flex-1"} style={rowBg}>
+                      {greenDot}
+                      <Globe className="w-3.5 h-3.5 text-blue-400" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-medium">{c.name}</span>
+                        <span className="text-[10px] text-muted-foreground ml-1.5">{c.baseUrl}</span>
+                      </div>
+                    </div>
+                    <button className="text-red-400/50 hover:text-red-400 transition-colors shrink-0" onClick={async () => {
+                      if (!confirm(`Rimuovere ${c.name}?`)) return;
+                      await fetch(`/api/custom-connectors/${c.id}?companyId=${selectedCompany?.id}`, { method: "DELETE", credentials: "include" });
+                      setCustomConnectors((prev) => prev.filter((x) => x.id !== c.id));
+                    }} title="Rimuovi">{xIcon}</button>
+                  </div>
+                  {/* Azioni del connettore */}
+                  {(c.actions || []).length > 0 && (
+                    <div className="pl-6 space-y-1">
+                      {(c.actions as any[]).map((a: any) => (
+                        <div key={a.name} className="flex items-center gap-2 text-[11px]">
+                          <span className="px-1.5 py-0.5 rounded font-mono text-[10px]" style={{ background: "rgba(255,255,255,0.06)" }}>{a.method}</span>
+                          <span className="text-muted-foreground">{a.path}</span>
+                          <span className="flex-1 truncate">{a.label || a.name}</span>
+                          <button className="text-red-400/40 hover:text-red-400 text-[10px]" onClick={async () => {
+                            await fetch(`/api/custom-connectors/${c.id}/actions/${a.name}?companyId=${selectedCompany?.id}`, { method: "DELETE", credentials: "include" });
+                            setCustomConnectors((prev) => prev.map((x) => x.id === c.id ? { ...x, actions: x.actions.filter((act: any) => act.name !== a.name) } : x));
+                          }}>rimuovi</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Form aggiungi azione */}
+                  {customActionForm === c.id ? (
+                    <div className="pl-6 space-y-2">
+                      <div className="flex gap-2">
+                        <select value={customActionMethod} onChange={(e) => setCustomActionMethod(e.target.value)} className="px-2 py-1.5 rounded-lg border border-white/10 bg-transparent text-xs outline-none">
+                          <option value="GET">GET</option><option value="POST">POST</option><option value="PUT">PUT</option><option value="PATCH">PATCH</option><option value="DELETE">DELETE</option>
+                        </select>
+                        <input className="flex-1 px-2.5 py-1.5 rounded-lg border border-white/10 bg-transparent text-xs outline-none" placeholder="/api/endpoint" value={customActionPath} onChange={(e) => setCustomActionPath(e.target.value)} />
+                      </div>
+                      <input className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-transparent text-xs outline-none" placeholder="Nome azione (es: lista_clienti)" value={customActionName} onChange={(e) => setCustomActionName(e.target.value)} />
+                      <input className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-transparent text-xs outline-none" placeholder="Descrizione (opzionale)" value={customActionDesc} onChange={(e) => setCustomActionDesc(e.target.value)} />
+                      <div className="flex gap-2">
+                        <button className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-40" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}
+                          disabled={!customActionName || !customActionPath}
+                          onClick={async () => {
+                            const r = await fetch(`/api/custom-connectors/${c.id}/actions`, {
+                              method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+                              body: JSON.stringify({ companyId: selectedCompany?.id, name: customActionName, method: customActionMethod, path: customActionPath, description: customActionDesc }),
+                            });
+                            if (r.ok) {
+                              const updated = await r.json();
+                              setCustomConnectors((prev) => prev.map((x) => x.id === c.id ? updated : x));
+                              setCustomActionName(""); setCustomActionPath(""); setCustomActionDesc(""); setCustomActionForm(null);
+                            }
+                          }}>Aggiungi</button>
+                        <button className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground border border-white/10" onClick={() => setCustomActionForm(null)}>Annulla</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button className="pl-6 text-[11px] text-blue-400 hover:text-blue-300" onClick={() => setCustomActionForm(c.id)}>+ Aggiungi azione</button>
+                  )}
+                  <div className={actionRow}>{agentBtn(`custom_${c.slug}`, c.name)}</div>
+                </div>
+              ))}
+
+              {/* Form nuovo connettore */}
+              {showCustomForm ? (
+                <div className="space-y-2 pt-2 border-t border-white/5">
+                  <input className="w-full px-3 py-2 rounded-xl border border-white/10 bg-transparent text-xs outline-none" placeholder="Nome servizio (es: Il Mio CRM)" value={customName} onChange={(e) => setCustomName(e.target.value)} />
+                  <input className="w-full px-3 py-2 rounded-xl border border-white/10 bg-transparent text-xs outline-none" placeholder="URL API (es: https://api.miocrm.com)" value={customUrl} onChange={(e) => setCustomUrl(e.target.value)} />
+                  <input type="password" className="w-full px-3 py-2 rounded-xl border border-white/10 bg-transparent text-xs outline-none" placeholder="API Key / Token" value={customApiKey} onChange={(e) => setCustomApiKey(e.target.value)} />
+                  <input className="w-full px-3 py-2 rounded-xl border border-white/10 bg-transparent text-xs outline-none" placeholder="Descrizione (opzionale)" value={customDesc} onChange={(e) => setCustomDesc(e.target.value)} />
+                  <div className="flex gap-2">
+                    <button disabled={customSaving || !customName || !customUrl || !customApiKey} className="px-4 py-2 rounded-xl text-xs font-medium disabled:opacity-40 transition-all" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}
+                      onClick={async () => {
+                        setCustomSaving(true);
+                        try {
+                          const r = await fetch("/api/custom-connectors", {
+                            method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+                            body: JSON.stringify({ companyId: selectedCompany?.id, name: customName, baseUrl: customUrl, apiKey: customApiKey, description: customDesc }),
+                          });
+                          const d = await r.json();
+                          if (r.ok) {
+                            setCustomConnectors((prev) => [...prev, d]);
+                            setCustomName(""); setCustomUrl(""); setCustomApiKey(""); setCustomDesc(""); setShowCustomForm(false);
+                          } else { alert(d.error || "Errore"); }
+                        } catch { alert("Errore di rete"); }
+                        setCustomSaving(false);
+                      }}>{customSaving ? "Collegamento..." : "Collega Servizio"}</button>
+                    <button className="px-4 py-2 rounded-xl text-xs text-muted-foreground border border-white/10" onClick={() => setShowCustomForm(false)}>Annulla</button>
+                  </div>
+                </div>
+              ) : (
+                <button className="w-full py-2.5 rounded-xl text-xs font-medium border border-dashed border-white/15 text-muted-foreground hover:border-white/30 hover:text-white transition-all" onClick={() => setShowCustomForm(true)}>+ Aggiungi servizio esterno</button>
+              )}
+              <p className="text-[10px] text-muted-foreground text-center pt-1">Puoi anche configurare tutto dalla <strong>Chat col CEO</strong></p>
+            </div>
+          )}
+        </div>
+
+        {/* 13. Prossimamente */}
         <div className="rounded-xl overflow-hidden" style={{ ...glass.cardStyle, opacity: 0.5 }}>
           <div className="w-full px-4 py-3 flex items-center gap-3 cursor-default">
             <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
