@@ -364,15 +364,15 @@ export function CompanySettings() {
             <button
               key={t.key}
               onClick={() => setActiveTab(t.key)}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              className={`flex-1 flex flex-row items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                 isActive
                   ? "text-white"
                   : "text-muted-foreground hover:text-foreground hover:bg-white/5"
               }`}
               style={isActive ? { background: "linear-gradient(135deg, hsl(158 64% 42% / 0.25), hsl(158 64% 42% / 0.12))", border: "1px solid hsl(158 64% 42% / 0.3)" } : {}}
             >
-              <Icon className="w-4 h-4" />
-              {t.label}
+              <Icon className="w-4 h-4 shrink-0" />
+              <span className="truncate">{t.label}</span>
             </button>
           );
         })}
