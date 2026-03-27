@@ -1808,6 +1808,10 @@ export async function executeChatTool(
           connectors.voice = true;
         } else if (conn === "pec") {
           connectors.pec = true;
+        } else if (conn.startsWith("custom_") || conn === "hubspot" || conn === "salesforce") {
+          // Custom connectors: normalize to custom_{slug}
+          const customSlug = conn.startsWith("custom_") ? conn : `custom_${conn}`;
+          connectors[customSlug] = true;
         }
 
         const [newAgent] = await db.insert(agents).values({
@@ -1828,25 +1832,40 @@ export async function executeChatTool(
           // Map connector name to connector_type in connector_accounts table
           let connType = conn; // default: same name
           if (conn === "meta") connType = "meta_ig"; // try IG first, then FB
-          const accountIdForLookup = acctId || "default";
+          // Custom connectors: normalize type
+          if (conn === "hubspot" || conn === "salesforce") connType = `custom_${conn}`;
+          if (conn.startsWith("custom_")) connType = conn;
 
-          let connAccount = await db.select().from(connectorAccounts)
-            .where(and(
-              eq(connectorAccounts.companyId, companyId),
-              eq(connectorAccounts.connectorType, connType),
-              eq(connectorAccounts.accountId, accountIdForLookup),
-            ))
-            .then(r => r[0]);
+          let connAccount: any = null;
 
-          // If meta_ig not found, try meta_fb
-          if (!connAccount && conn === "meta") {
+          if (connType.startsWith("custom_")) {
+            // For custom connectors, find by type (accountId is the connector UUID)
             connAccount = await db.select().from(connectorAccounts)
               .where(and(
                 eq(connectorAccounts.companyId, companyId),
-                eq(connectorAccounts.connectorType, "meta_fb"),
+                eq(connectorAccounts.connectorType, connType),
+              ))
+              .then(r => r[0]);
+          } else {
+            const accountIdForLookup = acctId || "default";
+            connAccount = await db.select().from(connectorAccounts)
+              .where(and(
+                eq(connectorAccounts.companyId, companyId),
+                eq(connectorAccounts.connectorType, connType),
                 eq(connectorAccounts.accountId, accountIdForLookup),
               ))
               .then(r => r[0]);
+
+            // If meta_ig not found, try meta_fb
+            if (!connAccount && conn === "meta") {
+              connAccount = await db.select().from(connectorAccounts)
+                .where(and(
+                  eq(connectorAccounts.companyId, companyId),
+                  eq(connectorAccounts.connectorType, "meta_fb"),
+                  eq(connectorAccounts.accountId, accountIdForLookup),
+                ))
+                .then(r => r[0]);
+            }
           }
 
           if (connAccount) {
