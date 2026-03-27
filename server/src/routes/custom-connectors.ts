@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { Db } from "@goitalia/db";
-import { customConnectors, companySecrets } from "@goitalia/db";
-import { eq, and } from "drizzle-orm";
+import { customConnectors, companySecrets, agents, agentConnectorAccounts, connectorAccounts } from "@goitalia/db";
+import { eq, and, inArray } from "drizzle-orm";
 import { encrypt, decrypt } from "../utils/crypto.js";
 import { upsertConnectorAccount, removeConnectorAccount } from "../utils/connector-sync.js";
 import { randomUUID } from "node:crypto";
@@ -228,6 +228,19 @@ export function customConnectorRoutes(db: Db) {
       .where(and(eq(customConnectors.id, req.params.id), eq(customConnectors.companyId, companyId)))
       .then(r => r[0]);
     if (!connector) return res.status(404).json({ error: "Connettore non trovato" });
+
+    // Terminate agents linked to this connector
+    const connAcct = await db.select({ id: connectorAccounts.id }).from(connectorAccounts)
+      .where(and(eq(connectorAccounts.companyId, companyId), eq(connectorAccounts.connectorType, `custom_${connector.slug}`)))
+      .then(r => r[0]);
+    if (connAcct) {
+      const linkedAgents = await db.select({ agentId: agentConnectorAccounts.agentId }).from(agentConnectorAccounts)
+        .where(eq(agentConnectorAccounts.connectorAccountId, connAcct.id));
+      if (linkedAgents.length > 0) {
+        await db.update(agents).set({ status: "terminated" })
+          .where(inArray(agents.id, linkedAgents.map(a => a.agentId)));
+      }
+    }
 
     await db.delete(companySecrets).where(and(
       eq(companySecrets.companyId, companyId),

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { Db } from "@goitalia/db";
-import { companySecrets, customConnectors } from "@goitalia/db";
-import { eq, and } from "drizzle-orm";
+import { companySecrets, customConnectors, agents, agentConnectorAccounts, connectorAccounts } from "@goitalia/db";
+import { eq, and, inArray } from "drizzle-orm";
 import crypto from "node:crypto";
 import { encrypt, decrypt } from "../utils/crypto.js";
 import { upsertConnectorAccount, removeConnectorAccount } from "../utils/connector-sync.js";
@@ -304,6 +304,19 @@ export function hubspotOAuthRoutes(db: Db) {
       .then(r => r[0]);
 
     if (connector) {
+      // Terminate agents that use this connector
+      const connAcct = await db.select({ id: connectorAccounts.id }).from(connectorAccounts)
+        .where(and(eq(connectorAccounts.companyId, companyId), eq(connectorAccounts.connectorType, "custom_hubspot")))
+        .then(r => r[0]);
+      if (connAcct) {
+        const linkedAgents = await db.select({ agentId: agentConnectorAccounts.agentId }).from(agentConnectorAccounts)
+          .where(eq(agentConnectorAccounts.connectorAccountId, connAcct.id));
+        if (linkedAgents.length > 0) {
+          await db.update(agents).set({ status: "terminated" })
+            .where(inArray(agents.id, linkedAgents.map(a => a.agentId)));
+        }
+      }
+
       await db.delete(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, `custom_api_${connector.id}`)));
       await removeConnectorAccount(db, companyId, "custom_hubspot");
       await db.delete(customConnectors).where(eq(customConnectors.id, connector.id));
