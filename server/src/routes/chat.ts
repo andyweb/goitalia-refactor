@@ -1135,6 +1135,34 @@ const CONNECTOR_GUIDES: ConnectorGuide[] = [
     ],
   },
   {
+    key: "hubspot",
+    label: "HubSpot CRM",
+    capabilities: "Contatti, deal, aziende, note, task, pipeline, associazioni, ricerca",
+    questions: [
+      "Vuoi gestire i contatti dal CRM? Importare, cercare, aggiornare?",
+      "Usi le pipeline di vendita (deal)? Vuoi che l'agente crei e aggiorni deal?",
+      "Vuoi associare automaticamente contatti ad aziende e deal?",
+    ],
+    suggestions: [
+      "Posso cercare contatti, creare deal, aggiornare pipeline e associare tutto automaticamente",
+      "Posso creare task e note associate ai contatti per il follow-up",
+    ],
+  },
+  {
+    key: "salesforce",
+    label: "Salesforce CRM",
+    capabilities: "Contatti, account, opportunità, task, ricerca SOQL/SOSL",
+    questions: [
+      "Usi Salesforce per la gestione contatti e opportunità?",
+      "Vuoi che l'agente crei e aggiorni opportunità automaticamente?",
+      "Hai report o query SOQL che vuoi automatizzare?",
+    ],
+    suggestions: [
+      "Posso gestire contatti, account, opportunità e task direttamente dal CRM",
+      "Posso fare ricerche avanzate con query SOQL su tutti gli oggetti Salesforce",
+    ],
+  },
+  {
     key: "custom",
     label: "API Custom",
     capabilities: "Collegamento a qualsiasi servizio esterno con API REST (CRM, gestionale, magazzino, e-commerce)",
@@ -1295,7 +1323,7 @@ export function filterToolsForAgent(agentRole: string, connectors: Record<string
   });
 }
 
-// Generate dynamic tool definitions from custom connectors
+// Generate dynamic tool definitions from connectors with JSON actions (HubSpot, Salesforce, custom)
 async function getCustomToolsForCompany(db: Db, companyId: string): Promise<typeof TOOLS> {
   const connectors = await db.select().from(customConnectors)
     .where(eq(customConnectors.companyId, companyId));
@@ -1309,7 +1337,7 @@ async function getCustomToolsForCompany(db: Db, companyId: string): Promise<type
         if (param.required) required.push(param.name);
       }
       tools.push({
-        name: `custom_${connector.slug}_${action.name}`,
+        name: `${connector.slug}_${action.name}`,
         description: `[${connector.name}] ${action.description || action.label || action.name}`,
         input_schema: { type: "object" as const, properties, required },
       });
@@ -1368,6 +1396,10 @@ export async function getAgentConnectorsFromDb(
       connectors.oai_cap = true; connectors.oai_sdi = true;
     } else if (t === "voice") {
       connectors.voice = true;
+    } else if (t === "hubspot") {
+      connectors.hubspot = true;
+    } else if (t === "salesforce") {
+      connectors.salesforce = true;
     }
   }
   return connectors;
@@ -1625,20 +1657,22 @@ export async function executeChatTool(
   onProgress?: (message: string, toolName?: string) => void,
 ): Promise<string> {
   try {
-    // Dynamic custom connector tools (custom_{slug}_{action})
-    if (toolName.startsWith("custom_")) {
-      const allCustom = await db.select().from(customConnectors)
-        .where(eq(customConnectors.companyId, companyId));
-      for (const connector of allCustom) {
-        const prefix = `custom_${connector.slug}_`;
-        if (!toolName.startsWith(prefix)) continue;
+    // Dynamic connector tools ({slug}_{action}) — HubSpot, Salesforce, custom
+    const allDynamic = await db.select().from(customConnectors)
+      .where(eq(customConnectors.companyId, companyId));
+    for (const connector of allDynamic) {
+      const prefix = `${connector.slug}_`;
+      if (toolName.startsWith(prefix)) {
         const actionName = toolName.substring(prefix.length);
         const actions = (connector.actions as any[]) || [];
         const action = actions.find((a: any) => a.name === actionName);
         if (!action) continue;
 
+        // Resolve secret name: native CRM use dedicated names, custom use custom_api_{id}
+        const secretNames: Record<string, string> = { hubspot: "hubspot_oauth_tokens", salesforce: "salesforce_oauth_tokens" };
+        const secretName = secretNames[connector.slug] || `custom_api_${connector.id}`;
         const secret = await db.select().from(companySecrets)
-          .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, `custom_api_${connector.id}`)))
+          .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, secretName)))
           .then(r => r[0]);
 
         let url = connector.baseUrl.replace(/\/$/, "") + action.path;
@@ -1657,7 +1691,10 @@ export async function executeChatTool(
 
         const headers: Record<string, string> = {};
         if (secret?.description && connector.authType !== "none") {
-          const apiKey = decrypt(secret.description);
+          const decrypted = decrypt(secret.description);
+          // Native CRM stores JSON {access_token, ...}, custom stores plain API key
+          let apiKey = decrypted;
+          try { const parsed = JSON.parse(decrypted); if (parsed.access_token) apiKey = parsed.access_token; } catch {}
           headers[connector.authHeader || "Authorization"] = `${connector.authPrefix || "Bearer"} ${apiKey}`.trim();
         }
         if (["POST", "PUT", "PATCH"].includes(action.method)) headers["Content-Type"] = "application/json";
@@ -1693,7 +1730,6 @@ export async function executeChatTool(
           return `Errore chiamata ${connector.name}: ${(err as Error).message}`;
         }
       }
-      return "Errore: connettore o azione custom non trovata.";
     }
 
     switch (toolName) {
@@ -1808,10 +1844,12 @@ export async function executeChatTool(
           connectors.voice = true;
         } else if (conn === "pec") {
           connectors.pec = true;
-        } else if (conn.startsWith("custom_") || conn === "hubspot" || conn === "salesforce") {
-          // Custom connectors: normalize to custom_{slug}
-          const customSlug = conn.startsWith("custom_") ? conn : `custom_${conn}`;
-          connectors[customSlug] = true;
+        } else if (conn === "hubspot") {
+          connectors.hubspot = true;
+        } else if (conn === "salesforce") {
+          connectors.salesforce = true;
+        } else if (conn.startsWith("custom_")) {
+          connectors[conn] = true;
         }
 
         const [newAgent] = await db.insert(agents).values({
@@ -1832,18 +1870,14 @@ export async function executeChatTool(
           // Map connector name to connector_type in connector_accounts table
           let connType = conn; // default: same name
           if (conn === "meta") connType = "meta_ig"; // try IG first, then FB
-          // Custom connectors: normalize type
-          if (conn === "hubspot" || conn === "salesforce") connType = `custom_${conn}`;
-          if (conn.startsWith("custom_")) connType = conn;
-
           let connAccount: any = null;
 
-          if (connType.startsWith("custom_")) {
-            // For custom connectors, find by type (accountId is the connector UUID)
+          if (conn === "hubspot" || conn === "salesforce" || conn.startsWith("custom_")) {
+            // Native CRM or custom connectors: find by type
             connAccount = await db.select().from(connectorAccounts)
               .where(and(
                 eq(connectorAccounts.companyId, companyId),
-                eq(connectorAccounts.connectorType, connType),
+                eq(connectorAccounts.connectorType, conn),
               ))
               .then(r => r[0]);
           } else {
@@ -3306,6 +3340,7 @@ export function chatRoutes(db: Db) {
           meta_ig: "meta", meta_fb: "meta",
           linkedin: "linkedin", fal: "fal", fic: "fic",
           openapi: "openapi", voice: "voice", pec: "pec",
+          hubspot: "hubspot", salesforce: "salesforce",
         };
 
         const activeGuideKeys = new Set<string>();
@@ -3325,6 +3360,7 @@ export function chatRoutes(db: Db) {
           linkedin_tokens: "linkedin", fal_api_key: "fal",
           fattureincloud_tokens: "fic", openapi_it_creds: "openapi",
           openai_api_key: "voice", pec_credentials: "pec",
+          hubspot_oauth_tokens: "hubspot", salesforce_oauth_tokens: "salesforce",
         };
         for (const [secretName, guideKey] of Object.entries(connectorSecretMap)) {
           if (secretNames.includes(secretName)) activeGuideKeys.add(guideKey);

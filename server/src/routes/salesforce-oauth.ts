@@ -196,7 +196,7 @@ export function salesforceOAuthRoutes(db: Db) {
           .where(eq(customConnectors.id, existing.id));
         await db.update(companySecrets)
           .set({ description: encrypt(JSON.stringify({ access_token: tokens.access_token, refresh_token: tokens.refresh_token, instance_url: instanceUrl })), updatedAt: new Date() })
-          .where(and(eq(companySecrets.companyId, stateData.companyId), eq(companySecrets.name, `custom_api_${existing.id}`)));
+          .where(and(eq(companySecrets.companyId, stateData.companyId), eq(companySecrets.name, `salesforce_oauth_tokens`)));
       } else {
         const [row] = await db.insert(customConnectors).values({
           companyId: stateData.companyId,
@@ -211,7 +211,7 @@ export function salesforceOAuthRoutes(db: Db) {
         await db.insert(companySecrets).values({
           id: crypto.randomUUID(),
           companyId: stateData.companyId,
-          name: `custom_api_${row.id}`,
+          name: `salesforce_oauth_tokens`,
           provider: "encrypted",
           description: encrypt(JSON.stringify({
             access_token: tokens.access_token,
@@ -220,7 +220,7 @@ export function salesforceOAuthRoutes(db: Db) {
           })),
         });
 
-        await upsertConnectorAccount(db, stateData.companyId, "custom_salesforce", row.id, "Salesforce CRM");
+        await upsertConnectorAccount(db, stateData.companyId, "salesforce", "default", "Salesforce CRM");
       }
 
       console.info("[salesforce-oauth] Connected:", sfName, "instance:", instanceUrl);
@@ -246,7 +246,7 @@ export function salesforceOAuthRoutes(db: Db) {
     if (connector) {
       // Terminate linked agents
       const connAcct = await db.select({ id: connectorAccounts.id }).from(connectorAccounts)
-        .where(and(eq(connectorAccounts.companyId, companyId), eq(connectorAccounts.connectorType, "custom_salesforce")))
+        .where(and(eq(connectorAccounts.companyId, companyId), eq(connectorAccounts.connectorType, "salesforce")))
         .then(r => r[0]);
       if (connAcct) {
         const linked = await db.select({ agentId: agentConnectorAccounts.agentId }).from(agentConnectorAccounts)
@@ -257,8 +257,8 @@ export function salesforceOAuthRoutes(db: Db) {
         }
       }
 
-      await db.delete(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, `custom_api_${connector.id}`)));
-      await removeConnectorAccount(db, companyId, "custom_salesforce");
+      await db.delete(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, `salesforce_oauth_tokens`)));
+      await removeConnectorAccount(db, companyId, "salesforce");
       await db.delete(customConnectors).where(eq(customConnectors.id, connector.id));
     }
 

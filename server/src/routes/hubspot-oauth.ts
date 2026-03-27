@@ -251,7 +251,7 @@ export function hubspotOAuthRoutes(db: Db) {
         connectorId = existing.id;
         await db.update(companySecrets)
           .set({ description: encrypt(JSON.stringify({ access_token: tokens.access_token, refresh_token: tokens.refresh_token, expires_at: Date.now() + tokens.expires_in * 1000 })), updatedAt: new Date() })
-          .where(and(eq(companySecrets.companyId, stateData.companyId), eq(companySecrets.name, `custom_api_${existing.id}`)));
+          .where(and(eq(companySecrets.companyId, stateData.companyId), eq(companySecrets.name, `hubspot_oauth_tokens`)));
       } else {
         // Create connector + secret
         const [row] = await db.insert(customConnectors).values({
@@ -271,7 +271,7 @@ export function hubspotOAuthRoutes(db: Db) {
         await db.insert(companySecrets).values({
           id: crypto.randomUUID(),
           companyId: stateData.companyId,
-          name: `custom_api_${row.id}`,
+          name: `hubspot_oauth_tokens`,
           provider: "encrypted",
           description: encrypt(JSON.stringify({
             access_token: tokens.access_token,
@@ -280,7 +280,7 @@ export function hubspotOAuthRoutes(db: Db) {
           })),
         });
 
-        await upsertConnectorAccount(db, stateData.companyId, "custom_hubspot", row.id, "HubSpot CRM");
+        await upsertConnectorAccount(db, stateData.companyId, "hubspot", "default", "HubSpot CRM");
       }
 
       console.info("[hubspot-oauth] Connected:", hubName, "for company:", stateData.companyId);
@@ -306,7 +306,7 @@ export function hubspotOAuthRoutes(db: Db) {
     if (connector) {
       // Terminate agents that use this connector
       const connAcct = await db.select({ id: connectorAccounts.id }).from(connectorAccounts)
-        .where(and(eq(connectorAccounts.companyId, companyId), eq(connectorAccounts.connectorType, "custom_hubspot")))
+        .where(and(eq(connectorAccounts.companyId, companyId), eq(connectorAccounts.connectorType, "hubspot")))
         .then(r => r[0]);
       if (connAcct) {
         const linkedAgents = await db.select({ agentId: agentConnectorAccounts.agentId }).from(agentConnectorAccounts)
@@ -317,8 +317,8 @@ export function hubspotOAuthRoutes(db: Db) {
         }
       }
 
-      await db.delete(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, `custom_api_${connector.id}`)));
-      await removeConnectorAccount(db, companyId, "custom_hubspot");
+      await db.delete(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, `hubspot_oauth_tokens`)));
+      await removeConnectorAccount(db, companyId, "hubspot");
       await db.delete(customConnectors).where(eq(customConnectors.id, connector.id));
     }
 

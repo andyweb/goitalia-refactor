@@ -2544,8 +2544,8 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
       case "openapi":
         return ["oai_company", "oai_risk", "oai_cap", "oai_sdi"];
       default:
-        // Custom connectors: type is "custom_{slug}", key is the same
-        if (row.connectorType.startsWith("custom_")) return [row.connectorType];
+        // Native CRM and custom connectors
+        if (["hubspot", "salesforce"].includes(row.connectorType) || row.connectorType.startsWith("custom_")) return [row.connectorType];
         return [row.connectorType + "_" + row.accountId];
     }
   };
@@ -3071,7 +3071,7 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
 
       {/* Custom/CRM connectors (HubSpot, Salesforce, etc.) */}
       {customConnectorsForAgent.map((cc) => {
-        const uiKey = `custom_${cc.slug}`;
+        const uiKey = cc.slug;
         const isActive = agentConnectors[uiKey] === true;
         const iconColors: Record<string, { bg: string; color: string; label: string }> = {
           hubspot: { bg: "rgba(255,122,69,0.15)", color: "#FF7A45", label: "H" },
