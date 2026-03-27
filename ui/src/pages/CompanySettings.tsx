@@ -57,7 +57,15 @@ export function CompanySettings() {
   const [profile, setProfile] = useState<Record<string, string>>({});
   const [profileSaved, setProfileSaved] = useState<Record<string, string>>({});
   const [profileSaving, setProfileSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"dati" | "catalogo" | "orari">("dati");
+  const [activeTab, setActiveTabState] = useState<"dati" | "catalogo" | "orari">(() => {
+    const hash = window.location.hash.replace("#", "");
+    if (hash === "catalogo" || hash === "orari") return hash;
+    return "dati";
+  });
+  const setActiveTab = (tab: "dati" | "catalogo" | "orari") => {
+    setActiveTabState(tab);
+    window.history.replaceState(null, "", tab === "dati" ? window.location.pathname : window.location.pathname + "#" + tab);
+  };
   const [products, setProducts] = useState<CompanyProduct[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [editingProduct, setEditingProduct] = useState<Partial<CompanyProduct> | null>(null);
