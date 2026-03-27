@@ -3079,7 +3079,7 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
         };
         const style = iconColors[cc.slug] || { bg: "rgba(59,130,246,0.15)", color: "rgb(96,165,250)", label: "API" };
         return (
-          <div key={cc.id} className="rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div key={cc.id} className="rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", order: connOrder(cc.slug) }}>
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: style.bg }}>
                 <span className="text-sm font-bold" style={{ color: style.color }}>{style.label}</span>
