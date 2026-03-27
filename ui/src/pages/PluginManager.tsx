@@ -114,7 +114,7 @@ export function PluginManager() {
   const [crmApiKey, setCrmApiKey] = useState("");
   const [crmInstanceUrl, setCrmInstanceUrl] = useState("");
   const [crmSaving, setCrmSaving] = useState(false);
-  const [connectorTab, setConnectorTab] = useState("all");
+  const [connectorTab, setConnectorTab] = useState("connected");
   const CONNECTOR_CATEGORIES: Record<string, string> = {
     google: "communication", telegram: "communication", whatsapp: "communication", pec: "communication",
     meta: "social", linkedin: "social",
@@ -132,7 +132,6 @@ export function PluginManager() {
     salesforce: customConnectors.some(c => c.slug === "salesforce"),
   };
   const showConnector = (key: string) => {
-    if (connectorTab === "all") return true;
     if (connectorTab === "connected") return isConnectorConnected[key] === true;
     return CONNECTOR_CATEGORIES[key] === connectorTab;
   };
@@ -529,7 +528,6 @@ export function PluginManager() {
         ];
         return (
           <div className="flex gap-1.5 flex-wrap">
-            <button onClick={() => setConnectorTab("all")} className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-all border", connectorTab === "all" ? "" : "bg-white/5 text-muted-foreground border-white/10 hover:bg-white/10")} style={connectorTab === "all" ? { background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", borderColor: "transparent", color: "white" } : undefined}>Tutti</button>
             {tabs.map(t => (
               <button key={t.key} onClick={() => setConnectorTab(t.key)} className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-all border", connectorTab === t.key ? "" : "bg-white/5 text-muted-foreground border-white/10 hover:bg-white/10")} style={connectorTab === t.key ? { background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", borderColor: "transparent", color: "white" } : undefined}>
                 {t.label}{t.count !== undefined && t.count > 0 ? ` (${t.count})` : ""}
@@ -1486,7 +1484,7 @@ export function PluginManager() {
         </div>
 
         {/* Prossimamente */}
-        <div className="rounded-xl overflow-hidden" style={{ ...glass.cardStyle, opacity: 0.5, display: connectorTab === "all" ? undefined : "none" }}>
+        <div className="rounded-xl overflow-hidden" style={{ ...glass.cardStyle, opacity: 0.5, display: ["crm", "custom"].includes(connectorTab) ? undefined : "none" }}>
           <div className="w-full px-4 py-3 flex items-center gap-3 cursor-default">
             <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
               <Plus className="w-4 h-4 text-muted-foreground" />
