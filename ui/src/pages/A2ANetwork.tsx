@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useCompany } from "../context/CompanyContext.js";
 import { a2aApi, type A2AProfile, type A2AConnection, type A2ATask } from "../api/a2a.js";
-import { Network } from "lucide-react";
+import { Network, Search, Users, FileText, ArrowDownLeft, ArrowUpRight, Clock, CheckCircle, XCircle, Eye, EyeOff } from "lucide-react";
 
 // ==================== MAIN PAGE ====================
 
@@ -16,49 +16,59 @@ export function A2ANetwork() {
   }, [selectedCompanyId]);
 
   if (!selectedCompanyId) return null;
-  if (profile === undefined) return <div style={{ padding: 32, color: "var(--muted, #888)" }}>Caricamento...</div>;
+  if (profile === undefined) return <div className="p-8 text-muted-foreground text-sm">Caricamento...</div>;
 
   if (profile === null) {
     return <SetupProfile companyId={selectedCompanyId} onCreated={setProfile} />;
   }
 
   const tabs = [
-    { key: "connections" as const, label: "Partner" },
-    { key: "directory" as const, label: "Directory" },
-    { key: "tasks" as const, label: "Task" },
+    { key: "connections" as const, label: "Partner", icon: Users },
+    { key: "directory" as const, label: "Directory", icon: Search },
+    { key: "tasks" as const, label: "Task", icon: FileText },
   ];
 
   return (
-    <div style={{ padding: 24, maxWidth: 1000, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, fontFamily: "var(--font-display, 'Bebas Neue', sans-serif)" }}>A2A</h1>
-        <ProfileBadge profile={profile} onUpdate={setProfile} />
+    <div className="max-w-4xl mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-500/15 border border-emerald-500/30">
+            <Network className="w-5 h-5 text-emerald-400" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold">Rete A2A</h1>
+            <p className="text-xs text-muted-foreground">Comunicazione tra CEO AI</p>
+          </div>
+        </div>
+        <VisibilityToggle profile={profile} onUpdate={setProfile} />
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            style={{
-              padding: "8px 20px",
-              borderRadius: 8,
-              border: tab === t.key ? "1px solid var(--gold, #f5c518)" : "1px solid var(--border, #333)",
-              background: tab === t.key ? "rgba(245,197,24,0.15)" : "transparent",
-              color: tab === t.key ? "var(--gold, #f5c518)" : "var(--text, #ccc)",
-              fontWeight: tab === t.key ? 700 : 400,
-              cursor: "pointer",
-              fontSize: 14,
-              fontFamily: "var(--font-mono, 'JetBrains Mono', monospace)",
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* Tabs */}
+      <div className="glass-card p-1 flex gap-1">
+        {tabs.map((t) => {
+          const Icon = t.icon;
+          const isActive = tab === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                isActive
+                  ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                  : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
-      {tab === "directory" && <DirectoryTab companyId={selectedCompanyId} />}
+      {/* Content */}
       {tab === "connections" && <ConnectionsTab companyId={selectedCompanyId} />}
+      {tab === "directory" && <DirectoryTab companyId={selectedCompanyId} />}
       {tab === "tasks" && <TasksTab companyId={selectedCompanyId} />}
     </div>
   );
@@ -92,7 +102,7 @@ function SetupProfile({ companyId, onCreated }: { companyId: string; onCreated: 
             Rete A2A
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            La rete Agent-to-Agent di GoItalIA. I CEO AI delle aziende sulla piattaforma possono comunicarsi direttamente tra loro per scambiarsi ordini, preventivi, richieste e collaborazioni.
+            La rete Agent-to-Agent di GoItalIA. I CEO AI delle aziende sulla piattaforma possono comunicare direttamente tra loro per scambiarsi ordini, preventivi, richieste e collaborazioni.
           </p>
         </div>
 
@@ -123,7 +133,7 @@ function SetupProfile({ companyId, onCreated }: { companyId: string; onCreated: 
         <button
           onClick={activate}
           disabled={loading}
-          className="inline-flex items-center justify-center gap-2 px-8 py-3 rounded-xl text-sm font-semibold transition-all"
+          className="inline-flex items-center justify-center gap-2 px-8 py-3 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02]"
           style={{
             background: loading ? "rgba(16,185,129,0.3)" : "rgba(16,185,129,0.15)",
             border: "1px solid rgba(16,185,129,0.4)",
@@ -142,32 +152,32 @@ function SetupProfile({ companyId, onCreated }: { companyId: string; onCreated: 
   );
 }
 
-// ==================== PROFILE BADGE ====================
+// ==================== VISIBILITY TOGGLE ====================
 
-function ProfileBadge({ profile, onUpdate }: { profile: A2AProfile; onUpdate: (p: A2AProfile) => void }) {
-  const toggleVisibility = async () => {
-    const newVis = profile.visibility === "public" ? "hidden" : "public";
-    const updated = await a2aApi.saveProfile({ companyId: profile.companyId, visibility: newVis });
-    onUpdate(updated);
-  };
-
+function VisibilityToggle({ profile, onUpdate }: { profile: A2AProfile; onUpdate: (p: A2AProfile) => void }) {
+  const [toggling, setToggling] = useState(false);
   const isPublic = profile.visibility === "public";
+
+  const toggle = async () => {
+    setToggling(true);
+    try {
+      const updated = await a2aApi.saveProfile({ companyId: profile.companyId, visibility: isPublic ? "hidden" : "public" });
+      onUpdate(updated);
+    } catch {} finally { setToggling(false); }
+  };
 
   return (
     <button
-      onClick={toggleVisibility}
-      style={{
-        padding: "6px 16px",
-        borderRadius: 6,
-        border: `1px solid ${isPublic ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)"}`,
-        background: isPublic ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
-        color: isPublic ? "#22c55e" : "#ef4444",
-        fontSize: 13,
-        cursor: "pointer",
-        fontFamily: "var(--font-mono, 'JetBrains Mono', monospace)",
-      }}
+      onClick={toggle}
+      disabled={toggling}
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+        isPublic
+          ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+          : "bg-white/5 border border-white/10 text-muted-foreground"
+      }`}
     >
-      {isPublic ? "Visibile nella directory" : "Nascosto dalla directory"}
+      {isPublic ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+      {isPublic ? "Visibile" : "Nascosto"}
     </button>
   );
 }
@@ -191,46 +201,51 @@ function DirectoryTab({ companyId }: { companyId: string }) {
 
   useEffect(() => { search(); }, [companyId]);
 
-  const inputStyle = {
-    padding: 10,
-    borderRadius: 8,
-    border: "1px solid var(--border, #333)",
-    background: "var(--bg-secondary, #1a1a1a)",
-    color: "var(--text, #fff)",
-    fontSize: 14,
-    fontFamily: "var(--font-body, 'Outfit', sans-serif)",
-  };
-
   return (
-    <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <input
-          placeholder="Cerca azienda, settore, prodotto..."
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && search()}
-          style={{ ...inputStyle, flex: 1 }}
-        />
-        <input
-          placeholder="Zona (regione, citta...)"
-          value={zone}
-          onChange={(e) => setZone(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && search()}
-          style={{ ...inputStyle, width: 200 }}
-        />
-        <button onClick={search} style={{ padding: "10px 20px", borderRadius: 8, background: "var(--gold, #f5c518)", color: "#000", fontWeight: 600, border: "none", cursor: "pointer", fontSize: 14 }}>
-          Cerca
-        </button>
+    <div className="space-y-4">
+      {/* Barra ricerca */}
+      <div className="glass-card p-4">
+        <div className="flex gap-3">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              placeholder="Cerca azienda, settore, prodotto..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && search()}
+              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-white/10 bg-transparent text-sm outline-none focus:border-emerald-500/50 transition-colors"
+            />
+          </div>
+          <input
+            placeholder="Zona..."
+            value={zone}
+            onChange={(e) => setZone(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && search()}
+            className="w-40 px-3 py-2.5 rounded-lg border border-white/10 bg-transparent text-sm outline-none focus:border-emerald-500/50 transition-colors"
+          />
+          <button
+            onClick={search}
+            className="px-5 py-2.5 rounded-lg text-sm font-medium transition-all hover:scale-[1.02] bg-emerald-500/15 border border-emerald-500/30 text-emerald-400"
+          >
+            Cerca
+          </button>
+        </div>
       </div>
 
-      {loading && <p style={{ color: "var(--muted, #888)" }}>Ricerca...</p>}
-      {!loading && results.length === 0 && <p style={{ color: "var(--muted, #888)" }}>Nessuna azienda trovata nella directory.</p>}
+      {/* Risultati */}
+      {loading && <p className="text-sm text-muted-foreground px-1">Ricerca in corso...</p>}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {results.map((p) => (
-          <DirectoryCard key={p.id} profile={p} companyId={companyId} />
-        ))}
-      </div>
+      {!loading && results.length === 0 && (
+        <div className="glass-card p-8 text-center">
+          <Search className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">Nessuna azienda trovata nella directory.</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Le aziende appaiono qui quando attivano la Rete A2A e si rendono visibili.</p>
+        </div>
+      )}
+
+      {results.map((p) => (
+        <DirectoryCard key={p.id} profile={p} companyId={companyId} />
+      ))}
     </div>
   );
 }
@@ -246,52 +261,58 @@ function DirectoryCard({ profile, companyId }: { profile: A2AProfile; companyId:
       await a2aApi.requestConnection(companyId, profile.companyId, label || undefined);
       setSent(true);
     } catch {
-      setSent(true); // probably already connected
+      setSent(true);
     }
     setRequesting(false);
   };
 
   return (
-    <div style={{ padding: 16, borderRadius: 12, border: "1px solid var(--border, #333)", background: "var(--bg-secondary, #1a1a1a)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
-        <div style={{ flex: 1 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{profile.legalName || "Azienda"}</h3>
-          <p style={{ fontSize: 13, color: "var(--muted, #888)", marginBottom: 4 }}>
+    <div className="glass-card p-5">
+      <div className="flex justify-between items-start gap-4">
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold truncate">{profile.legalName || "Azienda"}</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
             {profile.atecoDescription || ""} {profile.zone ? `— ${profile.zone}` : ""}
           </p>
-          {profile.description && <p style={{ fontSize: 14, marginBottom: 8, color: "var(--text, #ccc)" }}>{profile.description}</p>}
+          {profile.description && <p className="text-xs text-muted-foreground/80 mt-2">{profile.description}</p>}
           {(profile.tags || []).length > 0 && (
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            <div className="flex gap-1.5 flex-wrap mt-2">
               {(profile.tags as string[]).map((t) => (
-                <span key={t} style={{ padding: "2px 8px", borderRadius: 4, background: "rgba(245,197,24,0.12)", color: "var(--gold, #f5c518)", fontSize: 12, fontFamily: "var(--font-mono, 'JetBrains Mono', monospace)" }}>{t}</span>
+                <span key={t} className="px-2 py-0.5 rounded text-[11px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">{t}</span>
               ))}
             </div>
           )}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", minWidth: 200 }}>
+        <div className="flex flex-col items-end gap-2 shrink-0">
           {profile.riskScore != null && (
-            <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: profile.riskScore > 70 ? "#22c55e" : profile.riskScore > 40 ? "#eab308" : "#ef4444" }}>
-              Risk: {profile.riskScore}/100
+            <span className={`text-[11px] font-mono px-2 py-0.5 rounded ${
+              profile.riskScore > 70 ? "bg-emerald-500/10 text-emerald-400" :
+              profile.riskScore > 40 ? "bg-yellow-500/10 text-yellow-400" :
+              "bg-red-500/10 text-red-400"
+            }`}>
+              Risk {profile.riskScore}/100
             </span>
           )}
           {!sent ? (
-            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <div className="flex gap-2 items-center">
               <input
-                placeholder="Es: Fornitore vini"
+                placeholder="Es: Fornitore"
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                style={{ width: 140, padding: 6, borderRadius: 6, border: "1px solid var(--border, #333)", background: "var(--bg, #111)", color: "var(--text, #fff)", fontSize: 12 }}
+                className="w-32 px-2 py-1.5 rounded-lg border border-white/10 bg-transparent text-xs outline-none focus:border-emerald-500/50"
               />
               <button
                 onClick={connect}
                 disabled={requesting}
-                style={{ padding: "6px 14px", borderRadius: 6, background: "var(--gold, #f5c518)", color: "#000", fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", whiteSpace: "nowrap" }}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 transition-all hover:bg-emerald-500/25 whitespace-nowrap"
               >
                 {requesting ? "..." : "Collegati"}
               </button>
             </div>
           ) : (
-            <span style={{ fontSize: 12, color: "#22c55e" }}>Richiesta inviata</span>
+            <span className="text-xs text-emerald-400 flex items-center gap-1">
+              <CheckCircle className="w-3.5 h-3.5" /> Richiesta inviata
+            </span>
           )}
         </div>
       </div>
@@ -315,7 +336,7 @@ function ConnectionsTab({ companyId }: { companyId: string }) {
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) return <p style={{ color: "var(--muted, #888)" }}>Caricamento...</p>;
+  if (loading) return <div className="glass-card p-8 text-center text-sm text-muted-foreground">Caricamento...</div>;
 
   const active = connections.filter((c) => c.status === "active" && c.direction === "out");
   const pendingIn = connections.filter((c) => c.status === "pending" && c.direction === "in");
@@ -332,46 +353,77 @@ function ConnectionsTab({ companyId }: { companyId: string }) {
   };
 
   return (
-    <div>
+    <div className="space-y-6">
+      {/* Richieste in arrivo */}
       {pendingIn.length > 0 && (
-        <div style={{ marginBottom: 24 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--gold, #f5c518)", marginBottom: 8, fontFamily: "var(--font-mono)" }}>
-            Richieste in arrivo ({pendingIn.length})
-          </h3>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 px-1">
+            <ArrowDownLeft className="w-4 h-4 text-amber-400" />
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-400">Richieste in arrivo ({pendingIn.length})</h3>
+          </div>
           {pendingIn.map((c) => (
             <PendingConnectionCard key={c.id} conn={c} onAccept={accept} onReject={reject} />
           ))}
         </div>
       )}
 
+      {/* In attesa */}
       {pendingOut.length > 0 && (
-        <div style={{ marginBottom: 24 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--muted, #888)", marginBottom: 8, fontFamily: "var(--font-mono)" }}>
-            In attesa di risposta ({pendingOut.length})
-          </h3>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 px-1">
+            <Clock className="w-4 h-4 text-muted-foreground" />
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">In attesa di risposta ({pendingOut.length})</h3>
+          </div>
           {pendingOut.map((c) => (
-            <div key={c.id} style={{ padding: 12, borderRadius: 8, border: "1px solid var(--border, #333)", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontWeight: 600 }}>{c.partnerName || "Azienda"}</span>
-              {c.relationshipLabel && <span style={{ color: "var(--muted, #888)", fontSize: 13 }}>{c.relationshipLabel}</span>}
-              <span style={{ marginLeft: "auto", fontSize: 12, color: "#eab308", fontFamily: "var(--font-mono)" }}>In attesa</span>
+            <div key={c.id} className="glass-card p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-xs font-bold text-muted-foreground">
+                  {(c.partnerName || "?")[0].toUpperCase()}
+                </div>
+                <div>
+                  <span className="text-sm font-medium">{c.partnerName || "Azienda"}</span>
+                  {c.relationshipLabel && <span className="text-xs text-muted-foreground ml-2">{c.relationshipLabel}</span>}
+                </div>
+              </div>
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-400">In attesa</span>
             </div>
           ))}
         </div>
       )}
 
-      <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, fontFamily: "var(--font-mono)" }}>
-        Partner attivi ({active.length})
-      </h3>
-      {active.length === 0 && <p style={{ color: "var(--muted, #888)" }}>Nessun partner collegato. Cerca nella Directory!</p>}
-      {active.map((c) => (
-        <div key={c.id} style={{ padding: 12, borderRadius: 8, border: "1px solid var(--border, #333)", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <span style={{ fontWeight: 600 }}>{c.partnerName || "Azienda"}</span>
-            {c.relationshipLabel && <span style={{ marginLeft: 8, color: "var(--gold, #f5c518)", fontSize: 13 }}>{c.relationshipLabel}</span>}
-            {c.notes && <p style={{ fontSize: 12, color: "var(--muted, #888)", marginTop: 2 }}>{c.notes}</p>}
-          </div>
+      {/* Partner attivi */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 px-1">
+          <Users className="w-4 h-4 text-emerald-400" />
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-400">Partner attivi ({active.length})</h3>
         </div>
-      ))}
+
+        {active.length === 0 && pendingIn.length === 0 && pendingOut.length === 0 && (
+          <div className="glass-card p-8 text-center">
+            <Users className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">Nessun partner collegato.</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">Vai nella tab Directory per cercare e collegarti con altre aziende, oppure chiedi al tuo CEO di cercare partner dalla chat.</p>
+          </div>
+        )}
+
+        {active.map((c) => (
+          <div key={c.id} className="glass-card p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xs font-bold text-emerald-400">
+                {(c.partnerName || "?")[0].toUpperCase()}
+              </div>
+              <div>
+                <span className="text-sm font-medium">{c.partnerName || "Azienda"}</span>
+                {c.relationshipLabel && (
+                  <span className="ml-2 text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400">{c.relationshipLabel}</span>
+                )}
+                {c.notes && <p className="text-xs text-muted-foreground mt-0.5">{c.notes}</p>}
+              </div>
+            </div>
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400">Attivo</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -380,20 +432,39 @@ function PendingConnectionCard({ conn, onAccept, onReject }: { conn: A2AConnecti
   const [label, setLabel] = useState("");
 
   return (
-    <div style={{ padding: 12, borderRadius: 8, border: "1px solid var(--gold, #f5c518)", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-      <div>
-        <span style={{ fontWeight: 600 }}>{conn.partnerName || "Azienda"}</span>
-        {conn.relationshipLabel && <span style={{ marginLeft: 8, fontSize: 13, color: "var(--muted, #888)" }}>Si presenta come: {conn.relationshipLabel}</span>}
-      </div>
-      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-        <input
-          placeholder="Es: Cliente, Fornitore..."
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          style={{ width: 150, padding: 6, borderRadius: 6, border: "1px solid var(--border, #333)", background: "var(--bg, #111)", color: "var(--text, #fff)", fontSize: 12 }}
-        />
-        <button onClick={() => onAccept(conn, label)} style={{ padding: "6px 12px", borderRadius: 6, background: "#22c55e", color: "#fff", fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer" }}>Accetta</button>
-        <button onClick={() => onReject(conn)} style={{ padding: "6px 12px", borderRadius: 6, background: "#ef4444", color: "#fff", fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer" }}>Rifiuta</button>
+    <div className="glass-card p-4 border-amber-500/20">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-xs font-bold text-amber-400">
+            {(conn.partnerName || "?")[0].toUpperCase()}
+          </div>
+          <div>
+            <span className="text-sm font-medium">{conn.partnerName || "Azienda"}</span>
+            {conn.relationshipLabel && <p className="text-xs text-muted-foreground">Si presenta come: {conn.relationshipLabel}</p>}
+          </div>
+        </div>
+        <div className="flex gap-2 items-center">
+          <input
+            placeholder="Es: Fornitore"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            className="w-32 px-2 py-1.5 rounded-lg border border-white/10 bg-transparent text-xs outline-none focus:border-emerald-500/50"
+          />
+          <button
+            onClick={() => onAccept(conn, label)}
+            className="p-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-all"
+            title="Accetta"
+          >
+            <CheckCircle className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => onReject(conn)}
+            className="p-1.5 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 transition-all"
+            title="Rifiuta"
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -418,33 +489,40 @@ function TasksTab({ companyId }: { companyId: string }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const selectStyle = {
-    padding: 8,
-    borderRadius: 6,
-    border: "1px solid var(--border, #333)",
-    background: "var(--bg-secondary, #1a1a1a)",
-    color: "var(--text, #fff)",
-    fontSize: 13,
+  const statusLabels: Record<string, { label: string; color: string }> = {
+    created: { label: "Creato", color: "text-amber-400 bg-amber-500/10" },
+    accepted: { label: "Accettato", color: "text-emerald-400 bg-emerald-500/10" },
+    in_progress: { label: "In corso", color: "text-blue-400 bg-blue-500/10" },
+    completed: { label: "Completato", color: "text-emerald-400 bg-emerald-500/10" },
+    rejected: { label: "Rifiutato", color: "text-red-400 bg-red-500/10" },
+    cancelled: { label: "Annullato", color: "text-muted-foreground bg-white/5" },
   };
 
-  const statusColors: Record<string, string> = {
-    created: "#eab308",
-    accepted: "#22c55e",
-    in_progress: "#3b82f6",
-    completed: "#22c55e",
-    rejected: "#ef4444",
-    cancelled: "#888",
+  const typeLabels: Record<string, string> = {
+    message: "Messaggio",
+    quote: "Preventivo",
+    order: "Ordine",
+    service: "Servizio",
   };
 
   return (
-    <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <select value={direction} onChange={(e) => setDirection(e.target.value)} style={selectStyle}>
-          <option value="">Tutti</option>
+    <div className="space-y-4">
+      {/* Filtri */}
+      <div className="glass-card p-4 flex gap-3">
+        <select
+          value={direction}
+          onChange={(e) => setDirection(e.target.value)}
+          className="px-3 py-2 rounded-lg border border-white/10 bg-transparent text-sm outline-none focus:border-emerald-500/50"
+        >
+          <option value="">Tutte le direzioni</option>
           <option value="in">In entrata</option>
           <option value="out">In uscita</option>
         </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={selectStyle}>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-2 rounded-lg border border-white/10 bg-transparent text-sm outline-none focus:border-emerald-500/50"
+        >
           <option value="">Tutti gli stati</option>
           <option value="created">Creato</option>
           <option value="accepted">Accettato</option>
@@ -454,45 +532,48 @@ function TasksTab({ companyId }: { companyId: string }) {
         </select>
       </div>
 
-      {loading && <p style={{ color: "var(--muted, #888)" }}>Caricamento...</p>}
+      {/* Lista task */}
+      {loading && <div className="glass-card p-8 text-center text-sm text-muted-foreground">Caricamento...</div>}
+
       {!loading && tasks.length === 0 && (
-        <p style={{ color: "var(--muted, #888)" }}>
-          Nessun task. I CEO inizieranno a creare task quando comunicheranno con i partner.
-        </p>
+        <div className="glass-card p-8 text-center">
+          <FileText className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">Nessun task.</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">I task vengono creati quando il tuo CEO comunica con i partner collegati. Puoi anche chiedere al CEO dalla chat: "Invia un ordine al fornitore X".</p>
+        </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {tasks.map((t) => {
-          const isIncoming = t.toCompanyId === companyId;
-          return (
-            <div key={t.id} style={{ padding: 14, borderRadius: 8, border: "1px solid var(--border, #333)", background: "var(--bg-secondary, #1a1a1a)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{
-                    fontSize: 11,
-                    padding: "2px 6px",
-                    borderRadius: 4,
-                    fontFamily: "var(--font-mono)",
-                    fontWeight: 600,
-                    background: isIncoming ? "rgba(59,130,246,0.12)" : "rgba(245,197,24,0.12)",
-                    color: isIncoming ? "#3b82f6" : "var(--gold, #f5c518)",
-                  }}>
-                    {isIncoming ? "ENTRATA" : "USCITA"}
+      {tasks.map((t) => {
+        const isIncoming = t.toCompanyId === companyId;
+        const st = statusLabels[t.status] || { label: t.status, color: "text-muted-foreground bg-white/5" };
+
+        return (
+          <div key={t.id} className="glass-card p-5 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {isIncoming ? (
+                  <span className="flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">
+                    <ArrowDownLeft className="w-3 h-3" /> Entrata
                   </span>
-                  <span style={{ fontWeight: 600 }}>{t.title}</span>
-                </div>
-                <span style={{ fontSize: 12, color: statusColors[t.status] || "#888", fontWeight: 600, fontFamily: "var(--font-mono)" }}>
-                  {t.status.toUpperCase()}
-                </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-400">
+                    <ArrowUpRight className="w-3 h-3" /> Uscita
+                  </span>
+                )}
+                <span className="text-sm font-medium">{t.title}</span>
               </div>
-              {t.description && <p style={{ fontSize: 13, color: "var(--muted, #888)", marginTop: 4 }}>{t.description}</p>}
-              <div style={{ fontSize: 11, color: "var(--muted, #666)", marginTop: 6, fontFamily: "var(--font-mono)" }}>
-                Tipo: {t.type} | {new Date(t.createdAt).toLocaleDateString("it-IT")}
-              </div>
+              <span className={`text-[11px] font-mono px-2 py-0.5 rounded ${st.color}`}>
+                {st.label}
+              </span>
             </div>
-          );
-        })}
-      </div>
+            {t.description && <p className="text-xs text-muted-foreground">{t.description}</p>}
+            <div className="flex items-center gap-3 text-[11px] text-muted-foreground/60 font-mono">
+              <span>{typeLabels[t.type] || t.type}</span>
+              <span>{new Date(t.createdAt).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" })}</span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
