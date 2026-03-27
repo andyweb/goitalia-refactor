@@ -245,6 +245,9 @@ export function Sidebar() {
       {/* Main nav */}
       <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide flex flex-col gap-1 px-2 py-2">
         {/* Top items - disabled during onboarding steps 0-3 */}
+        {session?.user?.email === "emanuele@unvrslabs.dev" && (
+          <SidebarNavItem to="/admin" label="GoItalIA Admin" icon={ShieldCheck} />
+        )}
         <div className={"flex flex-col gap-0.5" + (!isComplete ? " opacity-30 pointer-events-none" : "")}>
           <SidebarNavItem to="/org" label="Organigramma" icon={Share2Icon} />
           <SidebarNavItem to="/a2a" label="A2A" icon={Network} badge={a2aBadge > 0 ? a2aBadge : undefined} />
@@ -306,9 +309,6 @@ export function Sidebar() {
             <div className={!isComplete && onboardingStep !== null && onboardingStep > 0 ? "opacity-30 pointer-events-none" : ""} id="api-claude-nav">
               <SidebarNavItem to="/api-claude" label="API Claude" icon={Key} />
             </div>
-          )}
-          {session?.user?.email === "emanuele@unvrslabs.dev" && (
-            <SidebarNavItem to="/admin" label="GoItalIA" icon={ShieldCheck} />
           )}
         </SidebarSection>
 
