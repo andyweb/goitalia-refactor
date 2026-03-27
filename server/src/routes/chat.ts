@@ -1339,7 +1339,7 @@ export async function executeChatTool(
           .where(and(eq(agents.id, input.agente_id), eq(agents.companyId, companyId)))
           .then((rows) => rows[0]);
         if (!target) return "Agente non trovato con id: " + input.agente_id;
-        if (target.role === "ceo") return "Il Direttore AI non può essere eliminato.";
+        if (target.role === "ceo") return "Il CEO non può essere eliminato.";
         await db.delete(agents).where(eq(agents.id, input.agente_id));
         return `Agente eliminato: ${target.name} (${target.id})`;
       }

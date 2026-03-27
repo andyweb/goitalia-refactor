@@ -30,7 +30,7 @@ export function A2ANetwork() {
   return (
     <div style={{ padding: 24, maxWidth: 1000, margin: "0 auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, fontFamily: "var(--font-display, 'Bebas Neue', sans-serif)" }}>Rete B2B</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 700, fontFamily: "var(--font-display, 'Bebas Neue', sans-serif)" }}>A2A</h1>
         <ProfileBadge profile={profile} onUpdate={setProfile} />
       </div>
 
@@ -81,9 +81,9 @@ function SetupProfile({ companyId, onCreated }: { companyId: string; onCreated: 
 
   return (
     <div style={{ padding: 48, textAlign: "center", maxWidth: 500, margin: "0 auto" }}>
-      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12, fontFamily: "var(--font-display, 'Bebas Neue', sans-serif)" }}>Rete B2B</h2>
+      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12, fontFamily: "var(--font-display, 'Bebas Neue', sans-serif)" }}>A2A</h2>
       <p style={{ color: "var(--muted, #888)", marginBottom: 32, lineHeight: 1.6 }}>
-        Attiva la Rete B2B per trovare partner, fornitori e clienti sulla piattaforma GoItalIA.
+        Attiva la A2A per trovare partner, fornitori e clienti sulla piattaforma GoItalIA.
         I CEO AI delle aziende potranno comunicare tra loro per ordini, preventivi e collaborazioni.
       </p>
       <button
@@ -101,7 +101,7 @@ function SetupProfile({ companyId, onCreated }: { companyId: string; onCreated: 
           fontFamily: "var(--font-body, 'Outfit', sans-serif)",
         }}
       >
-        {loading ? "Attivazione..." : "Attiva Rete B2B"}
+        {loading ? "Attivazione..." : "Attiva A2A"}
       </button>
     </div>
   );

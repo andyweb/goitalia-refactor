@@ -246,8 +246,9 @@ export function Sidebar() {
       <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide flex flex-col gap-1 px-2 py-2">
         {/* Top items - disabled during onboarding steps 0-3 */}
         <div className={"flex flex-col gap-0.5" + (!isComplete ? " opacity-30 pointer-events-none" : "")}>
-          <SidebarNavItem to="/dashboard" label="Dashboard" icon={LayoutDashboard} liveCount={liveRunCount} />
           <SidebarNavItem to="/org" label="Organigramma" icon={Share2Icon} />
+          <SidebarNavItem to="/a2a" label="A2A" icon={Network} badge={a2aBadge > 0 ? a2aBadge : undefined} />
+          <SidebarNavItem to="/dashboard" label="Dashboard" icon={LayoutDashboard} liveCount={liveRunCount} />
           <SidebarNavItem to="/scheduled" label="Attività" icon={CalendarClock} badge={pendingCount > 0 ? pendingCount : undefined} />
         </div>
 
@@ -274,7 +275,6 @@ export function Sidebar() {
             {hasFal && <SidebarNavItem to="/genera" label="Genera Contenuti" icon={Sparkles} />}
             {hasFic && <SidebarNavItem to="/fatturazione" label="Fatture in Cloud" icon={Receipt} />}
             {hasOpenapi && <SidebarNavItem to="/analisi-aziende" label="OpenAPI.it" icon={Globe} />}
-            <SidebarNavItem to="/a2a" label="Rete B2B" icon={Network} badge={a2aBadge > 0 ? a2aBadge : undefined} />
             {hasGoogle && <SidebarNavItem to="/calendario" label="Calendario" icon={Calendar} />}
             {hasGoogle && <SidebarNavItem to="/documenti" label="Documenti" icon={HardDrive} />}
           </div>

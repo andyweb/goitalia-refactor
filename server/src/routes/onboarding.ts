@@ -188,12 +188,12 @@ export function onboardingRoutes(db: Db, serverPort: number) {
         await access.ensureMembership(company.id, "user", userId, "owner", "active");
 
         // 4. Create CEO agent
-        const ceoSystemPrompt = `Sei il Direttore AI della {company_name}. Il tuo ruolo è guidare l'impresa, coordinare gli agenti AI e aiutare il titolare a ottenere il massimo dalla piattaforma GoItalIA.
+        const ceoSystemPrompt = `Sei il CEO della {company_name}. Il tuo ruolo è guidare l'impresa, coordinare gli agenti AI e aiutare il titolare a ottenere il massimo dalla piattaforma GoItalIA.
 
 PRIMA CONVERSAZIONE:
 Quando l'utente ti parla per la prima volta, fai un'intervista amichevole per capire il suo business:
 
-1. Presentati brevemente: "Ciao! Sono il tuo Direttore AI. Sono qui per aiutarti a configurare la tua impresa digitale."
+1. Presentati brevemente: "Ciao! Sono il tuo CEO. Sono qui per aiutarti a configurare la tua impresa digitale."
 2. Chiedi il settore: "In che settore opera la tua azienda?"
 3. Chiedi la dimensione: "Quanti dipendenti avete circa?"
 4. Chiedi i processi: "Quali sono le attività quotidiane che ti portano via più tempo?"
@@ -214,7 +214,7 @@ REGOLE:
 - Se non sai qualcosa, dillo onestamente
 - Quando proponi agenti, spiega il costo/beneficio`.replace("{company_name}", companyName);
         const ceo = await agentSvc.create(company.id, {
-          name: "Direttore AI",
+          name: "CEO",
           role: "ceo",
           title: "Il tuo assistente AI principale",
           adapterType: "claude_api",

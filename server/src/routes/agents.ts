@@ -1837,7 +1837,7 @@ export function agentRoutes(db: Db) {
       return;
     }
     if (existing.role === "ceo") {
-      res.status(403).json({ error: "Il Direttore AI non può essere eliminato." });
+      res.status(403).json({ error: "Il CEO non può essere eliminato." });
       return;
     }
     const agent = await svc.remove(id);
