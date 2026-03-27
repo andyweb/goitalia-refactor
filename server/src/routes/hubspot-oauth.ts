@@ -67,7 +67,7 @@ const HUBSPOT_ACTIONS = [
 ];
 
 // Temporary state store for OAuth flow
-const oauthStates = new Map<string, { companyId: string; userId: string; expiresAt: number }>();
+const oauthStates = new Map<string, { companyId: string; userId: string; prefix: string; expiresAt: number }>();
 setInterval(() => { const now = Date.now(); for (const [k, v] of oauthStates) { if (v.expiresAt < now) oauthStates.delete(k); } }, 300000);
 
 export function hubspotOAuthRoutes(db: Db) {
@@ -102,7 +102,8 @@ export function hubspotOAuthRoutes(db: Db) {
     }
 
     const state = crypto.randomBytes(32).toString("hex");
-    oauthStates.set(state, { companyId, userId: actor.userId, expiresAt: Date.now() + 600000 });
+    const prefix = (req.query.prefix as string) || "";
+    oauthStates.set(state, { companyId, userId: actor.userId, prefix, expiresAt: Date.now() + 600000 });
 
     const authUrl = new URL("https://app.hubspot.com/oauth/authorize");
     authUrl.searchParams.set("client_id", HUBSPOT_CLIENT_ID);
@@ -211,7 +212,8 @@ export function hubspotOAuthRoutes(db: Db) {
       }
 
       console.info("[hubspot-oauth] Connected:", hubName, "for company:", stateData.companyId);
-      res.redirect("/plugins?hubspot_connected=true");
+      const prefix = stateData.prefix;
+      res.redirect(prefix ? "/" + prefix + "/plugins?hubspot_connected=true" : "/?hubspot_connected=true");
     } catch (err) {
       console.error("[hubspot-oauth] Callback error:", err);
       res.redirect("/plugins?error=hubspot_oauth_error");

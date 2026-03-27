@@ -1263,7 +1263,7 @@ export function PluginManager() {
                 <button
                   className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2"
                   style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}
-                  onClick={() => { window.location.href = "/api/oauth/hubspot/connect?companyId=" + selectedCompany?.id; }}
+                  onClick={() => { window.location.href = "/api/oauth/hubspot/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); }}
                 >Collega HubSpot</button>
               )}
             </div>
