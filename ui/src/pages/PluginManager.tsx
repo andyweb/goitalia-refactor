@@ -457,7 +457,7 @@ export function PluginManager() {
   const navigateToChat = async (connector: string, detail?: string) => {
     if (!selectedCompany?.id) return;
     // Build the message
-    const LABELS: Record<string, string> = { google: "Google Workspace", telegram: "Telegram Bot", whatsapp: "WhatsApp", meta: "Instagram + Facebook", linkedin: "LinkedIn", fal: "Fal.ai", fic: "Fatture in Cloud", openapi: "OpenAPI.it", voice: "Vocali AI", pec: "PEC (Posta Certificata)", stripe: "Stripe" };
+    const LABELS: Record<string, string> = { google: "Google Workspace", telegram: "Telegram Bot", whatsapp: "WhatsApp", meta: "Instagram + Facebook", linkedin: "LinkedIn", fal: "Fal.ai", fic: "Fatture in Cloud", openapi: "OpenAPI.it", voice: "Vocali AI", pec: "PEC (Posta Certificata)", stripe: "Stripe", custom_hubspot: "HubSpot CRM", custom_salesforce: "Salesforce CRM" };
     const label = LABELS[connector] || connector;
     const detailStr = detail ? " (" + detail + ")" : "";
     const message = "Ho collegato " + label + detailStr + ". Crea un agente dedicato per questo connettore.";
