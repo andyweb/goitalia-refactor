@@ -207,12 +207,6 @@ export function AdminDashboard() {
                     <Link to={`/${c.issuePrefix}/dashboard`} className="flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-lg no-underline" style={{ background: "hsl(158 64% 42% / 0.12)", color: "hsl(158 64% 52%)", border: "1px solid hsl(158 64% 42% / 0.25)" }}>
                       Apri Dashboard <ExternalLink className="w-3 h-3" />
                     </Link>
-                    <Link to={`/${c.issuePrefix}/chat`} className="flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-lg no-underline" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                      Chat CEO
-                    </Link>
-                    <Link to={`/${c.issuePrefix}/plugins`} className="flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-lg no-underline" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                      Connettori
-                    </Link>
                   </div>
                 </div>
               )}
