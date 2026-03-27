@@ -1987,7 +1987,7 @@ export async function executeChatTool(
             const token = page.accessToken || meta.accessToken;
             if (imageBuffer) {
               const fd = new FormData();
-              fd.append("source", new Blob([imageBuffer], { type: imageMime }), "post.jpg");
+              fd.append("source", new Blob([new Uint8Array(imageBuffer)], { type: imageMime }), "post.jpg");
               fd.append("caption", input.testo);
               fd.append("access_token", token);
               const r = await fetch(`https://graph.facebook.com/v21.0/${pageId}/photos`, { method: "POST", body: fd });
@@ -2011,7 +2011,7 @@ export async function executeChatTool(
 
             // Upload unpublished to FB page to get public URL
             const uploadFd = new FormData();
-            uploadFd.append("source", new Blob([imageBuffer], { type: imageMime }), "post.jpg");
+            uploadFd.append("source", new Blob([new Uint8Array(imageBuffer)], { type: imageMime }), "post.jpg");
             uploadFd.append("published", "false");
             uploadFd.append("access_token", token);
             const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${page.id}/photos`, { method: "POST", body: uploadFd });
