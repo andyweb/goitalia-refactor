@@ -105,12 +105,14 @@ export async function executeA2aTool(
       const requiresApproval = type === "order";
 
       // Verify target company has A2A active
-      const targetProfile = await db.select({ id: companyProfiles.id, legalName: companyProfiles.ragioneSociale })
+      console.log("[a2a-tool] invia_task_a2a: from=" + companyId + " to=" + toCompanyId);
+      const targetProfile = await db.select({ id: companyProfiles.id, legalName: companyProfiles.ragioneSociale, slug: companyProfiles.slug })
         .from(companyProfiles)
-        .where(and(eq(companyProfiles.companyId, toCompanyId), sql`${companyProfiles.slug} IS NOT NULL`))
+        .where(eq(companyProfiles.companyId, toCompanyId))
         .then((r) => r[0]);
+      console.log("[a2a-tool] targetProfile:", JSON.stringify(targetProfile));
 
-      if (!targetProfile) return "L'azienda destinataria non ha attivato la rete A2A.";
+      if (!targetProfile || !targetProfile.slug) return "L'azienda destinataria non ha attivato la rete A2A. (ID: " + toCompanyId + ")";
 
       // Check if it's a known partner (for label)
       const conn = await db.select({ relationshipLabel: a2aConnections.relationshipLabel })
