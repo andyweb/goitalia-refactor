@@ -1,404 +1,280 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, Navigate } from "@/lib/router";
+import { useEffect } from "react";
+import { Link } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
-import { dashboardApi } from "../api/dashboard";
-import { activityApi } from "../api/activity";
-import { issuesApi } from "../api/issues";
-import { agentsApi } from "../api/agents";
-import { projectsApi } from "../api/projects";
-import { heartbeatsApi } from "../api/heartbeats";
 import { useCompany } from "../context/CompanyContext";
-import { useDialog } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
+import { agentsApi } from "../api/agents";
 import { queryKeys } from "../lib/queryKeys";
-import { MetricCard } from "../components/MetricCard";
-import { EmptyState } from "../components/EmptyState";
-import { StatusIcon } from "../components/StatusIcon";
-import { PriorityIcon } from "../components/PriorityIcon";
-import { ActivityRow } from "../components/ActivityRow";
-import { Identity } from "../components/Identity";
-import { timeAgo } from "../lib/timeAgo";
-import { cn, formatCents } from "../lib/utils";
-import { Bot, CircleDot, DollarSign, ShieldCheck, LayoutDashboard, PauseCircle, Key } from "lucide-react";
-import { ActiveAgentsPanel } from "../components/ActiveAgentsPanel";
-import { ChartCard, RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart } from "../components/ActivityCharts";
-import { PageSkeleton } from "../components/PageSkeleton";
-import type { Agent, Issue } from "@goitalia/shared";
-import { PluginSlotOutlet } from "@/plugins/slots";
+import {
+  Building2, Plug, Bot, MessageCircle, Network, Package, Plus,
+  ArrowRight, Globe, Phone, Mail, MapPin, ChevronRight,
+} from "lucide-react";
+import type { Agent } from "@goitalia/shared";
 
-function getRecentIssues(issues: Issue[]): Issue[] {
-  return [...issues]
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-}
+const CONNECTOR_INFO: Record<string, { label: string; color: string; short: string }> = {
+  google: { label: "Google", color: "#4285F4", short: "G" },
+  telegram: { label: "Telegram", color: "#26A5E4", short: "T" },
+  whatsapp: { label: "WhatsApp", color: "#25D366", short: "W" },
+  meta_ig: { label: "Instagram", color: "#E1306C", short: "IG" },
+  meta_fb: { label: "Facebook", color: "#1877F2", short: "FB" },
+  linkedin: { label: "LinkedIn", color: "#0A66C2", short: "LI" },
+  fal: { label: "Fal.ai", color: "#6366F1", short: "F" },
+  fic: { label: "Fatture in Cloud", color: "#F59E0B", short: "FC" },
+  openapi: { label: "OpenAPI.it", color: "#10B981", short: "OA" },
+  voice: { label: "Vocali AI", color: "#8B5CF6", short: "V" },
+  pec: { label: "PEC", color: "#06B6D4", short: "PE" },
+  stripe: { label: "Stripe", color: "#635BFF", short: "S" },
+  hubspot: { label: "HubSpot", color: "#FF7A45", short: "H" },
+  salesforce: { label: "Salesforce", color: "#00A1E0", short: "SF" },
+};
 
 export function Dashboard() {
-  const { selectedCompanyId, companies } = useCompany();
-  const { openOnboarding } = useDialog();
+  const { selectedCompanyId, selectedCompany } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
-  const [animatedActivityIds, setAnimatedActivityIds] = useState<Set<string>>(new Set());
-  const seenActivityIdsRef = useRef<Set<string>>(new Set());
-  const hydratedActivityRef = useRef(false);
-  const activityAnimationTimersRef = useRef<number[]>([]);
 
+  useEffect(() => { setBreadcrumbs([{ label: "Dashboard" }]); }, [setBreadcrumbs]);
+
+  // Profile
+  const { data: profileData } = useQuery({
+    queryKey: ["company-profile", selectedCompanyId],
+    queryFn: () => fetch("/api/company-profile?companyId=" + selectedCompanyId, { credentials: "include" }).then(r => r.json()),
+    enabled: !!selectedCompanyId,
+  });
+  const profile = profileData?.profile || {};
+
+  // Agents
   const { data: agents } = useQuery({
     queryKey: queryKeys.agents.list(selectedCompanyId!),
     queryFn: () => agentsApi.list(selectedCompanyId!),
     enabled: !!selectedCompanyId,
   });
+  const activeAgents = (agents || []).filter((a: Agent) => a.status !== "terminated" && a.role !== "ceo");
 
-  // Redirect to chat if in onboarding (only Direttore, no other agents)
-  const otherAgents = (agents ?? []).filter((a: any) => a.role !== "ceo");
-  const isOnboarding = !!agents && agents.length > 0 && (agents as any[]).every((a: any) => a.adapterType === "claude_api") && otherAgents.length === 0;
-
-  useEffect(() => {
-    setBreadcrumbs([{ label: "Dashboard" }]);
-  }, [setBreadcrumbs]);
-
-  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
-  useEffect(() => {
-    if (!selectedCompanyId) return;
-    fetch(`/api/onboarding/claude-key/${selectedCompanyId}`)
-      .then((r) => r.json())
-      .then((data) => setHasApiKey(!!data.hasKey))
-      .catch(() => setHasApiKey(null));
-  }, [selectedCompanyId]);
-
-  // Onboarding redirect removed — dashboard always shows
-
-  const { data, isLoading, error } = useQuery({
-    queryKey: queryKeys.dashboard(selectedCompanyId!),
-    queryFn: () => dashboardApi.summary(selectedCompanyId!),
+  // Connectors
+  const { data: connectors } = useQuery({
+    queryKey: ["connectors", selectedCompanyId],
+    queryFn: () => fetch("/api/connector-accounts?companyId=" + selectedCompanyId, { credentials: "include" }).then(r => r.json()),
     enabled: !!selectedCompanyId,
   });
 
-  const { data: activity } = useQuery({
-    queryKey: queryKeys.activity(selectedCompanyId!),
-    queryFn: () => activityApi.list(selectedCompanyId!),
+  // Products
+  const { data: products } = useQuery({
+    queryKey: ["products", selectedCompanyId],
+    queryFn: () => fetch("/api/company-products?companyId=" + selectedCompanyId, { credentials: "include" }).then(r => r.json()),
     enabled: !!selectedCompanyId,
   });
 
-  const { data: issues } = useQuery({
-    queryKey: queryKeys.issues.list(selectedCompanyId!),
-    queryFn: () => issuesApi.list(selectedCompanyId!),
+  // A2A profile
+  const { data: a2aProfile } = useQuery({
+    queryKey: ["a2a-profile", selectedCompanyId],
+    queryFn: () => fetch("/api/a2a/profile?companyId=" + selectedCompanyId, { credentials: "include" }).then(r => r.json()),
     enabled: !!selectedCompanyId,
   });
 
-  const { data: projects } = useQuery({
-    queryKey: queryKeys.projects.list(selectedCompanyId!),
-    queryFn: () => projectsApi.list(selectedCompanyId!),
+  // Chat history (last messages)
+  const { data: chatHistory } = useQuery({
+    queryKey: ["chat-history-dash", selectedCompanyId],
+    queryFn: () => fetch("/api/chat/history?companyId=" + selectedCompanyId + "&limit=5", { credentials: "include" }).then(r => r.json()),
     enabled: !!selectedCompanyId,
   });
 
-  const { data: runs } = useQuery({
-    queryKey: queryKeys.heartbeats(selectedCompanyId!),
-    queryFn: () => heartbeatsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
-  });
-
-  const recentIssues = issues ? getRecentIssues(issues) : [];
-  const recentActivity = useMemo(() => (activity ?? []).slice(0, 10), [activity]);
-
-  useEffect(() => {
-    for (const timer of activityAnimationTimersRef.current) {
-      window.clearTimeout(timer);
-    }
-    activityAnimationTimersRef.current = [];
-    seenActivityIdsRef.current = new Set();
-    hydratedActivityRef.current = false;
-    setAnimatedActivityIds(new Set());
-  }, [selectedCompanyId]);
-
-  useEffect(() => {
-    if (recentActivity.length === 0) return;
-
-    const seen = seenActivityIdsRef.current;
-    const currentIds = recentActivity.map((event) => event.id);
-
-    if (!hydratedActivityRef.current) {
-      for (const id of currentIds) seen.add(id);
-      hydratedActivityRef.current = true;
-      return;
-    }
-
-    const newIds = currentIds.filter((id) => !seen.has(id));
-    if (newIds.length === 0) {
-      for (const id of currentIds) seen.add(id);
-      return;
-    }
-
-    setAnimatedActivityIds((prev) => {
-      const next = new Set(prev);
-      for (const id of newIds) next.add(id);
-      return next;
-    });
-
-    for (const id of newIds) seen.add(id);
-
-    const timer = window.setTimeout(() => {
-      setAnimatedActivityIds((prev) => {
-        const next = new Set(prev);
-        for (const id of newIds) next.delete(id);
-        return next;
-      });
-      activityAnimationTimersRef.current = activityAnimationTimersRef.current.filter((t) => t !== timer);
-    }, 980);
-    activityAnimationTimersRef.current.push(timer);
-  }, [recentActivity]);
-
-  useEffect(() => {
-    return () => {
-      for (const timer of activityAnimationTimersRef.current) {
-        window.clearTimeout(timer);
-      }
-    };
-  }, []);
-
-  const agentMap = useMemo(() => {
-    const map = new Map<string, Agent>();
-    for (const a of agents ?? []) map.set(a.id, a);
-    return map;
-  }, [agents]);
-
-  const entityNameMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const i of issues ?? []) map.set(`issue:${i.id}`, i.identifier ?? i.id.slice(0, 8));
-    for (const a of agents ?? []) map.set(`agent:${a.id}`, a.name);
-    for (const p of projects ?? []) map.set(`project:${p.id}`, p.name);
-    return map;
-  }, [issues, agents, projects]);
-
-  const entityTitleMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const i of issues ?? []) map.set(`issue:${i.id}`, i.title);
-    return map;
-  }, [issues]);
-
-  const agentName = (id: string | null) => {
-    if (!id || !agents) return null;
-    return agents.find((a) => a.id === id)?.name ?? null;
-  };
-
-  if (!selectedCompanyId) {
-    if (companies.length === 0) {
-      return (
-        <EmptyState
-          icon={LayoutDashboard}
-          message="Benvenuto su GoItalIA. Configura la tua prima impresa e agente per iniziare."
-          action="Inizia"
-          onAction={openOnboarding}
-        />
-      );
-    }
-    return (
-      <EmptyState icon={LayoutDashboard} message="Crea o seleziona un'impresa per vedere la dashboard." />
-    );
-  }
-
-  if (isLoading) {
-    return <PageSkeleton variant="dashboard" />;
-  }
-
-  const hasNoAgents = agents !== undefined && agents.length === 0;
+  const connectorsList = Array.isArray(connectors) ? connectors : [];
+  const productsList = Array.isArray(products) ? products : [];
+  const categories = [...new Set(productsList.map((p: any) => p.category).filter(Boolean))];
+  const lastMessages = (chatHistory?.messages || []).filter((m: any) => !m.content?.startsWith("__PENDING__")).slice(-5);
 
   return (
-    <div className="space-y-6">
-
-      {error && <p className="text-sm text-destructive">{error.message}</p>}
-
-      {hasNoAgents && (
-        <div className="flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-500/25 dark:bg-amber-950/60">
-          <div className="flex items-center gap-2.5">
-            <Bot className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-            <p className="text-sm text-amber-900 dark:text-amber-100">
-              Non hai ancora agenti.
-            </p>
-          </div>
-          <button
-            onClick={() => openOnboarding({ initialStep: 2, companyId: selectedCompanyId! })}
-            className="text-sm font-medium text-amber-700 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100 underline underline-offset-2 shrink-0"
-          >
-            Creane uno qui
-          </button>
+    <div className="space-y-5 max-w-5xl">
+      {/* Header — Company Info */}
+      <div className="rounded-xl p-5 flex items-center gap-4" style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.08), rgba(34,197,94,0.02))", border: "1px solid rgba(34,197,94,0.15)" }}>
+        <div className="h-12 w-12 rounded-xl flex items-center justify-center text-sm font-bold shrink-0" style={{ background: "hsl(158 64% 42% / 0.15)", color: "hsl(158 64% 42%)" }}>
+          {(profile.ragione_sociale || selectedCompany?.name || "?").slice(0, 2).toUpperCase()}
         </div>
-      )}
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg font-bold truncate">{profile.ragione_sociale || selectedCompany?.name}</h1>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+            {profile.settore && <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> {profile.settore}</span>}
+            {profile.citta && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {profile.citta}</span>}
+            {profile.telefono && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {profile.telefono}</span>}
+            {profile.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {profile.email}</span>}
+          </div>
+        </div>
+        <Link to="company/settings" className="text-xs px-3 py-1.5 rounded-lg no-underline transition-all" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}>
+          Profilo <ChevronRight className="w-3 h-3 inline" />
+        </Link>
+      </div>
 
-      <ActiveAgentsPanel companyId={selectedCompanyId!} />
+      {/* Stats row */}
+      <div className="grid grid-cols-4 gap-3">
+        <div className="rounded-xl px-4 py-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="flex items-center gap-2">
+            <Plug className="w-4 h-4" style={{ color: "#a855f7" }} />
+            <span className="text-xl font-bold" style={{ color: "#a855f7" }}>{connectorsList.length}</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Connettori</p>
+        </div>
+        <div className="rounded-xl px-4 py-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="flex items-center gap-2">
+            <Bot className="w-4 h-4" style={{ color: "#f59e0b" }} />
+            <span className="text-xl font-bold" style={{ color: "#f59e0b" }}>{activeAgents.length}</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Agenti</p>
+        </div>
+        <div className="rounded-xl px-4 py-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="flex items-center gap-2">
+            <Package className="w-4 h-4" style={{ color: "#3b82f6" }} />
+            <span className="text-xl font-bold" style={{ color: "#3b82f6" }}>{productsList.length}</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Catalogo</p>
+        </div>
+        <div className="rounded-xl px-4 py-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="flex items-center gap-2">
+            <Network className="w-4 h-4" style={{ color: "#22c55e" }} />
+            <span className="text-xl font-bold" style={{ color: "#22c55e" }}>{a2aProfile ? "ON" : "OFF"}</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Rete A2A</p>
+        </div>
+      </div>
 
-      {data && (
-        <>
-          {data.budgets.activeIncidents > 0 ? (
-            <div className="flex items-start justify-between gap-3 rounded-xl border border-red-500/20 bg-[linear-gradient(180deg,rgba(255,80,80,0.12),rgba(255,255,255,0.02))] px-4 py-3">
-              <div className="flex items-start gap-2.5">
-                <PauseCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-300" />
-                <div>
-                  <p className="text-sm font-medium text-red-50">
-                    {data.budgets.activeIncidents} incidente budget attivo{data.budgets.activeIncidents === 1 ? "" : "s"}
-                  </p>
-                  <p className="text-xs text-red-100/70">
-                    {data.budgets.pausedAgents} agents in pausa · {data.budgets.pausedProjects} progetti in pausa · {data.budgets.pendingApprovals} approvazioni budget in attesa
-                  </p>
-                </div>
-              </div>
-              <Link to="/costs" className="text-sm underline underline-offset-2 text-red-100">
-                Vai ai budget
+      <div className="grid grid-cols-2 gap-4">
+        {/* Left column */}
+        <div className="space-y-4">
+          {/* Connectors */}
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Connettori Attivi</h2>
+              <Link to="plugins" className="text-[10px] text-muted-foreground hover:text-white no-underline flex items-center gap-0.5">
+                <Plus className="w-3 h-3" /> Aggiungi
               </Link>
             </div>
-          ) : null}
-
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-1 sm:gap-2">
-            <MetricCard
-              icon={Bot}
-              value={data.agents.active + data.agents.running + data.agents.paused + data.agents.error}
-              label="Agenti Attivi"
-              to="/agents"
-              description={
-                <span>
-                  {data.agents.running} in esecuzione{", "}
-                  {data.agents.paused} in pausa{", "}
-                  {data.agents.error} errori
-                </span>
-              }
-            />
-            <MetricCard
-              icon={CircleDot}
-              value={data.tasks.inProgress}
-              label="Attività in Corso"
-              to="/issues"
-              description={
-                <span>
-                  {data.tasks.open} aperte{", "}
-                  {data.tasks.blocked} bloccate
-                </span>
-              }
-            />
-            <MetricCard
-              icon={DollarSign}
-              value={formatCents(data.costs.monthSpendCents)}
-              label="Spesa Mensile"
-              to="/costs"
-              description={
-                <span>
-                  {data.costs.monthBudgetCents > 0
-                    ? `${data.costs.monthUtilizationPercent}% of ${formatCents(data.costs.monthBudgetCents)} budget`
-                    : "Budget illimitato"}
-                </span>
-              }
-            />
-            <MetricCard
-              icon={ShieldCheck}
-              value={data.pendingApprovals + data.budgets.pendingApprovals}
-              label="Approvazioni in Attesa"
-              to="/approvals"
-              description={
-                <span>
-                  {data.budgets.pendingApprovals > 0
-                    ? `${data.budgets.pendingApprovals} override budget in attesa di revisione`
-                    : "In attesa di revisione"}
-                </span>
-              }
-            />
-          </div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <ChartCard title="Attività Esecuzioni" subtitle="Ultimi 14 giorni">
-              <RunActivityChart runs={runs ?? []} />
-            </ChartCard>
-            <ChartCard title="Attività per Priorità" subtitle="Ultimi 14 giorni">
-              <PriorityChart issues={issues ?? []} />
-            </ChartCard>
-            <ChartCard title="Attività per Stato" subtitle="Ultimi 14 giorni">
-              <IssueStatusChart issues={issues ?? []} />
-            </ChartCard>
-            <ChartCard title="Tasso di Successo" subtitle="Ultimi 14 giorni">
-              <SuccessRateChart runs={runs ?? []} />
-            </ChartCard>
-          </div>
-
-          <PluginSlotOutlet
-            slotTypes={["dashboardWidget"]}
-            context={{ companyId: selectedCompanyId }}
-            className="grid gap-4 md:grid-cols-2"
-            itemClassName="rounded-lg border bg-card p-4 shadow-sm"
-          />
-
-          <div className="grid md:grid-cols-2 gap-4">
-            {/* Recent Activity */}
-            {recentActivity.length > 0 && (
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                  Recent Activity
-                </h3>
-                <div className="glass-card divide-y divide-white/5 overflow-hidden">
-                  {recentActivity.map((event) => (
-                    <ActivityRow
-                      key={event.id}
-                      event={event}
-                      agentMap={agentMap}
-                      entityNameMap={entityNameMap}
-                      entityTitleMap={entityTitleMap}
-                      className={animatedActivityIds.has(event.id) ? "activity-row-enter" : undefined}
-                    />
-                  ))}
-                </div>
+            {connectorsList.length === 0 ? (
+              <div className="text-center py-4">
+                <Plug className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground">Nessun connettore attivo</p>
+                <Link to="plugins" className="text-xs no-underline mt-1 inline-block" style={{ color: "hsl(158 64% 52%)" }}>Vai ai Connettori</Link>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {connectorsList.map((c: any, i: number) => {
+                  const info = CONNECTOR_INFO[c.connectorType];
+                  return (
+                    <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg" style={{ background: `${info?.color || "#666"}10`, border: `1px solid ${info?.color || "#666"}20` }}>
+                      <div className="h-5 w-5 rounded flex items-center justify-center text-[9px] font-bold text-white" style={{ background: info?.color || "#555" }}>
+                        {info?.short || c.connectorType.slice(0, 2).toUpperCase()}
+                      </div>
+                      <span className="text-xs" style={{ color: info?.color || "#999" }}>{c.accountLabel || info?.label || c.connectorType}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
-
-            {/* Recent Tasks */}
-            <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                Recent Tasks
-              </h3>
-              {recentIssues.length === 0 ? (
-                <div className="glass-card p-4">
-                  <p className="text-sm text-muted-foreground">Nessuna attività.</p>
-                </div>
-              ) : (
-                <div className="glass-card divide-y divide-white/5 overflow-hidden">
-                  {recentIssues.slice(0, 10).map((issue) => (
-                    <Link
-                      key={issue.id}
-                      to={`/issues/${issue.identifier ?? issue.id}`}
-                      className="px-4 py-3 text-sm cursor-pointer hover:bg-accent/50 transition-colors no-underline text-inherit block"
-                    >
-                      <div className="flex items-start gap-2 sm:items-center sm:gap-3">
-                        {/* Status icon - left column on mobile */}
-                        <span className="shrink-0 sm:hidden">
-                          <StatusIcon status={issue.status} />
-                        </span>
-
-                        {/* Right column on mobile: title + metadata stacked */}
-                        <span className="flex min-w-0 flex-1 flex-col gap-1 sm:contents">
-                          <span className="line-clamp-2 text-sm sm:order-2 sm:flex-1 sm:min-w-0 sm:line-clamp-none sm:truncate">
-                            {issue.title}
-                          </span>
-                          <span className="flex items-center gap-2 sm:order-1 sm:shrink-0">
-                            <span className="hidden sm:inline-flex"><PriorityIcon priority={issue.priority} /></span>
-                            <span className="hidden sm:inline-flex"><StatusIcon status={issue.status} /></span>
-                            <span className="text-xs font-mono text-muted-foreground">
-                              {issue.identifier ?? issue.id.slice(0, 8)}
-                            </span>
-                            {issue.assigneeAgentId && (() => {
-                              const name = agentName(issue.assigneeAgentId);
-                              return name
-                                ? <span className="hidden sm:inline-flex"><Identity name={name} size="sm" /></span>
-                                : null;
-                            })()}
-                            <span className="text-xs text-muted-foreground sm:hidden">&middot;</span>
-                            <span className="text-xs text-muted-foreground shrink-0 sm:order-last">
-                              {timeAgo(issue.updatedAt)}
-                            </span>
-                          </span>
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
-        </>
-      )}
+          {/* Agents */}
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Agenti ({activeAgents.length})</h2>
+            </div>
+            {activeAgents.length === 0 ? (
+              <div className="text-center py-4">
+                <Bot className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground">Nessun agente creato</p>
+                <p className="text-[10px] text-muted-foreground/60 mt-0.5">Collega un connettore e crea il tuo primo agente</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {activeAgents.map((a: Agent) => (
+                  <Link key={a.id} to={`agents/${a.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}/instructions`} className="flex items-center gap-2.5 px-3 py-2 rounded-lg no-underline text-inherit transition-all hover:bg-white/5">
+                    <div className="w-2 h-2 rounded-full shrink-0" style={{ background: a.status === "idle" ? "#22c55e" : a.status === "running" ? "#f59e0b" : "#6b7280" }} />
+                    <span className="text-xs font-medium flex-1 truncate">{a.name}</span>
+                    <span className="text-[10px] text-muted-foreground">{a.title || a.role}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Catalog quick view */}
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Catalogo ({productsList.length})</h2>
+              <Link to="company/settings#catalogo" className="text-[10px] text-muted-foreground hover:text-white no-underline flex items-center gap-0.5">
+                Gestisci <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+            {categories.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {categories.map((cat: string) => {
+                  const count = productsList.filter((p: any) => p.category === cat).length;
+                  return (
+                    <span key={cat} className="px-2 py-0.5 rounded-lg text-[10px] font-medium" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)" }}>
+                      {cat} ({count})
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground/50">Nessun prodotto nel catalogo</p>
+            )}
+          </div>
+        </div>
+
+        {/* Right column */}
+        <div className="space-y-4">
+          {/* Chat with CEO */}
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ultime Conversazioni CEO</h2>
+              <Link to="chat" className="text-[10px] text-muted-foreground hover:text-white no-underline flex items-center gap-0.5">
+                Apri Chat <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+            {lastMessages.length === 0 ? (
+              <div className="text-center py-4">
+                <MessageCircle className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground">Nessuna conversazione</p>
+                <Link to="chat" className="text-xs no-underline mt-1 inline-block" style={{ color: "hsl(158 64% 52%)" }}>Inizia a parlare col CEO</Link>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {lastMessages.map((m: any, i: number) => (
+                  <div key={i} className="flex gap-2 py-1">
+                    <div className="w-1 rounded-full shrink-0" style={{ background: m.role === "user" ? "hsl(158 64% 42%)" : "rgba(255,255,255,0.15)" }} />
+                    <p className="text-[11px] text-muted-foreground truncate">{m.content?.substring(0, 100)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* A2A Network */}
+          <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Rete A2A</h2>
+              <Link to="a2a" className="text-[10px] text-muted-foreground hover:text-white no-underline flex items-center gap-0.5">
+                Gestisci <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+            {a2aProfile ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <span className="text-xs font-medium">A2A Attiva</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  La tua azienda è visibile nella directory. Altre aziende possono trovarti e inviarti richieste.
+                </p>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <Network className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground">Rete A2A non attiva</p>
+                <Link to="a2a" className="text-xs no-underline mt-1 inline-block" style={{ color: "hsl(158 64% 52%)" }}>Attiva A2A</Link>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
