@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { ChevronsUpDown, Plus, Settings } from "lucide-react";
 import { Link } from "@/lib/router";
 import { useCompany } from "../context/CompanyContext";
@@ -26,7 +27,15 @@ function statusDotColor(status?: string): string {
 
 export function CompanySwitcher() {
   const { companies, selectedCompany, setSelectedCompanyId } = useCompany();
-  const sidebarCompanies = companies.filter((company) => company.status !== "archived");
+  // Hide admin_viewer companies from switcher (admin can access them via admin dashboard)
+  const [adminViewerIds, setAdminViewerIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    fetch("/api/admin/my-admin-companies", { credentials: "include" })
+      .then(r => r.ok ? r.json() : [])
+      .then(ids => { if (Array.isArray(ids)) setAdminViewerIds(new Set(ids)); })
+      .catch(() => {});
+  }, []);
+  const sidebarCompanies = companies.filter((company) => company.status !== "archived" && !adminViewerIds.has(company.id));
 
   return (
     <DropdownMenu>

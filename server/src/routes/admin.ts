@@ -112,5 +112,18 @@ export function adminRoutes(db: Db) {
     }
   });
 
+  // GET /admin/my-admin-companies — returns company IDs where user is admin_viewer (for hiding from switcher)
+  router.get("/admin/my-admin-companies", async (req, res) => {
+    const actor = req.actor as { userId?: string } | undefined;
+    if (!actor?.userId) { res.json([]); return; }
+    try {
+      const rows = await db.execute(
+        sql`SELECT company_id FROM company_memberships WHERE principal_id = ${actor.userId} AND membership_role = 'admin_viewer'`
+      );
+      const result = ((rows as any).rows || rows) as Array<{ company_id: string }>;
+      res.json(result.map(r => r.company_id));
+    } catch { res.json([]); }
+  });
+
   return router;
 }
