@@ -1260,12 +1260,11 @@ export function PluginManager() {
                   <div className={actionRow}>{agentBtn(`custom_hubspot`, "HubSpot CRM")}</div>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">Collega il tuo account HubSpot con un click. Accedi con la tua email HubSpot e autorizza l'accesso al CRM.</p>
-                  <a href={`/api/oauth/hubspot/connect?companyId=${selectedCompany?.id}`} className="inline-flex px-4 py-2.5 rounded-xl text-xs font-medium transition-all items-center gap-2" style={{ background: "linear-gradient(135deg, #FF7A45, #FF5722)", color: "white" }}>
-                    <span className="font-bold">H</span> Connetti HubSpot
-                  </a>
-                </div>
+                <button
+                  className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2"
+                  style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}
+                  onClick={() => { window.location.href = "/api/oauth/hubspot/connect?companyId=" + selectedCompany?.id; }}
+                >Collega HubSpot</button>
               )}
             </div>
           )}
