@@ -3041,10 +3041,12 @@ export function chatRoutes(db: Db) {
       const MAX_TURNS = 8;
       let finalText = "";
 
-      // Set SSE headers
+      // Set SSE headers — X-Accel-Buffering disables nginx proxy buffering
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders();
 
       for (let turn = 0; turn < MAX_TURNS; turn++) {
         const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
@@ -3092,9 +3094,14 @@ export function chatRoutes(db: Db) {
           break;
         }
 
-        // Stream tool activity
+        // Stream tool activity with human-friendly labels
         for (const block of toolUseBlocks) {
-          res.write("data: " + JSON.stringify({ type: "content_block_delta", delta: { text: "\n🔧 Esecuzione: " + block.name + "...\n" } }) + "\n\n");
+          const toolLabel = block.name === "esegui_task_agente"
+            ? `🔄 Delegando a agente...`
+            : `🔧 ${TOOL_PROGRESS_LABELS[block.name || ""] || block.name}`;
+          const sseData = "data: " + JSON.stringify({ type: "content_block_delta", delta: { text: "\n" + toolLabel + "\n" } }) + "\n\n";
+          res.write(sseData);
+          (res as any).flush?.();
         }
 
         // Add assistant message
@@ -3103,6 +3110,7 @@ export function chatRoutes(db: Db) {
         // Execute tools — pass SSE progress callback for agent delegation
         const sseProgress = (msg: string) => {
           res.write("data: " + JSON.stringify({ type: "content_block_delta", delta: { text: "\n" + msg + "\n" } }) + "\n\n");
+          (res as any).flush?.();
         };
         const toolResults: Array<{ type: "tool_result"; tool_use_id: string; content: string }> = [];
         for (const block of toolUseBlocks) {

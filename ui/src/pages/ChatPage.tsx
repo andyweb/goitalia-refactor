@@ -339,7 +339,7 @@ export function ChatPage() {
 
     // Abort after 120s to prevent hanging on dead connections
     const abortController = new AbortController();
-    const timeout = setTimeout(() => abortController.abort(), 120_000);
+    const timeout = setTimeout(() => abortController.abort(), 300_000);
 
     try {
       const history = messages.map((m) => ({ role: m.role, content: m.content }));
