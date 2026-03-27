@@ -2512,6 +2512,7 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
   const [ficStatus, setFicStatus] = useState<{ connected: boolean; companyName?: string } | null>(null);
   const [stripeStatus, setStripeStatus] = useState<{ connected: boolean; accountName?: string } | null>(null);
   const [oaiStatus, setOaiStatus] = useState<{ connected: boolean; services?: string[] } | null>(null);
+  const [customConnectorsForAgent, setCustomConnectorsForAgent] = useState<Array<{ id: string; name: string; slug: string; baseUrl: string; actions: any[] }>>([]);
   const [expandedConn, setExpandedConn] = useState<string | null>(null);
   const [selectedGoogleAcct, setSelectedGoogleAcct] = useState(0);
   const { selectedCompany } = useCompany();
@@ -2543,6 +2544,8 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
       case "openapi":
         return ["oai_company", "oai_risk", "oai_cap", "oai_sdi"];
       default:
+        // Custom connectors: type is "custom_{slug}", key is the same
+        if (row.connectorType.startsWith("custom_")) return [row.connectorType];
         return [row.connectorType + "_" + row.accountId];
     }
   };
@@ -2669,6 +2672,8 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
       .then((r) => r.json()).then((d) => setStripeStatus(d)).catch(() => {});
     fetch("/api/openapi-it/status?companyId=" + companyId, { credentials: "include" })
       .then((r) => r.json()).then((d) => setOaiStatus(d)).catch(() => {});
+    fetch("/api/custom-connectors?companyId=" + companyId, { credentials: "include" })
+      .then((r) => r.json()).then((d) => { if (Array.isArray(d)) setCustomConnectorsForAgent(d); }).catch(() => {});
   }, [companyId]);
 
   const services = [
@@ -2679,7 +2684,7 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
     { name: "Sheets", desc: "Gestisci fogli di calcolo", icon: "sheet" },
   ];
 
-  const hasAnyConnector = googleStatus?.connected || (telegramStatus?.connected && telegramStatus.bots?.length) || whatsappStatus?.connected || metaStatus?.connected || linkedinStatus?.connected || falStatus?.connected || ficStatus?.connected || stripeStatus?.connected || oaiStatus?.connected;
+  const hasAnyConnector = googleStatus?.connected || (telegramStatus?.connected && telegramStatus.bots?.length) || whatsappStatus?.connected || metaStatus?.connected || linkedinStatus?.connected || falStatus?.connected || ficStatus?.connected || stripeStatus?.connected || oaiStatus?.connected || customConnectorsForAgent.length > 0;
 
   // Agent-level connector checks (what the agent actually uses)
   const agentHasGoogle = ["gmail", "calendar", "drive", "sheets", "docs"].some((k) => agentConnectors[k] === true);
@@ -3063,6 +3068,41 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
           )}
         </div>
       )}
+
+      {/* Custom/CRM connectors (HubSpot, Salesforce, etc.) */}
+      {customConnectorsForAgent.map((cc) => {
+        const uiKey = `custom_${cc.slug}`;
+        const isActive = agentConnectors[uiKey] === true;
+        const iconColors: Record<string, { bg: string; color: string; label: string }> = {
+          hubspot: { bg: "rgba(255,122,69,0.15)", color: "#FF7A45", label: "H" },
+          salesforce: { bg: "rgba(0,161,224,0.15)", color: "#00A1E0", label: "SF" },
+        };
+        const style = iconColors[cc.slug] || { bg: "rgba(59,130,246,0.15)", color: "rgb(96,165,250)", label: "API" };
+        return (
+          <div key={cc.id} className="rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: style.bg }}>
+                <span className="text-sm font-bold" style={{ color: style.color }}>{style.label}</span>
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-semibold">{cc.name}</div>
+                <div className="text-xs text-muted-foreground">{(cc.actions || []).length} azioni — {cc.baseUrl}</div>
+              </div>
+              {nativeToggle(isActive, () => toggleConnector(uiKey))}
+            </div>
+            {isActive && (cc.actions || []).length > 0 && (
+              <div className="px-4 pb-3 space-y-1">
+                {(cc.actions as any[]).map((a: any) => (
+                  <div key={a.name} className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <span className="px-1.5 py-0.5 rounded font-mono text-[10px]" style={{ background: "rgba(255,255,255,0.06)" }}>{a.method}</span>
+                    <span>{a.label || a.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

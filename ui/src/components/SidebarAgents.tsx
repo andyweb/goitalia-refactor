@@ -55,6 +55,14 @@ const CONNECTOR_ICONS: Record<string, { icon: React.ReactNode; color: string }> 
     icon: <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><rect x="2" y="2" width="20" height="20" rx="4" fill="#8B5CF6"/><path d="M12 7v6m0 0a2 2 0 0 1-2-2V9a2 2 0 1 1 4 0v2a2 2 0 0 1-2 2zm-4-1a4 4 0 0 0 8 0M12 17v-2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>,
     color: "#8B5CF6",
   },
+  hubspot: {
+    icon: <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><rect x="2" y="2" width="20" height="20" rx="4" fill="#FF7A45"/><text x="12" y="16" textAnchor="middle" fill="white" fontSize="12" fontWeight="bold">H</text></svg>,
+    color: "#FF7A45",
+  },
+  salesforce: {
+    icon: <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><rect x="2" y="2" width="20" height="20" rx="4" fill="#00A1E0"/><text x="12" y="15" textAnchor="middle" fill="white" fontSize="9" fontWeight="bold">SF</text></svg>,
+    color: "#00A1E0",
+  },
 };
 
 function detectConnector(agent: Agent): string | null {
@@ -81,6 +89,8 @@ function detectConnector(agent: Agent): string | null {
 
   // 3. Guess from agent name
   const n = agent.name.toLowerCase();
+  if (n.includes("hubspot")) return "hubspot";
+  if (n.includes("salesforce")) return "salesforce";
   if (n.includes("@") && (n.includes("gmail") || n.includes("google"))) return "google";
   if (n.includes("@") && !n.includes("+")) return "meta"; // @username = likely IG
   if (n.includes("+")) return "whatsapp"; // +phone
