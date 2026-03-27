@@ -1299,6 +1299,38 @@ async function getFicTokenForChat(db: Db, companyId: string): Promise<{ access_t
 type ToolInput = Record<string, unknown>;
 
 
+// Human-friendly labels for agent tool progress messages
+const TOOL_PROGRESS_LABELS: Record<string, string> = {
+  genera_immagine: "Generando immagine...",
+  pubblica_social: "Pubblicando sui social...",
+  invia_mail: "Inviando email...",
+  leggi_mail: "Leggendo email...",
+  cerca_file_drive: "Cercando file su Drive...",
+  leggi_file_drive: "Leggendo file da Drive...",
+  crea_fattura: "Creando fattura...",
+  lista_fatture: "Recuperando fatture...",
+  lista_clienti: "Recuperando lista clienti...",
+  cerca_cliente: "Cercando cliente...",
+  crea_cliente: "Creando cliente...",
+  invia_fattura_sdi: "Inviando fattura via SDI...",
+  lista_pec: "Leggendo PEC...",
+  leggi_pec: "Leggendo messaggio PEC...",
+  invia_pec: "Inviando PEC...",
+  rispondi_pec: "Rispondendo via PEC...",
+  stripe_lista_clienti: "Recuperando clienti Stripe...",
+  stripe_cerca_cliente: "Cercando cliente Stripe...",
+  stripe_crea_cliente: "Creando cliente Stripe...",
+  stripe_lista_pagamenti: "Recuperando pagamenti...",
+  stripe_crea_link_pagamento: "Creando link di pagamento...",
+  stripe_verifica_abbonamento: "Verificando abbonamento...",
+  riassunto_conversazioni_wa: "Riassumendo conversazioni WhatsApp...",
+  cerca_azienda_piva: "Cercando azienda per PIVA...",
+  cerca_azienda_nome: "Cercando azienda per nome...",
+  credit_score: "Verificando credit score...",
+  codice_sdi: "Recuperando codice SDI...",
+  cerca_cap: "Cercando CAP...",
+};
+
 async function executeAgentTask(
   db: Db,
   companyId: string,
@@ -1306,6 +1338,7 @@ async function executeAgentTask(
   istruzioni: string,
   apiKey: string,
   contesto?: string,
+  onProgress?: (message: string) => void,
 ): Promise<string> {
   // 1. Load the target agent
   const agent = await db.select().from(agents)
@@ -1391,9 +1424,15 @@ async function executeAgentTask(
 
     const toolResults: Array<{ type: "tool_result"; tool_use_id: string; content: string }> = [];
     for (const toolUse of toolUseBlocks) {
-      console.log("[agent-task]", agent.name, "calls tool:", toolUse.name);
+      const toolName = toolUse.name || "";
+      console.log("[agent-task]", agent.name, "calls tool:", toolName);
+      // Stream progress to client
+      if (onProgress) {
+        const label = TOOL_PROGRESS_LABELS[toolName] || `Eseguendo ${toolName}...`;
+        onProgress(`⚙️ ${agent.name}: ${label}`);
+      }
       const result = await executeChatTool(
-        toolUse.name || "",
+        toolName,
         (toolUse.input || {}) as ToolInput,
         db,
         companyId,
@@ -1419,6 +1458,7 @@ export async function executeChatTool(
   companyId: string,
   agentId: string,
   apiKey?: string,
+  onProgress?: (message: string) => void,
 ): Promise<string> {
   try {
     switch (toolName) {
@@ -2066,7 +2106,7 @@ export async function executeChatTool(
         const context = toolInput.contesto as string | undefined;
         if (!targetId || !instructions) return "Errore: agente_id e istruzioni sono obbligatori.";
         console.log("[direttore] Delegating task to agent:", targetId, "->", instructions.substring(0, 100));
-        const result = await executeAgentTask(db, companyId, targetId, instructions, apiKey, context);
+        const result = await executeAgentTask(db, companyId, targetId, instructions, apiKey, context, onProgress);
         console.log("[direttore] Agent result:", result.substring(0, 200));
         return result;
       }
@@ -3035,7 +3075,10 @@ export function chatRoutes(db: Db) {
         // Add assistant message
         messages.push({ role: "assistant", content });
 
-        // Execute tools
+        // Execute tools — pass SSE progress callback for agent delegation
+        const sseProgress = (msg: string) => {
+          res.write("data: " + JSON.stringify({ type: "content_block_delta", delta: { text: "\n" + msg + "\n" } }) + "\n\n");
+        };
         const toolResults: Array<{ type: "tool_result"; tool_use_id: string; content: string }> = [];
         for (const block of toolUseBlocks) {
           const result = await executeChatTool(
@@ -3045,9 +3088,9 @@ export function chatRoutes(db: Db) {
             companyId,
             resolvedAgentId,
             apiKey,
+            sseProgress,
           );
           toolResults.push({ type: "tool_result", tool_use_id: block.id || "", content: result });
-          // tool result logged silently
         }
 
         messages.push({ role: "user", content: toolResults });
