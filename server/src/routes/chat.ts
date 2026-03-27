@@ -1231,8 +1231,10 @@ export async function getAgentConnectorsFromDb(
       connectors.whatsapp = true;
     } else if (t === "meta_ig") {
       connectors["ig_" + acct] = true;
+      connectors.meta = true;
     } else if (t === "meta_fb") {
       connectors["fb_" + acct] = true;
+      connectors.meta = true;
     } else if (t === "linkedin") {
       connectors.linkedin = true;
     } else if (t === "fal") {
