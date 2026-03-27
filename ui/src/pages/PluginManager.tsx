@@ -1333,7 +1333,7 @@ export function PluginManager() {
           {expandedConnector === "custom" && (
             <div className="px-4 pb-4 pt-3 space-y-3 border-t border-white/5">
               {/* Lista connettori esistenti */}
-              {customConnectors.map((c) => (
+              {customConnectors.filter((c) => c.slug !== "hubspot" && c.slug !== "salesforce").map((c) => (
                 <div key={c.id} className="space-y-2">
                   <div className="flex items-center gap-2">
                     <div className={row + " flex-1"} style={rowBg}>
