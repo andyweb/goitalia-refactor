@@ -192,7 +192,7 @@ export function customConnectorRoutes(db: Db) {
 
   // PUT /custom-connectors/:id
   router.put("/custom-connectors/:id", async (req, res) => {
-    const { companyId, name, baseUrl, description, authType, authHeader, authPrefix } = req.body;
+    const { companyId, name, baseUrl, description, authType, authHeader, authPrefix, actions } = req.body;
     if (!requireAuth(req, res, companyId)) return;
 
     const connector = await db.select().from(customConnectors)
@@ -211,6 +211,7 @@ export function customConnectorRoutes(db: Db) {
     if (description !== undefined) updates.description = description;
     if (authType !== undefined) updates.authType = authType;
     if (authHeader !== undefined) updates.authHeader = authHeader;
+    if (actions !== undefined) updates.actions = actions;
     if (authPrefix !== undefined) updates.authPrefix = authPrefix;
 
     const [updated] = await db.update(customConnectors).set(updates)

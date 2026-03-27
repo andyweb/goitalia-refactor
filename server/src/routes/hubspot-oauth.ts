@@ -22,47 +22,119 @@ const SCOPES = [
 ].join(" ");
 
 // HubSpot CRM actions template (same as in custom-connectors.ts)
+// All HubSpot CRM actions — each has "enabled: true" by default, PMI can toggle per-agent
 const HUBSPOT_ACTIONS = [
-  { name: "lista_contatti", label: "Lista Contatti", description: "Recupera i contatti dal CRM", method: "GET", path: "/crm/v3/objects/contacts", params: [
+  // --- CONTATTI ---
+  { name: "lista_contatti", label: "Lista Contatti", description: "Recupera i contatti dal CRM", method: "GET", path: "/crm/v3/objects/contacts", enabled: true, category: "Contatti", params: [
     { name: "limit", type: "number", required: false, in: "query", description: "Max risultati (default 10, max 100)" },
-    { name: "properties", type: "string", required: false, in: "query", description: "Proprietà (es: email,firstname,lastname,phone)" },
+    { name: "properties", type: "string", required: false, in: "query", description: "Proprietà (es: email,firstname,lastname,phone,company)" },
     { name: "after", type: "string", required: false, in: "query", description: "Cursore paginazione" },
   ], body_template: null },
-  { name: "cerca_contatto", label: "Cerca Contatto", description: "Cerca un contatto per email, nome o telefono", method: "POST", path: "/crm/v3/objects/contacts/search", params: [
+  { name: "cerca_contatto", label: "Cerca Contatto", description: "Cerca un contatto per email, nome o telefono", method: "POST", path: "/crm/v3/objects/contacts/search", enabled: true, category: "Contatti", params: [
     { name: "email", type: "string", required: false, in: "body", description: "Email da cercare" },
     { name: "nome", type: "string", required: false, in: "body", description: "Nome da cercare" },
   ], body_template: null },
-  { name: "crea_contatto", label: "Crea Contatto", description: "Crea un nuovo contatto nel CRM", method: "POST", path: "/crm/v3/objects/contacts", params: [
+  { name: "dettaglio_contatto", label: "Dettaglio Contatto", description: "Recupera tutti i dati di un contatto specifico", method: "GET", path: "/crm/v3/objects/contacts/{contactId}", enabled: true, category: "Contatti", params: [
+    { name: "contactId", type: "string", required: true, in: "path", description: "ID del contatto" },
+    { name: "properties", type: "string", required: false, in: "query", description: "Proprietà da includere" },
+  ], body_template: null },
+  { name: "crea_contatto", label: "Crea Contatto", description: "Crea un nuovo contatto nel CRM", method: "POST", path: "/crm/v3/objects/contacts", enabled: true, category: "Contatti", params: [
     { name: "email", type: "string", required: true, in: "body", description: "Email del contatto" },
     { name: "firstname", type: "string", required: false, in: "body", description: "Nome" },
     { name: "lastname", type: "string", required: false, in: "body", description: "Cognome" },
     { name: "phone", type: "string", required: false, in: "body", description: "Telefono" },
     { name: "company", type: "string", required: false, in: "body", description: "Azienda" },
   ], body_template: null },
-  { name: "lista_deal", label: "Lista Deal", description: "Recupera le opportunità/deal dal CRM", method: "GET", path: "/crm/v3/objects/deals", params: [
-    { name: "limit", type: "number", required: false, in: "query", description: "Max risultati" },
-    { name: "properties", type: "string", required: false, in: "query", description: "Proprietà (es: dealname,amount,dealstage,closedate)" },
+  { name: "aggiorna_contatto", label: "Aggiorna Contatto", description: "Modifica i dati di un contatto esistente", method: "PATCH", path: "/crm/v3/objects/contacts/{contactId}", enabled: true, category: "Contatti", params: [
+    { name: "contactId", type: "string", required: true, in: "path", description: "ID del contatto" },
+    { name: "email", type: "string", required: false, in: "body", description: "Email" },
+    { name: "firstname", type: "string", required: false, in: "body", description: "Nome" },
+    { name: "lastname", type: "string", required: false, in: "body", description: "Cognome" },
+    { name: "phone", type: "string", required: false, in: "body", description: "Telefono" },
   ], body_template: null },
-  { name: "crea_deal", label: "Crea Deal", description: "Crea una nuova opportunità/deal", method: "POST", path: "/crm/v3/objects/deals", params: [
+  { name: "elimina_contatto", label: "Elimina Contatto", description: "Elimina un contatto dal CRM", method: "DELETE", path: "/crm/v3/objects/contacts/{contactId}", enabled: false, category: "Contatti", params: [
+    { name: "contactId", type: "string", required: true, in: "path", description: "ID del contatto" },
+  ], body_template: null },
+  // --- DEAL / OPPORTUNITÀ ---
+  { name: "lista_deal", label: "Lista Deal", description: "Recupera le opportunità/deal", method: "GET", path: "/crm/v3/objects/deals", enabled: true, category: "Deal", params: [
+    { name: "limit", type: "number", required: false, in: "query", description: "Max risultati" },
+    { name: "properties", type: "string", required: false, in: "query", description: "Proprietà (es: dealname,amount,dealstage,closedate,pipeline)" },
+  ], body_template: null },
+  { name: "dettaglio_deal", label: "Dettaglio Deal", description: "Recupera i dati di un deal specifico", method: "GET", path: "/crm/v3/objects/deals/{dealId}", enabled: true, category: "Deal", params: [
+    { name: "dealId", type: "string", required: true, in: "path", description: "ID del deal" },
+    { name: "properties", type: "string", required: false, in: "query", description: "Proprietà da includere" },
+  ], body_template: null },
+  { name: "crea_deal", label: "Crea Deal", description: "Crea una nuova opportunità/deal", method: "POST", path: "/crm/v3/objects/deals", enabled: true, category: "Deal", params: [
     { name: "dealname", type: "string", required: true, in: "body", description: "Nome del deal" },
     { name: "amount", type: "string", required: false, in: "body", description: "Importo" },
-    { name: "dealstage", type: "string", required: false, in: "body", description: "Fase" },
+    { name: "dealstage", type: "string", required: false, in: "body", description: "Fase (appointmentscheduled, qualifiedtobuy, closedwon, closedlost)" },
     { name: "closedate", type: "string", required: false, in: "body", description: "Data chiusura (YYYY-MM-DD)" },
+    { name: "pipeline", type: "string", required: false, in: "body", description: "Pipeline (default se omesso)" },
   ], body_template: null },
-  { name: "lista_aziende", label: "Lista Aziende", description: "Recupera le aziende dal CRM", method: "GET", path: "/crm/v3/objects/companies", params: [
+  { name: "aggiorna_deal", label: "Aggiorna Deal", description: "Modifica un deal esistente (fase, importo, ecc.)", method: "PATCH", path: "/crm/v3/objects/deals/{dealId}", enabled: true, category: "Deal", params: [
+    { name: "dealId", type: "string", required: true, in: "path", description: "ID del deal" },
+    { name: "dealname", type: "string", required: false, in: "body", description: "Nome" },
+    { name: "amount", type: "string", required: false, in: "body", description: "Importo" },
+    { name: "dealstage", type: "string", required: false, in: "body", description: "Fase" },
+    { name: "closedate", type: "string", required: false, in: "body", description: "Data chiusura" },
+  ], body_template: null },
+  { name: "elimina_deal", label: "Elimina Deal", description: "Elimina un deal", method: "DELETE", path: "/crm/v3/objects/deals/{dealId}", enabled: false, category: "Deal", params: [
+    { name: "dealId", type: "string", required: true, in: "path", description: "ID del deal" },
+  ], body_template: null },
+  { name: "lista_pipeline", label: "Lista Pipeline", description: "Recupera le pipeline e le fasi dei deal", method: "GET", path: "/crm/v3/pipelines/deals", enabled: true, category: "Deal", params: [], body_template: null },
+  // --- AZIENDE ---
+  { name: "lista_aziende", label: "Lista Aziende", description: "Recupera le aziende dal CRM", method: "GET", path: "/crm/v3/objects/companies", enabled: true, category: "Aziende", params: [
     { name: "limit", type: "number", required: false, in: "query", description: "Max risultati" },
     { name: "properties", type: "string", required: false, in: "query", description: "Proprietà (es: name,domain,industry,city,phone)" },
   ], body_template: null },
-  { name: "crea_azienda", label: "Crea Azienda", description: "Crea una nuova azienda nel CRM", method: "POST", path: "/crm/v3/objects/companies", params: [
+  { name: "crea_azienda", label: "Crea Azienda", description: "Crea una nuova azienda", method: "POST", path: "/crm/v3/objects/companies", enabled: true, category: "Aziende", params: [
     { name: "name", type: "string", required: true, in: "body", description: "Nome azienda" },
     { name: "domain", type: "string", required: false, in: "body", description: "Dominio web" },
     { name: "industry", type: "string", required: false, in: "body", description: "Settore" },
     { name: "city", type: "string", required: false, in: "body", description: "Città" },
     { name: "phone", type: "string", required: false, in: "body", description: "Telefono" },
   ], body_template: null },
-  { name: "lista_note", label: "Lista Note", description: "Recupera le note/attività", method: "GET", path: "/crm/v3/objects/notes", params: [
+  { name: "aggiorna_azienda", label: "Aggiorna Azienda", description: "Modifica i dati di un'azienda", method: "PATCH", path: "/crm/v3/objects/companies/{companyId}", enabled: true, category: "Aziende", params: [
+    { name: "companyId", type: "string", required: true, in: "path", description: "ID dell'azienda" },
+    { name: "name", type: "string", required: false, in: "body", description: "Nome" },
+    { name: "domain", type: "string", required: false, in: "body", description: "Dominio" },
+    { name: "phone", type: "string", required: false, in: "body", description: "Telefono" },
+  ], body_template: null },
+  // --- ATTIVITÀ ---
+  { name: "lista_task", label: "Lista Task", description: "Recupera i task/attività", method: "GET", path: "/crm/v3/objects/tasks", enabled: true, category: "Attività", params: [
+    { name: "limit", type: "number", required: false, in: "query", description: "Max risultati" },
+    { name: "properties", type: "string", required: false, in: "query", description: "Proprietà (es: hs_task_subject,hs_task_status,hs_task_priority)" },
+  ], body_template: null },
+  { name: "crea_task", label: "Crea Task", description: "Crea un nuovo task/attività", method: "POST", path: "/crm/v3/objects/tasks", enabled: true, category: "Attività", params: [
+    { name: "hs_task_subject", type: "string", required: true, in: "body", description: "Oggetto del task" },
+    { name: "hs_task_status", type: "string", required: false, in: "body", description: "Stato (NOT_STARTED, IN_PROGRESS, COMPLETED)" },
+    { name: "hs_task_priority", type: "string", required: false, in: "body", description: "Priorità (HIGH, MEDIUM, LOW)" },
+    { name: "hs_timestamp", type: "string", required: false, in: "body", description: "Data scadenza (ISO)" },
+  ], body_template: null },
+  { name: "lista_note", label: "Lista Note", description: "Recupera le note", method: "GET", path: "/crm/v3/objects/notes", enabled: true, category: "Attività", params: [
     { name: "limit", type: "number", required: false, in: "query", description: "Max risultati" },
     { name: "properties", type: "string", required: false, in: "query", description: "Proprietà (es: hs_note_body,hs_timestamp)" },
+  ], body_template: null },
+  { name: "crea_nota", label: "Crea Nota", description: "Crea una nota associata a un contatto/deal", method: "POST", path: "/crm/v3/objects/notes", enabled: true, category: "Attività", params: [
+    { name: "hs_note_body", type: "string", required: true, in: "body", description: "Contenuto della nota" },
+    { name: "hs_timestamp", type: "string", required: false, in: "body", description: "Data (ISO)" },
+  ], body_template: null },
+  // --- TEAM ---
+  { name: "lista_owner", label: "Lista Utenti Team", description: "Recupera gli utenti/owner del CRM", method: "GET", path: "/crm/v3/owners", enabled: true, category: "Team", params: [
+    { name: "limit", type: "number", required: false, in: "query", description: "Max risultati" },
+  ], body_template: null },
+  // --- ASSOCIAZIONI ---
+  { name: "associa_contatto_deal", label: "Associa Contatto a Deal", description: "Collega un contatto a un deal", method: "PUT", path: "/crm/v3/objects/contacts/{contactId}/associations/deals/{dealId}/3", enabled: true, category: "Associazioni", params: [
+    { name: "contactId", type: "string", required: true, in: "path", description: "ID del contatto" },
+    { name: "dealId", type: "string", required: true, in: "path", description: "ID del deal" },
+  ], body_template: null },
+  { name: "associa_contatto_azienda", label: "Associa Contatto a Azienda", description: "Collega un contatto a un'azienda", method: "PUT", path: "/crm/v3/objects/contacts/{contactId}/associations/companies/{companyHubId}/1", enabled: true, category: "Associazioni", params: [
+    { name: "contactId", type: "string", required: true, in: "path", description: "ID del contatto" },
+    { name: "companyHubId", type: "string", required: true, in: "path", description: "ID dell'azienda HubSpot" },
+  ], body_template: null },
+  // --- RICERCA GLOBALE ---
+  { name: "ricerca_globale", label: "Ricerca Globale", description: "Cerca contatti, deal o aziende per testo libero", method: "POST", path: "/crm/v3/objects/contacts/search", enabled: true, category: "Ricerca", params: [
+    { name: "query", type: "string", required: true, in: "body", description: "Testo da cercare" },
   ], body_template: null },
 ];
 

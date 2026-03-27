@@ -1301,7 +1301,7 @@ async function getCustomToolsForCompany(db: Db, companyId: string): Promise<type
     .where(eq(customConnectors.companyId, companyId));
   const tools: typeof TOOLS = [];
   for (const connector of connectors) {
-    for (const action of (connector.actions as any[]) || []) {
+    for (const action of ((connector.actions as any[]) || []).filter((a: any) => a.enabled !== false)) {
       const properties: Record<string, any> = {};
       const required: string[] = [];
       for (const param of (action.params || [])) {

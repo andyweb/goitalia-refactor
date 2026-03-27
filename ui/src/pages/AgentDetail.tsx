@@ -3091,13 +3091,35 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
               {nativeToggle(isActive, () => toggleConnector(uiKey))}
             </div>
             {isActive && (cc.actions || []).length > 0 && (
-              <div className="px-4 pb-3 space-y-1">
-                {(cc.actions as any[]).map((a: any) => (
-                  <div key={a.name} className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <span className="px-1.5 py-0.5 rounded font-mono text-[10px]" style={{ background: "rgba(255,255,255,0.06)" }}>{a.method}</span>
-                    <span>{a.label || a.name}</span>
-                  </div>
-                ))}
+              <div className="px-4 pb-3 space-y-0.5">
+                {(() => {
+                  const actions = cc.actions as any[];
+                  const categories = [...new Set(actions.map((a: any) => a.category || "Altro"))];
+                  return categories.map((cat) => (
+                    <div key={cat}>
+                      <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider pt-2 pb-1">{cat}</div>
+                      {actions.filter((a: any) => (a.category || "Altro") === cat).map((a: any) => (
+                        <div key={a.name} className="flex items-center gap-2 py-1">
+                          <span className="px-1.5 py-0.5 rounded font-mono text-[10px] shrink-0" style={{ background: "rgba(255,255,255,0.06)" }}>{a.method}</span>
+                          <span className="flex-1 text-xs">{a.label || a.name}</span>
+                          <label className="relative inline-block shrink-0" style={{ width: 36, height: 20 }}>
+                            <input type="checkbox" checked={a.enabled !== false} onChange={async () => {
+                              const newActions = cc.actions.map((act: any) => act.name === a.name ? { ...act, enabled: !(act.enabled !== false) } : act);
+                              setCustomConnectorsForAgent(prev => prev.map(x => x.id === cc.id ? { ...x, actions: newActions } : x));
+                              await fetch(`/api/custom-connectors/${cc.id}`, {
+                                method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
+                                body: JSON.stringify({ companyId, actions: newActions }),
+                              });
+                            }} style={{ opacity: 0, width: 0, height: 0, position: "absolute" }} />
+                            <span style={{ position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0, background: a.enabled !== false ? "#16a34a" : "rgba(255,255,255,0.15)", borderRadius: 10, transition: "background 0.2s" }}>
+                              <span style={{ position: "absolute", height: 16, width: 16, left: a.enabled !== false ? 17 : 2, bottom: 2, background: "white", borderRadius: 8, transition: "left 0.2s", boxShadow: "0 1px 2px rgba(0,0,0,0.3)" }} />
+                            </span>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  ));
+                })()}
               </div>
             )}
           </div>
