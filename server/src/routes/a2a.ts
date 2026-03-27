@@ -107,6 +107,12 @@ export function a2aRoutes(db: Db) {
 
     if (!companyId) return res.status(400).json({ error: "companyId required" });
 
+    // Get IDs of already connected companies (active or pending)
+    const connectedIds = await db.select({ toId: a2aConnections.toCompanyId })
+      .from(a2aConnections)
+      .where(eq(a2aConnections.fromCompanyId, companyId))
+      .then((rows) => rows.map((r) => r.toId));
+
     const results = await db.select({
       id: companyProfiles.id,
       companyId: companyProfiles.companyId,
@@ -127,8 +133,10 @@ export function a2aRoutes(db: Db) {
       .orderBy(asc(companyProfiles.ragioneSociale))
       .limit(100);
 
-    // In-memory filter for flexible multi-field text search
-    let filtered = results;
+    // Exclude already connected companies
+    let filtered = connectedIds.length > 0
+      ? results.filter((p) => !connectedIds.includes(p.companyId))
+      : results;
     if (q) {
       const lower = q.toLowerCase();
       filtered = filtered.filter((p) =>
