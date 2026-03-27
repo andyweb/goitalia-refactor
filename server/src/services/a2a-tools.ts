@@ -1,5 +1,5 @@
 import type { Db } from "@goitalia/db";
-import { a2aProfiles, a2aConnections, a2aTasks, a2aMessages, companies } from "@goitalia/db";
+import { companyProfiles, a2aConnections, a2aTasks, a2aMessages, companies } from "@goitalia/db";
 import { eq, and, or, sql, desc, asc } from "drizzle-orm";
 
 /**
@@ -13,13 +13,13 @@ export async function executeA2aTool(
   toolInput: Record<string, unknown>,
 ): Promise<string> {
 
-  // Check if company has an A2A profile (required for all A2A tools)
+  // Check if company has A2A active (slug set in company_profiles)
   if (toolName !== "cerca_azienda_a2a") {
-    const profile = await db.select({ id: a2aProfiles.id }).from(a2aProfiles)
-      .where(eq(a2aProfiles.companyId, companyId))
+    const profile = await db.select({ slug: companyProfiles.slug }).from(companyProfiles)
+      .where(eq(companyProfiles.companyId, companyId))
       .then((r) => r[0]);
-    if (!profile && toolName !== "cerca_azienda_a2a") {
-      return "La Rete B2B non è ancora attiva per questa azienda. Il titolare deve attivarla dalla pagina Rete B2B nella sidebar.";
+    if (!profile?.slug) {
+      return "La Rete A2A non è ancora attiva per questa azienda. Il titolare deve attivarla dalla pagina A2A nella sidebar.";
     }
   }
 
@@ -31,18 +31,19 @@ export async function executeA2aTool(
       if (!q && !zone) return "Specifica almeno un criterio di ricerca (nome, settore, zona, tag).";
 
       const results = await db.select({
-        companyId: a2aProfiles.companyId,
-        legalName: a2aProfiles.legalName,
-        atecoDescription: a2aProfiles.atecoDescription,
-        zone: a2aProfiles.zone,
-        description: a2aProfiles.description,
-        tags: a2aProfiles.tags,
-        services: a2aProfiles.services,
-        riskScore: a2aProfiles.riskScore,
-      }).from(a2aProfiles)
+        companyId: companyProfiles.companyId,
+        legalName: companyProfiles.ragioneSociale,
+        atecoDescription: companyProfiles.settore,
+        zone: companyProfiles.regione,
+        description: companyProfiles.description,
+        tags: companyProfiles.tags,
+        services: companyProfiles.services,
+        riskScore: companyProfiles.riskSeverity,
+      }).from(companyProfiles)
         .where(and(
-          eq(a2aProfiles.visibility, "public"),
-          sql`${a2aProfiles.companyId} != ${companyId}`,
+          eq(companyProfiles.visibility, "public"),
+          sql`${companyProfiles.companyId} != ${companyId}`,
+          sql`${companyProfiles.slug} IS NOT NULL`,
         ))
         .limit(100);
 
@@ -102,10 +103,10 @@ export async function executeA2aTool(
       // Orders always require approval
       const requiresApproval = type === "order";
 
-      // Verify target company has A2A profile
-      const targetProfile = await db.select({ id: a2aProfiles.id, legalName: a2aProfiles.legalName })
-        .from(a2aProfiles)
-        .where(eq(a2aProfiles.companyId, toCompanyId))
+      // Verify target company has A2A active
+      const targetProfile = await db.select({ id: companyProfiles.id, legalName: companyProfiles.ragioneSociale })
+        .from(companyProfiles)
+        .where(and(eq(companyProfiles.companyId, toCompanyId), sql`${companyProfiles.slug} IS NOT NULL`))
         .then((r) => r[0]);
 
       if (!targetProfile) return "L'azienda destinataria non ha attivato la rete A2A.";

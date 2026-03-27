@@ -2,7 +2,7 @@ import { Router } from "express";
 import type { Db } from "@goitalia/db";
 import { getStripeApiKey } from "./stripe-connector.js";
 import { getProjectFilesContent } from "./project-files.js";
-import { companySecrets, agents, companyMemberships, companies, issues, connectorAccounts, agentConnectorAccounts, routines, routineTriggers, routineRuns } from "@goitalia/db";
+import { companySecrets, agents, companyMemberships, companies, issues, connectorAccounts, agentConnectorAccounts, routines, routineTriggers, routineRuns, companyProfiles } from "@goitalia/db";
 import { parseCron, nextCronTick } from "../services/cron.js";
 import { nextCronTickInTimeZone } from "../services/routines.js";
 import { eq, and, ne, inArray, desc, sql, asc } from "drizzle-orm";
@@ -1824,19 +1824,32 @@ export async function executeChatTool(
 
       case "salva_info_azienda": {
         const fields = toolInput as Record<string, string>;
-        // Load existing memory
-        const existingMem = await db.execute(sql`SELECT company_info FROM ceo_memory WHERE company_id = ${companyId}`);
-        const rows = (existingMem as any).rows || existingMem;
-        const existing = rows[0]?.company_info || {};
-        // Merge non-empty fields
-        const updated: Record<string, string> = { ...existing };
+        // Map tool snake_case keys → Drizzle camelCase columns
+        const fieldMap: Record<string, string> = {
+          ragione_sociale: "ragioneSociale", partita_iva: "partitaIva", codice_fiscale: "codiceFiscale",
+          forma_giuridica: "formaGiuridica", stato_attivita: "statoAttivita", data_inizio: "dataInizio",
+          settore: "settore", indirizzo: "indirizzo", citta: "citta", cap: "cap",
+          provincia: "provincia", regione: "regione", telefono: "telefono", email: "email",
+          whatsapp: "whatsapp", pec: "pec", codice_sdi: "codiceSdi", sito_web: "sitoWeb",
+          dipendenti: "dipendenti", fatturato: "fatturato", patrimonio_netto: "patrimonioNetto",
+          capitale_sociale: "capitaleSociale", totale_attivo: "totaleAttivo",
+          risk_score: "riskScore", rating: "rating", risk_severity: "riskSeverity",
+          credit_limit: "creditLimit", soci: "soci", note: "note",
+        };
+        const dbData: Record<string, unknown> = { updatedAt: new Date() };
         for (const [k, v] of Object.entries(fields)) {
-          if (v && typeof v === "string" && v.trim()) updated[k] = v.trim();
+          if (v && typeof v === "string" && v.trim()) {
+            const dbCol = fieldMap[k];
+            if (dbCol) dbData[dbCol] = v.trim();
+          }
         }
-        if (rows.length > 0) {
-          await db.execute(sql`UPDATE ceo_memory SET company_info = ${JSON.stringify(updated)}::jsonb, updated_at = NOW() WHERE company_id = ${companyId}`);
+        const existing = await db.select({ id: companyProfiles.id }).from(companyProfiles)
+          .where(eq(companyProfiles.companyId, companyId))
+          .then((r) => r[0]);
+        if (existing) {
+          await db.update(companyProfiles).set(dbData).where(eq(companyProfiles.companyId, companyId));
         } else {
-          await db.execute(sql`INSERT INTO ceo_memory (company_id, company_info) VALUES (${companyId}, ${JSON.stringify(updated)}::jsonb)`);
+          await db.insert(companyProfiles).values({ companyId, ...dbData } as any);
         }
         const savedFields = Object.keys(fields).filter(k => fields[k]?.trim()).join(", ");
         return "Info azienda aggiornate: " + savedFields;
@@ -1859,18 +1872,42 @@ export async function executeChatTool(
       }
 
       case "leggi_memoria": {
-        const memResult = await db.execute(sql`SELECT company_info, notes, preferences FROM ceo_memory WHERE company_id = ${companyId}`);
+        // Read company profile from company_profiles
+        const profileRow = await db.select().from(companyProfiles)
+          .where(eq(companyProfiles.companyId, companyId))
+          .then((r) => r[0]);
+        // Read notes/preferences from ceo_memory
+        const memResult = await db.execute(sql`SELECT notes, preferences FROM ceo_memory WHERE company_id = ${companyId}`);
         const memR = (memResult as any).rows || memResult;
-        if (memR.length === 0) return "Nessuna informazione salvata in memoria per questa azienda.";
-        const mem = memR[0];
+
         let output = "";
-        if (mem.company_info && Object.keys(mem.company_info).length > 0) {
-          output += "DATI AZIENDA:\n";
-          for (const [k, v] of Object.entries(mem.company_info)) {
-            output += "- " + k + ": " + v + "\n";
+        if (profileRow) {
+          const profileFields: [string, unknown][] = [
+            ["Ragione Sociale", profileRow.ragioneSociale], ["P.IVA", profileRow.partitaIva],
+            ["Codice Fiscale", profileRow.codiceFiscale], ["Forma Giuridica", profileRow.formaGiuridica],
+            ["Stato Attività", profileRow.statoAttivita], ["Data Inizio", profileRow.dataInizio],
+            ["Settore", profileRow.settore], ["Indirizzo", profileRow.indirizzo],
+            ["Città", profileRow.citta], ["CAP", profileRow.cap],
+            ["Provincia", profileRow.provincia], ["Regione", profileRow.regione],
+            ["Telefono", profileRow.telefono], ["Email", profileRow.email],
+            ["WhatsApp", profileRow.whatsapp], ["PEC", profileRow.pec],
+            ["Codice SDI", profileRow.codiceSdi], ["Sito Web", profileRow.sitoWeb],
+            ["Dipendenti", profileRow.dipendenti], ["Fatturato", profileRow.fatturato],
+            ["Patrimonio Netto", profileRow.patrimonioNetto], ["Capitale Sociale", profileRow.capitaleSociale],
+            ["Totale Attivo", profileRow.totaleAttivo], ["Risk Score", profileRow.riskScore],
+            ["Rating", profileRow.rating], ["Severità Rischio", profileRow.riskSeverity],
+            ["Limite Credito", profileRow.creditLimit], ["Soci", profileRow.soci],
+          ];
+          const filled = profileFields.filter(([, v]) => v != null && v !== "");
+          if (filled.length > 0) {
+            output += "DATI AZIENDA:\n";
+            for (const [label, val] of filled) {
+              output += "- " + label + ": " + val + "\n";
+            }
           }
         }
-        if (mem.notes && Array.isArray(mem.notes) && mem.notes.length > 0) {
+        const mem = memR[0];
+        if (mem?.notes && Array.isArray(mem.notes) && mem.notes.length > 0) {
           output += "\nNOTE SALVATE:\n";
           for (const n of mem.notes) {
             output += "- [" + (n.categoria || "generale") + " " + (n.data || "") + "] " + n.contenuto + "\n";
@@ -2541,27 +2578,51 @@ export function chatRoutes(db: Db) {
         }
       }
 
-      // Load CEO memory
+      // Load company profile + CEO notes
       let memoryContext = "";
       try {
-        const memResult = await db.execute(sql`SELECT company_info, notes, preferences FROM ceo_memory WHERE company_id = ${companyId}`);
-        const memRows = (memResult as any).rows || memResult;
-        if (memRows.length > 0 && memRows[0]) {
-          const mem = memRows[0];
-          if (mem.company_info && Object.keys(mem.company_info).length > 0) {
+        // Read structured profile from company_profiles
+        const profileRow = await db.select().from(companyProfiles)
+          .where(eq(companyProfiles.companyId, companyId))
+          .then((r) => r[0]);
+        if (profileRow) {
+          const fields: [string, unknown][] = [
+            ["ragione_sociale", profileRow.ragioneSociale], ["partita_iva", profileRow.partitaIva],
+            ["codice_fiscale", profileRow.codiceFiscale], ["forma_giuridica", profileRow.formaGiuridica],
+            ["stato_attivita", profileRow.statoAttivita], ["data_inizio", profileRow.dataInizio],
+            ["settore", profileRow.settore], ["indirizzo", profileRow.indirizzo],
+            ["citta", profileRow.citta], ["cap", profileRow.cap],
+            ["provincia", profileRow.provincia], ["regione", profileRow.regione],
+            ["telefono", profileRow.telefono], ["email", profileRow.email],
+            ["whatsapp", profileRow.whatsapp], ["pec", profileRow.pec],
+            ["codice_sdi", profileRow.codiceSdi], ["sito_web", profileRow.sitoWeb],
+            ["dipendenti", profileRow.dipendenti], ["fatturato", profileRow.fatturato],
+            ["patrimonio_netto", profileRow.patrimonioNetto], ["capitale_sociale", profileRow.capitaleSociale],
+            ["totale_attivo", profileRow.totaleAttivo], ["risk_score", profileRow.riskScore],
+            ["rating", profileRow.rating], ["risk_severity", profileRow.riskSeverity],
+            ["credit_limit", profileRow.creditLimit], ["soci", profileRow.soci],
+          ];
+          const filled = fields.filter(([, v]) => v != null && v !== "");
+          if (filled.length > 0) {
             memoryContext += "\n\n--- MEMORIA AZIENDA ---\n";
-            for (const [k, v] of Object.entries(mem.company_info)) {
+            for (const [k, v] of filled) {
               memoryContext += k + ": " + v + "\n";
             }
           }
+        }
+        // Read notes from ceo_memory
+        const memResult = await db.execute(sql`SELECT notes, preferences FROM ceo_memory WHERE company_id = ${companyId}`);
+        const memRows = (memResult as any).rows || memResult;
+        if (memRows.length > 0 && memRows[0]) {
+          const mem = memRows[0];
           if (mem.notes && Array.isArray(mem.notes) && mem.notes.length > 0) {
             memoryContext += "\nNOTE SALVATE:\n";
             for (const n of (mem.notes as Array<{contenuto: string; categoria?: string; data?: string}>)) {
               memoryContext += "- [" + (n.categoria || "generale") + "] " + n.contenuto + "\n";
             }
           }
-          memoryContext += "--- FINE MEMORIA ---";
         }
+        if (memoryContext) memoryContext += "--- FINE MEMORIA ---";
       } catch (e) { console.error("Memory load error:", e); }
       systemPrompt += memoryContext;
 

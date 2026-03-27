@@ -3,7 +3,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Db } from "@goitalia/db";
-import { companySecrets, agents, connectorAccounts as caTableImport } from "@goitalia/db";
+import { companySecrets, agents, connectorAccounts as caTableImport, companyProfiles } from "@goitalia/db";
 import type { DeploymentExposure, DeploymentMode } from "@goitalia/shared";
 import type { StorageService } from "./storage/types.js";
 import { httpLogger, errorHandler } from "./middleware/index.js";
@@ -210,16 +210,37 @@ app.use(express.json({
   api.use(falAiRoutes(db));
   api.use(connectorAccountRoutes(db));
 
-  // Company profile (ceo_memory)
+  // Company profile (company_profiles table)
+  // Mapping: DB camelCase field → UI snake_case key
+  const profileFieldMap: Record<string, keyof typeof companyProfiles.$inferSelect> = {
+    ragione_sociale: "ragioneSociale", partita_iva: "partitaIva", codice_fiscale: "codiceFiscale",
+    forma_giuridica: "formaGiuridica", stato_attivita: "statoAttivita", data_inizio: "dataInizio",
+    settore: "settore", indirizzo: "indirizzo", citta: "citta", cap: "cap",
+    provincia: "provincia", regione: "regione", telefono: "telefono", email: "email",
+    whatsapp: "whatsapp", pec: "pec", codice_sdi: "codiceSdi", sito_web: "sitoWeb",
+    dipendenti: "dipendenti", fatturato: "fatturato", patrimonio_netto: "patrimonioNetto",
+    capitale_sociale: "capitaleSociale", totale_attivo: "totaleAttivo",
+    risk_score: "riskScore", rating: "rating", risk_severity: "riskSeverity",
+    credit_limit: "creditLimit", soci: "soci", note: "note",
+  };
+
   api.get("/company-profile", async (req, res) => {
     const actor = req.actor as any;
     if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
     const companyId = req.query.companyId as string;
     if (!companyId) { res.json({ profile: {} }); return; }
     try {
-      const result = await db.execute(sql`SELECT company_info FROM ceo_memory WHERE company_id = ${companyId}`);
-      const rows = (result as any).rows || result;
-      res.json({ profile: rows[0]?.company_info || {} });
+      const row = await db.select().from(companyProfiles)
+        .where(eq(companyProfiles.companyId, companyId))
+        .then((r) => r[0]);
+      if (!row) { res.json({ profile: {} }); return; }
+      // Convert camelCase DB fields → snake_case UI keys
+      const profile: Record<string, string> = {};
+      for (const [uiKey, dbField] of Object.entries(profileFieldMap)) {
+        const val = (row as any)[dbField];
+        if (val != null && val !== "") profile[uiKey] = String(val);
+      }
+      res.json({ profile });
     } catch { res.json({ profile: {} }); }
   });
 
@@ -229,13 +250,20 @@ app.use(express.json({
     const { companyId, profile } = req.body;
     if (!companyId) { res.status(400).json({ error: "companyId required" }); return; }
     try {
-      const existing = await db.execute(sql`SELECT id FROM ceo_memory WHERE company_id = ${companyId}`);
-      const rows = (existing as any).rows || existing;
-      const profileStr = JSON.stringify(profile || {});
-      if (rows.length > 0) {
-        await db.execute(sql`UPDATE ceo_memory SET company_info = ${profileStr}::jsonb, updated_at = NOW() WHERE company_id = ${companyId}`);
+      // Convert snake_case UI keys → camelCase DB fields
+      const dbData: Record<string, unknown> = { updatedAt: new Date() };
+      for (const [uiKey, dbField] of Object.entries(profileFieldMap)) {
+        if (profile[uiKey] !== undefined) {
+          dbData[dbField] = profile[uiKey] || null;
+        }
+      }
+      const existing = await db.select({ id: companyProfiles.id }).from(companyProfiles)
+        .where(eq(companyProfiles.companyId, companyId))
+        .then((r) => r[0]);
+      if (existing) {
+        await db.update(companyProfiles).set(dbData).where(eq(companyProfiles.companyId, companyId));
       } else {
-        await db.execute(sql`INSERT INTO ceo_memory (company_id, company_info) VALUES (${companyId}, ${profileStr}::jsonb)`);
+        await db.insert(companyProfiles).values({ companyId, ...dbData } as any);
       }
       res.json({ saved: true });
     } catch (err) {

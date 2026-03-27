@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Db } from "@goitalia/db";
-import { a2aProfiles, a2aConnections, a2aTasks, a2aMessages, companies } from "@goitalia/db";
+import { companyProfiles, a2aConnections, a2aTasks, a2aMessages, companies } from "@goitalia/db";
 import { eq, and, or, sql, desc, asc } from "drizzle-orm";
 
 export function a2aRoutes(db: Db) {
@@ -8,90 +8,91 @@ export function a2aRoutes(db: Db) {
 
   // ==================== PROFILE ====================
 
+  // Helper: convert companyProfiles row → A2A API response format (retrocompat)
+  function toA2AProfileResponse(row: typeof companyProfiles.$inferSelect) {
+    return {
+      id: row.id,
+      companyId: row.companyId,
+      slug: row.slug,
+      legalName: row.ragioneSociale,
+      vatNumber: row.partitaIva,
+      atecoCode: null,
+      atecoDescription: row.settore,
+      address: row.indirizzo ? `${row.indirizzo}, ${row.cap || ""} ${row.citta || ""} (${row.provincia || ""})`.trim() : null,
+      zone: row.regione || row.provincia,
+      description: row.description,
+      riskScore: row.riskSeverity ? parseInt(row.riskSeverity) : null,
+      tags: row.tags,
+      services: row.services,
+      visibility: row.visibility,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
   // GET /api/a2a/profile?companyId=
   router.get("/a2a/profile", async (req, res) => {
     const companyId = req.query.companyId as string;
     if (!companyId) return res.status(400).json({ error: "companyId required" });
 
-    const profile = await db.select().from(a2aProfiles)
-      .where(eq(a2aProfiles.companyId, companyId))
-      .then((r) => r[0] ?? null);
+    const row = await db.select().from(companyProfiles)
+      .where(eq(companyProfiles.companyId, companyId))
+      .then((r) => r[0]);
 
-    return res.json(profile);
+    if (!row) return res.json(null);
+    // Only return as "profile exists" if A2A is activated (has slug)
+    if (!row.slug) return res.json(null);
+    return res.json(toA2AProfileResponse(row));
   });
 
-  // POST /api/a2a/profile — create or update
+  // POST /api/a2a/profile — activate A2A or update A2A fields
   router.post("/a2a/profile", async (req, res) => {
-    const {
-      companyId, slug, vatNumber, legalName, atecoCode, atecoDescription,
-      address, zone, description, riskScore, tags, services, visibility,
-    } = req.body;
+    const { companyId, slug, tags, services, visibility, description } = req.body;
     if (!companyId) return res.status(400).json({ error: "companyId required" });
 
-    const existing = await db.select().from(a2aProfiles)
-      .where(eq(a2aProfiles.companyId, companyId))
+    const existing = await db.select().from(companyProfiles)
+      .where(eq(companyProfiles.companyId, companyId))
       .then((r) => r[0]);
 
     if (existing) {
-      const updated = await db.update(a2aProfiles)
+      // Update only A2A-specific fields
+      const finalSlug = slug || existing.slug || companyId.substring(0, 8) + "-" + Date.now().toString(36);
+      const updated = await db.update(companyProfiles)
         .set({
-          slug: slug ?? existing.slug,
-          vatNumber: vatNumber ?? existing.vatNumber,
-          legalName: legalName ?? existing.legalName,
-          atecoCode: atecoCode ?? existing.atecoCode,
-          atecoDescription: atecoDescription ?? existing.atecoDescription,
-          address: address ?? existing.address,
-          zone: zone ?? existing.zone,
-          description: description ?? existing.description,
-          riskScore: riskScore ?? existing.riskScore,
+          slug: finalSlug,
           tags: tags ?? existing.tags,
           services: services ?? existing.services,
           visibility: visibility ?? existing.visibility,
+          description: description !== undefined ? description : existing.description,
           updatedAt: new Date(),
         })
-        .where(eq(a2aProfiles.id, existing.id))
+        .where(eq(companyProfiles.id, existing.id))
         .returning();
-      return res.json(updated[0]);
+      return res.json(toA2AProfileResponse(updated[0]));
     }
 
-    // Auto-populate from CEO memory if no fields provided
-    let mem: Record<string, string> = {};
-    if (!legalName && !vatNumber) {
-      try {
-        const memRows = await db.execute(sql`SELECT company_info FROM ceo_memory WHERE company_id = ${companyId}`);
-        const rows = (memRows as any).rows || memRows;
-        if (rows[0]?.company_info) {
-          mem = typeof rows[0].company_info === "string" ? JSON.parse(rows[0].company_info) : rows[0].company_info;
-        }
-      } catch { /* ignore */ }
-    }
-
+    // Create new company_profiles row with A2A fields
     const finalSlug = slug || companyId.substring(0, 8) + "-" + Date.now().toString(36);
-    const created = await db.insert(a2aProfiles).values({
+    const created = await db.insert(companyProfiles).values({
       companyId,
       slug: finalSlug,
-      vatNumber: vatNumber || mem.partita_iva || null,
-      legalName: legalName || mem.ragione_sociale || null,
-      atecoCode: atecoCode || null,
-      atecoDescription: atecoDescription || mem.settore || null,
-      address: address || (mem.indirizzo ? `${mem.indirizzo}, ${mem.cap || ""} ${mem.citta || ""} (${mem.provincia || ""})`.trim() : null),
-      zone: zone || mem.regione || mem.provincia || null,
-      description: description || null,
-      riskScore: riskScore ?? (mem.risk_severity ? parseInt(mem.risk_severity) : null),
       tags: tags || [],
       services: services || [],
-      visibility: visibility || "hidden",
+      visibility: visibility || "public",
+      description: description || null,
     }).returning();
 
-    return res.status(201).json(created[0]);
+    return res.status(201).json(toA2AProfileResponse(created[0]));
   });
 
-  // DELETE /api/a2a/profile?companyId=
+  // DELETE /api/a2a/profile?companyId= — deactivate A2A (reset A2A fields, keep profile)
   router.delete("/a2a/profile", async (req, res) => {
     const companyId = req.query.companyId as string;
     if (!companyId) return res.status(400).json({ error: "companyId required" });
 
-    await db.delete(a2aProfiles).where(eq(a2aProfiles.companyId, companyId));
+    await db.update(companyProfiles)
+      .set({ slug: null, visibility: "hidden", updatedAt: new Date() })
+      .where(eq(companyProfiles.companyId, companyId));
     return res.json({ ok: true });
   });
 
@@ -105,25 +106,24 @@ export function a2aRoutes(db: Db) {
 
     if (!companyId) return res.status(400).json({ error: "companyId required" });
 
-    // Fetch all public profiles except own company
     const results = await db.select({
-      id: a2aProfiles.id,
-      companyId: a2aProfiles.companyId,
-      slug: a2aProfiles.slug,
-      legalName: a2aProfiles.legalName,
-      atecoCode: a2aProfiles.atecoCode,
-      atecoDescription: a2aProfiles.atecoDescription,
-      zone: a2aProfiles.zone,
-      description: a2aProfiles.description,
-      tags: a2aProfiles.tags,
-      services: a2aProfiles.services,
-      riskScore: a2aProfiles.riskScore,
-    }).from(a2aProfiles)
+      id: companyProfiles.id,
+      companyId: companyProfiles.companyId,
+      slug: companyProfiles.slug,
+      legalName: companyProfiles.ragioneSociale,
+      atecoDescription: companyProfiles.settore,
+      zone: companyProfiles.regione,
+      description: companyProfiles.description,
+      tags: companyProfiles.tags,
+      services: companyProfiles.services,
+      riskScore: companyProfiles.riskSeverity,
+    }).from(companyProfiles)
       .where(and(
-        eq(a2aProfiles.visibility, "public"),
-        sql`${a2aProfiles.companyId} != ${companyId}`,
+        eq(companyProfiles.visibility, "public"),
+        sql`${companyProfiles.companyId} != ${companyId}`,
+        sql`${companyProfiles.slug} IS NOT NULL`,
       ))
-      .orderBy(asc(a2aProfiles.legalName))
+      .orderBy(asc(companyProfiles.ragioneSociale))
       .limit(100);
 
     // In-memory filter for flexible multi-field text search
@@ -153,7 +153,6 @@ export function a2aRoutes(db: Db) {
     const companyId = req.query.companyId as string;
     if (!companyId) return res.status(400).json({ error: "companyId required" });
 
-    // Get all connections where this company is sender (outgoing perspective with labels)
     const outgoing = await db.select({
       id: a2aConnections.id,
       fromCompanyId: a2aConnections.fromCompanyId,
@@ -169,7 +168,6 @@ export function a2aRoutes(db: Db) {
       .where(eq(a2aConnections.fromCompanyId, companyId))
       .orderBy(desc(a2aConnections.createdAt));
 
-    // Get incoming pending requests (where someone else requested connection to me)
     const incoming = await db.select({
       id: a2aConnections.id,
       fromCompanyId: a2aConnections.fromCompanyId,
@@ -196,13 +194,12 @@ export function a2aRoutes(db: Db) {
     return res.json(result);
   });
 
-  // POST /api/a2a/connections — send connection request
+  // POST /api/a2a/connections
   router.post("/a2a/connections", async (req, res) => {
     const { companyId, toCompanyId, relationshipLabel, notes } = req.body;
     if (!companyId || !toCompanyId) return res.status(400).json({ error: "companyId and toCompanyId required" });
     if (companyId === toCompanyId) return res.status(400).json({ error: "Cannot connect to yourself" });
 
-    // Check if connection already exists in either direction
     const existing = await db.select().from(a2aConnections)
       .where(or(
         and(eq(a2aConnections.fromCompanyId, companyId), eq(a2aConnections.toCompanyId, toCompanyId)),
@@ -223,7 +220,7 @@ export function a2aRoutes(db: Db) {
     return res.status(201).json(created[0]);
   });
 
-  // PUT /api/a2a/connections/:id — accept/reject/block + set label
+  // PUT /api/a2a/connections/:id
   router.put("/a2a/connections/:id", async (req, res) => {
     const { id } = req.params;
     const { companyId, status, relationshipLabel, notes } = req.body;
@@ -235,15 +232,10 @@ export function a2aRoutes(db: Db) {
 
     if (!conn) return res.status(404).json({ error: "Connection not found" });
 
-    // Update the original connection
     await db.update(a2aConnections)
-      .set({
-        status: status ?? conn.status,
-        updatedAt: new Date(),
-      })
+      .set({ status: status ?? conn.status, updatedAt: new Date() })
       .where(eq(a2aConnections.id, id));
 
-    // If accepted: create the reverse record (how B sees A)
     if (status === "active" && conn.status === "pending") {
       const reverseExists = await db.select().from(a2aConnections)
         .where(and(
@@ -263,7 +255,6 @@ export function a2aRoutes(db: Db) {
       }
     }
 
-    // If blocked: remove both directions
     if (status === "blocked") {
       await db.delete(a2aConnections).where(or(
         and(eq(a2aConnections.fromCompanyId, conn.fromCompanyId), eq(a2aConnections.toCompanyId, conn.toCompanyId)),
@@ -291,7 +282,6 @@ export function a2aRoutes(db: Db) {
 
     if (!conn) return res.status(404).json({ error: "Connection not found" });
 
-    // Delete both directions
     await db.delete(a2aConnections).where(or(
       and(eq(a2aConnections.fromCompanyId, conn.fromCompanyId), eq(a2aConnections.toCompanyId, conn.toCompanyId)),
       and(eq(a2aConnections.fromCompanyId, conn.toCompanyId), eq(a2aConnections.toCompanyId, conn.fromCompanyId)),
@@ -329,14 +319,14 @@ export function a2aRoutes(db: Db) {
     return res.json(tasks);
   });
 
-  // POST /api/a2a/tasks — create task
+  // POST /api/a2a/tasks
   router.post("/a2a/tasks", async (req, res) => {
     const { companyId, toCompanyId, type, title, description, requiresApproval, metadata } = req.body;
     if (!companyId || !toCompanyId || !title) return res.status(400).json({ error: "companyId, toCompanyId, title required" });
 
-    // Verify target company has A2A profile (is on the network)
-    const targetProfile = await db.select({ id: a2aProfiles.id }).from(a2aProfiles)
-      .where(eq(a2aProfiles.companyId, toCompanyId))
+    // Verify target company has A2A active (has slug in company_profiles)
+    const targetProfile = await db.select({ id: companyProfiles.id }).from(companyProfiles)
+      .where(and(eq(companyProfiles.companyId, toCompanyId), sql`${companyProfiles.slug} IS NOT NULL`))
       .then((r) => r[0]);
 
     if (!targetProfile) return res.status(403).json({ error: "L'azienda destinataria non ha attivato la rete A2A" });
@@ -355,7 +345,7 @@ export function a2aRoutes(db: Db) {
     return res.status(201).json(created[0]);
   });
 
-  // GET /api/a2a/tasks/:id — task detail with messages
+  // GET /api/a2a/tasks/:id
   router.get("/a2a/tasks/:id", async (req, res) => {
     const { id } = req.params;
 
@@ -372,7 +362,7 @@ export function a2aRoutes(db: Db) {
     return res.json({ ...task, messages });
   });
 
-  // PUT /api/a2a/tasks/:id — update status
+  // PUT /api/a2a/tasks/:id
   router.put("/a2a/tasks/:id", async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
@@ -387,13 +377,12 @@ export function a2aRoutes(db: Db) {
     return res.json(updated[0]);
   });
 
-  // POST /api/a2a/tasks/:id/messages — add message to task
+  // POST /api/a2a/tasks/:id/messages
   router.post("/a2a/tasks/:id/messages", async (req, res) => {
     const { id } = req.params;
     const { companyId, role, content, attachments } = req.body;
     if (!companyId || !content) return res.status(400).json({ error: "companyId, content required" });
 
-    // Verify task exists
     const task = await db.select({ id: a2aTasks.id }).from(a2aTasks)
       .where(eq(a2aTasks.id, id))
       .then((r) => r[0]);
