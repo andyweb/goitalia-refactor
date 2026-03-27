@@ -27,15 +27,15 @@ function statusDotColor(status?: string): string {
 
 export function CompanySwitcher() {
   const { companies, selectedCompany, setSelectedCompanyId } = useCompany();
-  // Hide admin_viewer companies from switcher (admin can access them via admin dashboard)
-  const [adminViewerIds, setAdminViewerIds] = useState<Set<string>>(new Set());
+  // Load switcher-only companies (excludes admin_viewer)
+  const [switcherCompanies, setSwitcherCompanies] = useState<typeof companies | null>(null);
   useEffect(() => {
-    fetch("/api/admin/my-admin-companies", { credentials: "include" })
-      .then(r => r.ok ? r.json() : [])
-      .then(ids => { if (Array.isArray(ids)) setAdminViewerIds(new Set(ids)); })
+    fetch("/api/companies?switcher=true", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (Array.isArray(data)) setSwitcherCompanies(data); })
       .catch(() => {});
   }, []);
-  const sidebarCompanies = companies.filter((company) => company.status !== "archived" && !adminViewerIds.has(company.id));
+  const sidebarCompanies = (switcherCompanies ?? companies).filter((company: any) => company.status !== "archived");
 
   return (
     <DropdownMenu>
