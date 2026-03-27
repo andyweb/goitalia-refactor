@@ -33,8 +33,8 @@ export function A2ANetwork() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-500/15 border border-emerald-500/30">
-            <Network className="w-5 h-5 text-emerald-400" />
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[hsl(158_64%_42%/0.15)] border border-[hsl(158_64%_42%/0.3)]">
+            <Network className="w-5 h-5 text-[hsl(158_64%_42%)]" />
           </div>
           <div>
             <h1 className="text-lg font-semibold">Rete A2A</h1>
@@ -55,9 +55,10 @@ export function A2ANetwork() {
               onClick={() => setTab(t.key)}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
                 isActive
-                  ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                  ? "text-white"
                   : "text-muted-foreground hover:text-foreground hover:bg-white/5"
               }`}
+              style={isActive ? { background: "linear-gradient(135deg, hsl(158 64% 42% / 0.25), hsl(158 64% 42% / 0.12))", border: "1px solid hsl(158 64% 42% / 0.3)" } : {}}
             >
               <Icon className="w-4 h-4" />
               {t.label}
@@ -93,8 +94,8 @@ function SetupProfile({ companyId, onCreated }: { companyId: string; onCreated: 
   return (
     <div className="flex items-center justify-center min-h-[60vh] px-4">
       <div className="glass-card px-8 py-10 max-w-lg w-full text-center space-y-6">
-        <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-emerald-500/15 border border-emerald-500/30 mx-auto">
-          <Network className="w-8 h-8 text-emerald-400" />
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-[hsl(158_64%_42%/0.15)] border border-[hsl(158_64%_42%/0.3)] mx-auto">
+          <Network className="w-8 h-8 text-[hsl(158_64%_42%)]" />
         </div>
 
         <div>
@@ -108,21 +109,21 @@ function SetupProfile({ companyId, onCreated }: { companyId: string; onCreated: 
 
         <div className="glass-card px-5 py-4 text-left space-y-3" style={{ background: "rgba(255,255,255,0.02)" }}>
           <div className="flex items-start gap-3">
-            <span className="text-emerald-400 text-lg mt-0.5">1.</span>
+            <span className="text-[hsl(158_64%_42%)] text-lg mt-0.5">1.</span>
             <div>
               <p className="text-sm font-medium">Directory Aziende</p>
               <p className="text-xs text-muted-foreground">Cerca partner, fornitori e clienti sulla piattaforma per settore, zona o nome.</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
-            <span className="text-emerald-400 text-lg mt-0.5">2.</span>
+            <span className="text-[hsl(158_64%_42%)] text-lg mt-0.5">2.</span>
             <div>
               <p className="text-sm font-medium">Connessioni B2B</p>
               <p className="text-xs text-muted-foreground">Collegati con altre aziende. Ogni connessione ha un ruolo: Fornitore, Cliente, Partner.</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
-            <span className="text-emerald-400 text-lg mt-0.5">3.</span>
+            <span className="text-[hsl(158_64%_42%)] text-lg mt-0.5">3.</span>
             <div>
               <p className="text-sm font-medium">Task tra CEO</p>
               <p className="text-xs text-muted-foreground">I CEO AI si scambiano ordini, preventivi e messaggi. Auto-risposta per info e prezzi, approvazione umana per impegni economici.</p>
@@ -172,7 +173,7 @@ function VisibilityToggle({ profile, onUpdate }: { profile: A2AProfile; onUpdate
       disabled={toggling}
       className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
         isPublic
-          ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+          ? "bg-[hsl(158_64%_42%/0.1)] border border-[hsl(158_64%_42%/0.3)] text-[hsl(158_64%_42%)]"
           : "bg-white/5 border border-white/10 text-muted-foreground"
       }`}
     >
@@ -213,7 +214,7 @@ function DirectoryTab({ companyId }: { companyId: string }) {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && search()}
-              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-white/10 bg-transparent text-sm outline-none focus:border-emerald-500/50 transition-colors"
+              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-white/10 bg-transparent text-sm outline-none focus:border-[hsl(158_64%_42%/0.5)] transition-colors"
             />
           </div>
           <input
@@ -221,11 +222,11 @@ function DirectoryTab({ companyId }: { companyId: string }) {
             value={zone}
             onChange={(e) => setZone(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && search()}
-            className="w-40 px-3 py-2.5 rounded-lg border border-white/10 bg-transparent text-sm outline-none focus:border-emerald-500/50 transition-colors"
+            className="w-40 px-3 py-2.5 rounded-lg border border-white/10 bg-transparent text-sm outline-none focus:border-[hsl(158_64%_42%/0.5)] transition-colors"
           />
           <button
             onClick={search}
-            className="px-5 py-2.5 rounded-lg text-sm font-medium transition-all hover:scale-[1.02] bg-emerald-500/15 border border-emerald-500/30 text-emerald-400"
+            className="px-5 py-2.5 rounded-lg text-sm font-medium transition-all hover:scale-[1.02] text-white" style={{ background: "hsl(158 64% 42%)" }}
           >
             Cerca
           </button>
@@ -278,7 +279,7 @@ function DirectoryCard({ profile, companyId }: { profile: A2AProfile; companyId:
           {(profile.tags || []).length > 0 && (
             <div className="flex gap-1.5 flex-wrap mt-2">
               {(profile.tags as string[]).map((t) => (
-                <span key={t} className="px-2 py-0.5 rounded text-[11px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">{t}</span>
+                <span key={t} className="px-2 py-0.5 rounded text-[11px] bg-[hsl(158_64%_42%/0.1)] border border-[hsl(158_64%_42%/0.2)] text-[hsl(158_64%_42%)]">{t}</span>
               ))}
             </div>
           )}
@@ -286,7 +287,7 @@ function DirectoryCard({ profile, companyId }: { profile: A2AProfile; companyId:
         <div className="flex flex-col items-end gap-2 shrink-0">
           {profile.riskScore != null && (
             <span className={`text-[11px] font-mono px-2 py-0.5 rounded ${
-              profile.riskScore > 70 ? "bg-emerald-500/10 text-emerald-400" :
+              profile.riskScore > 70 ? "bg-[hsl(158_64%_42%/0.15)] text-[hsl(158_64%_42%)]" :
               profile.riskScore > 40 ? "bg-yellow-500/10 text-yellow-400" :
               "bg-red-500/10 text-red-400"
             }`}>
@@ -299,18 +300,18 @@ function DirectoryCard({ profile, companyId }: { profile: A2AProfile; companyId:
                 placeholder="Es: Fornitore"
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                className="w-32 px-2 py-1.5 rounded-lg border border-white/10 bg-transparent text-xs outline-none focus:border-emerald-500/50"
+                className="w-32 px-2 py-1.5 rounded-lg border border-white/10 bg-transparent text-xs outline-none focus:border-[hsl(158_64%_42%/0.5)]"
               />
               <button
                 onClick={connect}
                 disabled={requesting}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 transition-all hover:bg-emerald-500/25 whitespace-nowrap"
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all whitespace-nowrap" style={{ background: "hsl(158 64% 42%)" }}
               >
                 {requesting ? "..." : "Collegati"}
               </button>
             </div>
           ) : (
-            <span className="text-xs text-emerald-400 flex items-center gap-1">
+            <span className="text-xs text-[hsl(158_64%_42%)] flex items-center gap-1">
               <CheckCircle className="w-3.5 h-3.5" /> Richiesta inviata
             </span>
           )}
@@ -394,8 +395,8 @@ function ConnectionsTab({ companyId }: { companyId: string }) {
       {/* Partner attivi */}
       <div className="space-y-3">
         <div className="flex items-center gap-2 px-1">
-          <Users className="w-4 h-4 text-emerald-400" />
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-400">Partner attivi ({active.length})</h3>
+          <Users className="w-4 h-4 text-[hsl(158_64%_42%)]" />
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-[hsl(158_64%_42%)]">Partner attivi ({active.length})</h3>
         </div>
 
         {active.length === 0 && pendingIn.length === 0 && pendingOut.length === 0 && (
@@ -409,18 +410,18 @@ function ConnectionsTab({ companyId }: { companyId: string }) {
         {active.map((c) => (
           <div key={c.id} className="glass-card p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xs font-bold text-emerald-400">
+              <div className="w-8 h-8 rounded-lg bg-[hsl(158_64%_42%/0.1)] border border-[hsl(158_64%_42%/0.2)] flex items-center justify-center text-xs font-bold text-[hsl(158_64%_42%)]">
                 {(c.partnerName || "?")[0].toUpperCase()}
               </div>
               <div>
                 <span className="text-sm font-medium">{c.partnerName || "Azienda"}</span>
                 {c.relationshipLabel && (
-                  <span className="ml-2 text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400">{c.relationshipLabel}</span>
+                  <span className="ml-2 text-xs px-2 py-0.5 rounded bg-[hsl(158_64%_42%/0.15)] text-[hsl(158_64%_42%)]">{c.relationshipLabel}</span>
                 )}
                 {c.notes && <p className="text-xs text-muted-foreground mt-0.5">{c.notes}</p>}
               </div>
             </div>
-            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400">Attivo</span>
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[hsl(158_64%_42%/0.15)] text-[hsl(158_64%_42%)]">Attivo</span>
           </div>
         ))}
       </div>
@@ -448,11 +449,11 @@ function PendingConnectionCard({ conn, onAccept, onReject }: { conn: A2AConnecti
             placeholder="Es: Fornitore"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            className="w-32 px-2 py-1.5 rounded-lg border border-white/10 bg-transparent text-xs outline-none focus:border-emerald-500/50"
+            className="w-32 px-2 py-1.5 rounded-lg border border-white/10 bg-transparent text-xs outline-none focus:border-[hsl(158_64%_42%/0.5)]"
           />
           <button
             onClick={() => onAccept(conn, label)}
-            className="p-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-all"
+            className="p-1.5 rounded-lg text-white transition-all" style={{ background: "hsl(158 64% 42%)" }}
             title="Accetta"
           >
             <CheckCircle className="w-4 h-4" />
@@ -491,9 +492,9 @@ function TasksTab({ companyId }: { companyId: string }) {
 
   const statusLabels: Record<string, { label: string; color: string }> = {
     created: { label: "Creato", color: "text-amber-400 bg-amber-500/10" },
-    accepted: { label: "Accettato", color: "text-emerald-400 bg-emerald-500/10" },
+    accepted: { label: "Accettato", color: "text-[hsl(158_64%_42%)] bg-[hsl(158_64%_42%/0.1)]" },
     in_progress: { label: "In corso", color: "text-blue-400 bg-blue-500/10" },
-    completed: { label: "Completato", color: "text-emerald-400 bg-emerald-500/10" },
+    completed: { label: "Completato", color: "text-[hsl(158_64%_42%)] bg-[hsl(158_64%_42%/0.1)]" },
     rejected: { label: "Rifiutato", color: "text-red-400 bg-red-500/10" },
     cancelled: { label: "Annullato", color: "text-muted-foreground bg-white/5" },
   };
@@ -512,7 +513,7 @@ function TasksTab({ companyId }: { companyId: string }) {
         <select
           value={direction}
           onChange={(e) => setDirection(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-white/10 bg-transparent text-sm outline-none focus:border-emerald-500/50"
+          className="px-3 py-2 rounded-lg border border-white/10 bg-transparent text-sm outline-none focus:border-[hsl(158_64%_42%/0.5)]"
         >
           <option value="">Tutte le direzioni</option>
           <option value="in">In entrata</option>
@@ -521,7 +522,7 @@ function TasksTab({ companyId }: { companyId: string }) {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-white/10 bg-transparent text-sm outline-none focus:border-emerald-500/50"
+          className="px-3 py-2 rounded-lg border border-white/10 bg-transparent text-sm outline-none focus:border-[hsl(158_64%_42%/0.5)]"
         >
           <option value="">Tutti gli stati</option>
           <option value="created">Creato</option>

@@ -366,9 +366,10 @@ export function CompanySettings() {
               onClick={() => setActiveTab(t.key)}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
                 isActive
-                  ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                  ? "text-white"
                   : "text-muted-foreground hover:text-foreground hover:bg-white/5"
               }`}
+              style={isActive ? { background: "linear-gradient(135deg, hsl(158 64% 42% / 0.25), hsl(158 64% 42% / 0.12))", border: "1px solid hsl(158 64% 42% / 0.3)" } : {}}
             >
               <Icon className="w-4 h-4" />
               {t.label}
@@ -539,7 +540,7 @@ export function CompanySettings() {
               </label>
               <button
                 onClick={() => setEditingProduct({ type: "product", name: "", currency: "EUR", available: true })}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all" style={{ background: "hsl(158 64% 42%)", color: "#fff" }}
               >
                 <Plus className="w-3.5 h-3.5" /> Aggiungi
               </button>
@@ -560,7 +561,7 @@ export function CompanySettings() {
               />
               {importResult && <p className="text-xs text-emerald-400">{importResult}</p>}
               <div className="flex gap-2">
-                <button onClick={doImport} disabled={importing || !importText.trim()} className="px-4 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-all disabled:opacity-40">
+                <button onClick={doImport} disabled={importing || !importText.trim()} className="px-4 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-40" style={{ background: "hsl(158 64% 42%)", color: "#fff" }}>
                   {importing ? "Importazione..." : "Importa"}
                 </button>
                 <button onClick={() => { setShowImport(false); setImportText(""); setImportResult(null); }} className="px-4 py-1.5 rounded-lg text-xs font-medium bg-white/5 border border-white/10 text-muted-foreground hover:bg-white/10 transition-all">
@@ -616,7 +617,7 @@ export function CompanySettings() {
                 <input className={inputCls} value={editingProduct.description || ""} onChange={(e) => setEditingProduct((p) => ({ ...p!, description: e.target.value }))} placeholder="Descrizione opzionale" />
               </Field>
               <div className="flex gap-2 pt-2">
-                <button onClick={saveProduct} disabled={productSaving || !editingProduct.name} className="px-4 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-all disabled:opacity-40">
+                <button onClick={saveProduct} disabled={productSaving || !editingProduct.name} className="px-4 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-40" style={{ background: "hsl(158 64% 42%)", color: "#fff" }}>
                   {productSaving ? "Salvataggio..." : "Salva"}
                 </button>
                 <button onClick={() => setEditingProduct(null)} className="px-4 py-1.5 rounded-lg text-xs font-medium bg-white/5 border border-white/10 text-muted-foreground hover:bg-white/10 transition-all">
