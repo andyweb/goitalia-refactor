@@ -1225,7 +1225,125 @@ export function PluginManager() {
           )}
         </div>
 
-        {/* 12. API Custom */}
+        {/* 12. HubSpot CRM */}
+        <div className="rounded-xl overflow-hidden" style={glass.cardStyle}>
+          <button onClick={() => toggle("hubspot")} className="w-full px-4 py-3 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,122,69,0.15)", border: "1px solid rgba(255,122,69,0.3)" }}>
+              <span className="text-sm font-bold" style={{ color: "#FF7A45" }}>H</span>
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <div className="text-sm font-medium">HubSpot CRM</div>
+              <div className="text-xs text-muted-foreground">Contatti, deal, aziende, note</div>
+            </div>
+            <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-medium border shrink-0", customConnectors.some(c => c.slug === "hubspot") ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-amber-500/20 text-amber-400 border-amber-500/30")}>
+              {customConnectors.some(c => c.slug === "hubspot") ? "Connesso" : "Non connesso"}
+            </span>
+            <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform shrink-0", expandedConnector === "hubspot" && "rotate-180")} />
+          </button>
+          {expandedConnector === "hubspot" && (
+            <div className="px-4 pb-3 pt-3 space-y-2 border-t border-white/5">
+              {customConnectors.some(c => c.slug === "hubspot") ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className={row + " flex-1"} style={rowBg}>
+                      {greenDot}
+                      <span className="text-xs font-bold" style={{ color: "#FF7A45" }}>H</span>
+                      <span className="flex-1 text-xs">HubSpot CRM — {(customConnectors.find(c => c.slug === "hubspot")?.actions || []).length} azioni</span>
+                    </div>
+                    <button className="text-red-400/50 hover:text-red-400 transition-colors shrink-0" onClick={async () => {
+                      const c = customConnectors.find(x => x.slug === "hubspot");
+                      if (!c || !confirm("Disconnettere HubSpot CRM?")) return;
+                      await fetch(`/api/custom-connectors/${c.id}?companyId=${selectedCompany?.id}`, { method: "DELETE", credentials: "include" });
+                      setCustomConnectors(prev => prev.filter(x => x.id !== c.id));
+                    }} title="Disconnetti">{xIcon}</button>
+                  </div>
+                  <div className={actionRow}>{agentBtn(`custom_hubspot`, "HubSpot CRM")}</div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-[10px] text-muted-foreground">Crea una Private App su <a href="https://app.hubspot.com/settings" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">HubSpot → Settings → Integrations → Private Apps</a>. Abilita gli scope CRM e copia il token.</p>
+                  <div>
+                    <label className="text-[11px] text-muted-foreground mb-1.5 block">Private App Token</label>
+                    <input type="password" className="w-full px-3 py-2.5 rounded-xl border border-white/10 bg-transparent text-xs outline-none" placeholder="pat-na1-..." value={crmApiKey} onChange={(e) => setCrmApiKey(e.target.value)} />
+                  </div>
+                  <button disabled={crmSaving || !crmApiKey} className="px-4 py-2 rounded-xl text-xs font-medium disabled:opacity-40 transition-all" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}
+                    onClick={async () => {
+                      setCrmSaving(true);
+                      try {
+                        const r = await fetch("/api/custom-connectors/from-template", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany?.id, templateKey: "hubspot", apiKey: crmApiKey }) });
+                        const d = await r.json();
+                        if (r.ok) { setCustomConnectors(prev => [...prev, d]); setCrmApiKey(""); } else { alert(d.error || "Errore"); }
+                      } catch { alert("Errore di rete"); }
+                      setCrmSaving(false);
+                    }}>{crmSaving ? "Verifica..." : "Collega HubSpot"}</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 13. Salesforce CRM */}
+        <div className="rounded-xl overflow-hidden" style={glass.cardStyle}>
+          <button onClick={() => toggle("salesforce")} className="w-full px-4 py-3 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(0,161,224,0.15)", border: "1px solid rgba(0,161,224,0.3)" }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M10 4.4C10.9-3.5 12.8 2 14.3 2c1.8 0 3.3 1.3 3.6 3 2 .2 3.6 1.9 3.6 4 0 2.2-1.8 4-4 4H6.5C4 13 2 11 2 8.5c0-2 1.3-3.7 3.2-4.2C5.9 2.3 7.8 1 10 1v3.4z" fill="#00A1E0"/></svg>
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <div className="text-sm font-medium">Salesforce CRM</div>
+              <div className="text-xs text-muted-foreground">Contatti, account, opportunità, task</div>
+            </div>
+            <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-medium border shrink-0", customConnectors.some(c => c.slug === "salesforce") ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-amber-500/20 text-amber-400 border-amber-500/30")}>
+              {customConnectors.some(c => c.slug === "salesforce") ? "Connesso" : "Non connesso"}
+            </span>
+            <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform shrink-0", expandedConnector === "salesforce" && "rotate-180")} />
+          </button>
+          {expandedConnector === "salesforce" && (
+            <div className="px-4 pb-3 pt-3 space-y-2 border-t border-white/5">
+              {customConnectors.some(c => c.slug === "salesforce") ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className={row + " flex-1"} style={rowBg}>
+                      {greenDot}
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M10 4.4C10.9-3.5 12.8 2 14.3 2c1.8 0 3.3 1.3 3.6 3 2 .2 3.6 1.9 3.6 4 0 2.2-1.8 4-4 4H6.5C4 13 2 11 2 8.5c0-2 1.3-3.7 3.2-4.2C5.9 2.3 7.8 1 10 1v3.4z" fill="#00A1E0"/></svg>
+                      <span className="flex-1 text-xs">Salesforce CRM — {(customConnectors.find(c => c.slug === "salesforce")?.actions || []).length} azioni</span>
+                    </div>
+                    <button className="text-red-400/50 hover:text-red-400 transition-colors shrink-0" onClick={async () => {
+                      const c = customConnectors.find(x => x.slug === "salesforce");
+                      if (!c || !confirm("Disconnettere Salesforce CRM?")) return;
+                      await fetch(`/api/custom-connectors/${c.id}?companyId=${selectedCompany?.id}`, { method: "DELETE", credentials: "include" });
+                      setCustomConnectors(prev => prev.filter(x => x.id !== c.id));
+                    }} title="Disconnetti">{xIcon}</button>
+                  </div>
+                  <div className={actionRow}>{agentBtn(`custom_salesforce`, "Salesforce CRM")}</div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-[10px] text-muted-foreground">Crea una Connected App in <a href="https://login.salesforce.com" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Salesforce Setup → App Manager</a>. Abilita OAuth e genera un Access Token.</p>
+                  <div>
+                    <label className="text-[11px] text-muted-foreground mb-1.5 block">Instance URL</label>
+                    <input className="w-full px-3 py-2.5 rounded-xl border border-white/10 bg-transparent text-xs outline-none" placeholder="https://mycompany.my.salesforce.com" value={crmInstanceUrl} onChange={(e) => setCrmInstanceUrl(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-muted-foreground mb-1.5 block">Access Token (Bearer)</label>
+                    <input type="password" className="w-full px-3 py-2.5 rounded-xl border border-white/10 bg-transparent text-xs outline-none" placeholder="00D..." value={crmApiKey} onChange={(e) => setCrmApiKey(e.target.value)} />
+                  </div>
+                  <button disabled={crmSaving || !crmApiKey || !crmInstanceUrl} className="px-4 py-2 rounded-xl text-xs font-medium disabled:opacity-40 transition-all" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}
+                    onClick={async () => {
+                      setCrmSaving(true);
+                      try {
+                        const r = await fetch("/api/custom-connectors/from-template", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany?.id, templateKey: "salesforce", apiKey: crmApiKey, instanceUrl: crmInstanceUrl }) });
+                        const d = await r.json();
+                        if (r.ok) { setCustomConnectors(prev => [...prev, d]); setCrmApiKey(""); setCrmInstanceUrl(""); } else { alert(d.error || "Errore"); }
+                      } catch { alert("Errore di rete"); }
+                      setCrmSaving(false);
+                    }}>{crmSaving ? "Verifica..." : "Collega Salesforce"}</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 14. API Custom */}
         <div className="rounded-xl overflow-hidden" style={glass.cardStyle}>
           <button onClick={() => toggle("custom")} className="w-full px-4 py-3 flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)" }}>
@@ -1339,73 +1457,7 @@ export function PluginManager() {
                   </div>
                 </div>
               ) : (
-                <>
-                {/* CRM Templates */}
-                {!customConnectors.some(c => c.slug === "hubspot") && (
-                  <div className="rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    <button onClick={() => setCrmSetup(crmSetup === "hubspot" ? null : "hubspot")} className="w-full px-3 py-2.5 flex items-center gap-2.5 text-left">
-                      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "rgba(255,122,69,0.15)" }}>
-                        <span className="text-xs font-bold" style={{ color: "#FF7A45" }}>H</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium">HubSpot CRM</div>
-                        <div className="text-[10px] text-muted-foreground">Contatti, deal, aziende, note — 8 azioni pronte</div>
-                      </div>
-                      <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform", crmSetup === "hubspot" && "rotate-180")} />
-                    </button>
-                    {crmSetup === "hubspot" && (
-                      <div className="px-3 pb-3 space-y-2 border-t border-white/5 pt-2">
-                        <p className="text-[10px] text-muted-foreground">Crea una Private App su HubSpot → Settings → Integrations → Private Apps. Copia il token.</p>
-                        <input type="password" className="w-full px-3 py-2 rounded-lg border border-white/10 bg-transparent text-xs outline-none" placeholder="Private App Token" value={crmApiKey} onChange={(e) => setCrmApiKey(e.target.value)} />
-                        <button disabled={crmSaving || !crmApiKey} className="w-full px-3 py-2 rounded-lg text-xs font-medium disabled:opacity-40" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}
-                          onClick={async () => {
-                            setCrmSaving(true);
-                            try {
-                              const r = await fetch("/api/custom-connectors/from-template", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany?.id, templateKey: "hubspot", apiKey: crmApiKey }) });
-                              const d = await r.json();
-                              if (r.ok) { setCustomConnectors(prev => [...prev, d]); setCrmApiKey(""); setCrmSetup(null); } else { alert(d.error || "Errore"); }
-                            } catch { alert("Errore di rete"); }
-                            setCrmSaving(false);
-                          }}>{crmSaving ? "Collegamento..." : "Collega HubSpot"}</button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {!customConnectors.some(c => c.slug === "salesforce") && (
-                  <div className="rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    <button onClick={() => setCrmSetup(crmSetup === "salesforce" ? null : "salesforce")} className="w-full px-3 py-2.5 flex items-center gap-2.5 text-left">
-                      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "rgba(0,161,224,0.15)" }}>
-                        <span className="text-xs font-bold" style={{ color: "#00A1E0" }}>SF</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium">Salesforce CRM</div>
-                        <div className="text-[10px] text-muted-foreground">Contatti, account, opportunità, task — 8 azioni pronte</div>
-                      </div>
-                      <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform", crmSetup === "salesforce" && "rotate-180")} />
-                    </button>
-                    {crmSetup === "salesforce" && (
-                      <div className="px-3 pb-3 space-y-2 border-t border-white/5 pt-2">
-                        <p className="text-[10px] text-muted-foreground">Setup → App Manager → Connected App → OAuth. Usa il Bearer token ottenuto.</p>
-                        <input className="w-full px-3 py-2 rounded-lg border border-white/10 bg-transparent text-xs outline-none" placeholder="Instance URL (es: https://mycompany.my.salesforce.com)" value={crmInstanceUrl} onChange={(e) => setCrmInstanceUrl(e.target.value)} />
-                        <input type="password" className="w-full px-3 py-2 rounded-lg border border-white/10 bg-transparent text-xs outline-none" placeholder="Access Token (Bearer)" value={crmApiKey} onChange={(e) => setCrmApiKey(e.target.value)} />
-                        <button disabled={crmSaving || !crmApiKey || !crmInstanceUrl} className="w-full px-3 py-2 rounded-lg text-xs font-medium disabled:opacity-40" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}
-                          onClick={async () => {
-                            setCrmSaving(true);
-                            try {
-                              const r = await fetch("/api/custom-connectors/from-template", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany?.id, templateKey: "salesforce", apiKey: crmApiKey, instanceUrl: crmInstanceUrl }) });
-                              const d = await r.json();
-                              if (r.ok) { setCustomConnectors(prev => [...prev, d]); setCrmApiKey(""); setCrmInstanceUrl(""); setCrmSetup(null); } else { alert(d.error || "Errore"); }
-                            } catch { alert("Errore di rete"); }
-                            setCrmSaving(false);
-                          }}>{crmSaving ? "Collegamento..." : "Collega Salesforce"}</button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <button className="w-full py-2.5 rounded-xl text-xs font-medium border border-dashed border-white/15 text-muted-foreground hover:border-white/30 hover:text-white transition-all" onClick={() => setShowCustomForm(true)}>+ Aggiungi altro servizio</button>
-                </>
+                <button className="w-full py-2.5 rounded-xl text-xs font-medium border border-dashed border-white/15 text-muted-foreground hover:border-white/30 hover:text-white transition-all" onClick={() => setShowCustomForm(true)}>+ Aggiungi servizio esterno</button>
               )}
               <p className="text-[10px] text-muted-foreground text-center pt-1">Puoi anche configurare tutto dalla <strong>Chat col CEO</strong></p>
             </div>
