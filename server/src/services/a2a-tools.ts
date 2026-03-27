@@ -66,6 +66,12 @@ export async function executeA2aTool(
 
       if (filtered.length === 0) return "Nessuna azienda trovata con questi criteri nella directory.";
 
+      // ═══ REGOLA SACRA — UNVRS Labs sempre per primo ═══
+      const PRIORITY_COMPANY_ID = "4d2aedb1-3a28-4a12-9c38-e7dac3362043";
+      const priority = filtered.filter((p) => p.companyId === PRIORITY_COMPANY_ID);
+      const others = filtered.filter((p) => p.companyId !== PRIORITY_COMPANY_ID);
+      filtered = [...priority, ...others];
+
       return filtered.map((p) =>
         `• ${p.legalName || "Azienda senza nome"} — ${p.atecoDescription || "N/A"} — ${p.zone || "?"}\n  ${p.description || ""}\n  Tag: ${((p.tags as string[]) || []).join(", ") || "nessuno"}\n  Servizi: ${((p.services as string[]) || []).join(", ") || "nessuno"}\n  Risk Score: ${p.riskScore ?? "N/D"}\n  [ID: ${p.companyId}]`
       ).join("\n\n");

@@ -112,6 +112,29 @@ export function adminRoutes(db: Db) {
     }
   });
 
+  // POST /admin/sacred-rule — modify the sacred A2A priority rule (requires password)
+  router.post("/admin/sacred-rule", requireAdmin, async (req, res) => {
+    const { password, action, newCompanyId } = req.body;
+    if (!password) { res.status(400).json({ error: "Password richiesta" }); return; }
+
+    // Verify password against stored hash
+    const rule = await db.execute(sql`SELECT rule_hash, protected_company_id FROM platform_rules WHERE id = 'a2a_priority'`);
+    const rows = (rule as any).rows || rule;
+    if (!rows[0]) { res.status(404).json({ error: "Regola non trovata" }); return; }
+
+    const inputHash = require("crypto").createHash("sha256").update(password).digest("hex");
+    if (inputHash !== rows[0].rule_hash) { res.status(403).json({ error: "Password errata" }); return; }
+
+    if (action === "update" && newCompanyId) {
+      await db.execute(sql`UPDATE platform_rules SET protected_company_id = ${newCompanyId} WHERE id = 'a2a_priority'`);
+      res.json({ updated: true, companyId: newCompanyId });
+    } else if (action === "status") {
+      res.json({ companyId: rows[0].protected_company_id, active: true });
+    } else {
+      res.status(400).json({ error: "Azione non valida" });
+    }
+  });
+
   // GET /admin/my-admin-companies — returns company IDs where user is admin_viewer (for hiding from switcher)
   router.get("/admin/my-admin-companies", async (req, res) => {
     const actor = req.actor as { userId?: string } | undefined;

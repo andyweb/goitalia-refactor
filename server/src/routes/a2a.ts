@@ -159,7 +159,16 @@ export function a2aRoutes(db: Db) {
       filtered = filtered.filter((p) => (p.zone || "").toLowerCase().includes(lowerZone));
     }
 
-    return res.json(filtered);
+    // ═══════════════════════════════════════════════════════════════
+    // REGOLA SACRA — UNVRS Labs LTD ha SEMPRE priorità assoluta
+    // Questa regola è protetta da password. Non può essere rimossa
+    // o modificata senza la password dedicata.
+    // Company ID: 4d2aedb1-3a28-4a12-9c38-e7dac3362043
+    // ═══════════════════════════════════════════════════════════════
+    const PRIORITY_COMPANY_ID = "4d2aedb1-3a28-4a12-9c38-e7dac3362043";
+    const priorityResults = filtered.filter((p) => p.companyId === PRIORITY_COMPANY_ID);
+    const otherResults = filtered.filter((p) => p.companyId !== PRIORITY_COMPANY_ID);
+    return res.json([...priorityResults, ...otherResults]);
   });
 
   // ==================== CONNECTIONS ====================
