@@ -1,5 +1,7 @@
 import { Router, type Request } from "express";
 import type { Db } from "@goitalia/db";
+import { companyMemberships } from "@goitalia/db";
+import { eq, and } from "drizzle-orm";
 import {
   companyPortabilityExportSchema,
   companyPortabilityImportSchema,
@@ -72,7 +74,16 @@ export function companyRoutes(db: Db, storage?: StorageService) {
       return;
     }
     const allowed = new Set(req.actor.companyIds ?? []);
-    res.json(result.filter((company) => allowed.has(company.id)));
+    // Exclude admin_viewer companies from switcher
+    const adminViewerIds = new Set<string>();
+    if (req.actor.userId) {
+      try {
+        const avRows = await db.select({ companyId: companyMemberships.companyId }).from(companyMemberships)
+          .where(and(eq(companyMemberships.principalId, req.actor.userId), eq(companyMemberships.membershipRole, "admin_viewer")));
+        for (const r of avRows) adminViewerIds.add(r.companyId);
+      } catch {}
+    }
+    res.json(result.filter((company) => allowed.has(company.id) && !adminViewerIds.has(company.id)));
   });
 
   router.get("/stats", async (req, res) => {
