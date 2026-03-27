@@ -337,6 +337,10 @@ export function ChatPage() {
     const assistantId = crypto.randomUUID();
     setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", timestamp: new Date() }]);
 
+    // Abort after 120s to prevent hanging on dead connections
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => abortController.abort(), 120_000);
+
     try {
       const history = messages.map((m) => ({ role: m.role, content: m.content }));
 
@@ -344,6 +348,7 @@ export function ChatPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
+        signal: abortController.signal,
         body: JSON.stringify({
           companyId: selectedCompanyId,
           agentId: ceoAgent?.id,
@@ -419,16 +424,18 @@ export function ChatPage() {
         }
       }
     } catch (err) {
+      const isAbort = err instanceof DOMException && err.name === "AbortError";
       setMessages((prev) =>
-        prev.map((m) => m.id === assistantId ? { ...m, content: "**Errore di connessione.** Riprova." } : m)
+        prev.map((m) => m.id === assistantId ? { ...m, content: isAbort ? "**Timeout:** la richiesta ha impiegato troppo. Riprova." : "**Errore di connessione.** Riprova." } : m)
       );
+    } finally {
+      clearTimeout(timeout);
+      if (selectedCompanyId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(selectedCompanyId) });
+      }
+      setIsStreaming(false);
+      inputRef.current?.focus();
     }
-
-    if (selectedCompanyId) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(selectedCompanyId) });
-    }
-    setIsStreaming(false);
-    inputRef.current?.focus();
   }
 
   // Determine if we should show the "go to connettori" button
