@@ -56,75 +56,91 @@ CREATE INDEX "idx_company_profiles_slug" ON "company_profiles" ("slug");
 CREATE INDEX "idx_company_profiles_visibility" ON "company_profiles" ("visibility");
 --> statement-breakpoint
 
--- Step 2: Migrate data from ceo_memory.company_info into company_profiles
-INSERT INTO "company_profiles" (
-  "company_id",
-  "ragione_sociale", "partita_iva", "codice_fiscale", "forma_giuridica",
-  "stato_attivita", "data_inizio", "settore",
-  "indirizzo", "citta", "cap", "provincia", "regione",
-  "telefono", "email", "whatsapp", "pec", "codice_sdi", "sito_web",
-  "dipendenti", "fatturato", "patrimonio_netto", "capitale_sociale", "totale_attivo",
-  "risk_score", "rating", "risk_severity", "credit_limit",
-  "soci", "note"
-)
-SELECT
-  cm.company_id,
-  cm.company_info->>'ragione_sociale',
-  cm.company_info->>'partita_iva',
-  cm.company_info->>'codice_fiscale',
-  cm.company_info->>'forma_giuridica',
-  cm.company_info->>'stato_attivita',
-  cm.company_info->>'data_inizio',
-  cm.company_info->>'settore',
-  cm.company_info->>'indirizzo',
-  cm.company_info->>'citta',
-  cm.company_info->>'cap',
-  cm.company_info->>'provincia',
-  cm.company_info->>'regione',
-  cm.company_info->>'telefono',
-  cm.company_info->>'email',
-  cm.company_info->>'whatsapp',
-  cm.company_info->>'pec',
-  cm.company_info->>'codice_sdi',
-  cm.company_info->>'sito_web',
-  cm.company_info->>'dipendenti',
-  cm.company_info->>'fatturato',
-  cm.company_info->>'patrimonio_netto',
-  cm.company_info->>'capitale_sociale',
-  cm.company_info->>'totale_attivo',
-  cm.company_info->>'risk_score',
-  cm.company_info->>'rating',
-  cm.company_info->>'risk_severity',
-  cm.company_info->>'credit_limit',
-  cm.company_info->>'soci',
-  cm.company_info->>'note'
-FROM "ceo_memory" cm
-WHERE cm.company_info IS NOT NULL
-  AND cm.company_id IN (SELECT id FROM "companies");
+-- Step 2: Migrate data from ceo_memory.company_info into company_profiles (only if ceo_memory exists)
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ceo_memory') THEN
+    INSERT INTO "company_profiles" (
+      "company_id",
+      "ragione_sociale", "partita_iva", "codice_fiscale", "forma_giuridica",
+      "stato_attivita", "data_inizio", "settore",
+      "indirizzo", "citta", "cap", "provincia", "regione",
+      "telefono", "email", "whatsapp", "pec", "codice_sdi", "sito_web",
+      "dipendenti", "fatturato", "patrimonio_netto", "capitale_sociale", "totale_attivo",
+      "risk_score", "rating", "risk_severity", "credit_limit",
+      "soci", "note"
+    )
+    SELECT
+      cm.company_id,
+      cm.company_info->>'ragione_sociale',
+      cm.company_info->>'partita_iva',
+      cm.company_info->>'codice_fiscale',
+      cm.company_info->>'forma_giuridica',
+      cm.company_info->>'stato_attivita',
+      cm.company_info->>'data_inizio',
+      cm.company_info->>'settore',
+      cm.company_info->>'indirizzo',
+      cm.company_info->>'citta',
+      cm.company_info->>'cap',
+      cm.company_info->>'provincia',
+      cm.company_info->>'regione',
+      cm.company_info->>'telefono',
+      cm.company_info->>'email',
+      cm.company_info->>'whatsapp',
+      cm.company_info->>'pec',
+      cm.company_info->>'codice_sdi',
+      cm.company_info->>'sito_web',
+      cm.company_info->>'dipendenti',
+      cm.company_info->>'fatturato',
+      cm.company_info->>'patrimonio_netto',
+      cm.company_info->>'capitale_sociale',
+      cm.company_info->>'totale_attivo',
+      cm.company_info->>'risk_score',
+      cm.company_info->>'rating',
+      cm.company_info->>'risk_severity',
+      cm.company_info->>'credit_limit',
+      cm.company_info->>'soci',
+      cm.company_info->>'note'
+    FROM "ceo_memory" cm
+    WHERE cm.company_info IS NOT NULL
+      AND cm.company_id IN (SELECT id FROM "companies");
+  END IF;
+END $$;
 --> statement-breakpoint
 
 -- Step 3: Update company_profiles with A2A data (slug, tags, services, visibility, description)
-UPDATE "company_profiles" cp SET
-  "slug" = ap."slug",
-  "tags" = ap."tags",
-  "services" = ap."services",
-  "visibility" = ap."visibility",
-  "description" = COALESCE(ap."description", cp."description")
-FROM "a2a_profiles" ap
-WHERE ap."company_id" = cp."company_id";
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'a2a_profiles') THEN
+    UPDATE "company_profiles" cp SET
+      "slug" = ap."slug",
+      "tags" = ap."tags",
+      "services" = ap."services",
+      "visibility" = ap."visibility",
+      "description" = COALESCE(ap."description", cp."description")
+    FROM "a2a_profiles" ap
+    WHERE ap."company_id" = cp."company_id";
+  END IF;
+END $$;
 --> statement-breakpoint
 
 -- Step 4: Insert company_profiles for companies that have a2a_profiles but no ceo_memory
-INSERT INTO "company_profiles" ("company_id", "slug", "tags", "services", "visibility", "description")
-SELECT
-  ap."company_id", ap."slug", ap."tags", ap."services", ap."visibility", ap."description"
-FROM "a2a_profiles" ap
-WHERE ap."company_id" NOT IN (SELECT "company_id" FROM "company_profiles");
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'a2a_profiles') THEN
+    INSERT INTO "company_profiles" ("company_id", "slug", "tags", "services", "visibility", "description")
+    SELECT
+      ap."company_id", ap."slug", ap."tags", ap."services", ap."visibility", ap."description"
+    FROM "a2a_profiles" ap
+    WHERE ap."company_id" NOT IN (SELECT "company_id" FROM "company_profiles");
+  END IF;
+END $$;
 --> statement-breakpoint
 
 -- Step 5: Drop a2a_profiles table
 DROP TABLE IF EXISTS "a2a_profiles" CASCADE;
 --> statement-breakpoint
 
--- Step 6: Remove company_info column from ceo_memory (keep notes, preferences, onboarding_step)
-ALTER TABLE "ceo_memory" DROP COLUMN IF EXISTS "company_info";
+-- Step 6: Remove company_info column from ceo_memory (only if table exists)
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ceo_memory') THEN
+    ALTER TABLE "ceo_memory" DROP COLUMN IF EXISTS "company_info";
+  END IF;
+END $$;
