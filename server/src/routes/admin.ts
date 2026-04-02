@@ -3,7 +3,7 @@ import type { Db } from "@goitalia/db";
 import { companies, agents, connectorAccounts, companyProfiles, customConnectors, whatsappSubscriptions } from "@goitalia/db";
 import { eq, sql, ne, count } from "drizzle-orm";
 
-const ADMIN_EMAIL = "emanuele@unvrslabs.dev";
+const ADMIN_EMAILS = ["emanuele@unvrslabs.dev", "andreaspurio20@gmail.com"];
 
 export function adminRoutes(db: Db) {
   const router = Router();
@@ -14,8 +14,8 @@ export function adminRoutes(db: Db) {
     if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
     const user = await db.execute(sql`SELECT email FROM "user" WHERE id = ${actor.userId}`);
     const rows = (user as any).rows || user;
-    const ADMIN_USER_ID = "nAVU4wn2Chz3WJdcvl6JmoDbBfXJsX5y";
-    if (!rows[0] || (rows[0].email !== ADMIN_EMAIL && actor.userId !== ADMIN_USER_ID)) { res.status(403).json({ error: "Accesso negato" }); return; }
+    const ADMIN_USER_IDS = ["nAVU4wn2Chz3WJdcvl6JmoDbBfXJsX5y", "RRJucp2b1t5frH8ezTJKCNWuT1on8n71"];
+    if (!rows[0] || (!ADMIN_EMAILS.includes(rows[0].email) && !ADMIN_USER_IDS.includes(actor.userId))) { res.status(403).json({ error: "Accesso negato" }); return; }
     next();
   };
 

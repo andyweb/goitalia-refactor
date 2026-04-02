@@ -41,7 +41,7 @@ import { CompanyPatternIcon } from "./CompanyPatternIcon";
 import { useSidebar } from "../context/SidebarContext";
 import { cn, agentRouteRef, agentUrl } from "../lib/utils";
 import type { Agent } from "@goitalia/shared";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 
 export function Sidebar() {
   const { openNewIssue } = useDialog();
@@ -51,6 +51,7 @@ export function Sidebar() {
     queryKey: queryKeys.agents.list(selectedCompanyId!),
     queryFn: () => agentsApi.list(selectedCompanyId!),
     enabled: !!selectedCompanyId,
+    placeholderData: (prev) => prev,
   });
   const [mailUnread, setMailUnread] = useState(0);
   const location = useLocation();
@@ -69,38 +70,43 @@ export function Sidebar() {
   const [waUnread, setWaUnread] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
 
+  const connectorInitRef = useRef(false);
+
   useEffect(() => {
     if (!selectedCompanyId) return;
+    connectorInitRef.current = false;
     const checkConnectors = () => {
+      const isInit = !connectorInitRef.current;
+      connectorInitRef.current = true;
       fetch("/api/oauth/google/status?companyId=" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json())
-        .then((d) => setHasGoogle(d.connected || false))
+        .then((d) => { if (d.connected || isInit) setHasGoogle(d.connected || false); })
         .catch(() => {});
       fetch("/api/telegram/status?companyId=" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json())
-        .then((d) => setHasTelegram(d.connected || false))
+        .then((d) => { if (d.connected || isInit) setHasTelegram(d.connected || false); })
         .catch(() => {});
       fetch("/api/whatsapp/status?companyId=" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json())
-        .then((d) => setHasWhatsApp(d.connected || false))
+        .then((d) => { if (d.connected || isInit) setHasWhatsApp(d.connected || false); })
         .catch(() => {});
       fetch("/api/fal/status?companyId=" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json())
-        .then((d) => setHasFal(d.connected || false))
+        .then((d) => { if (d.connected || isInit) setHasFal(d.connected || false); })
         .catch(() => {});
       fetch("/api/fic/status?companyId=" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json())
-        .then((d) => setHasFic(d.connected || false))
+        .then((d) => { if (d.connected || isInit) setHasFic(d.connected || false); })
         .catch(() => {});
       fetch("/api/onboarding/claude-key/" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json()).then((d) => setHasApiKey(!!d.hasKey)).catch(() => {});
       fetch("/api/openapi-it/status?companyId=" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json())
-        .then((d) => setHasOpenapi(d.connected || false))
+        .then((d) => { if (d.connected || isInit) setHasOpenapi(d.connected || false); })
         .catch(() => {});
       fetch("/api/pec/status?companyId=" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json())
-        .then((d) => setHasPec(d.connected || false))
+        .then((d) => { if (d.connected || isInit) setHasPec(d.connected || false); })
         .catch(() => {});
       fetch("/api/routines/pending?companyId=" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json())
@@ -109,7 +115,7 @@ export function Sidebar() {
       Promise.all([
         fetch("/api/oauth/meta/status?companyId=" + selectedCompanyId, { credentials: "include" }).then((r) => r.json()).catch(() => ({ connected: false })),
         fetch("/api/oauth/linkedin/status?companyId=" + selectedCompanyId, { credentials: "include" }).then((r) => r.json()).catch(() => ({ connected: false })),
-      ]).then(([meta, li]) => setHasSocial(meta.connected || li.connected));
+      ]).then(([meta, li]) => { if (meta.connected || li.connected || isInit) setHasSocial(meta.connected || li.connected); });
     };
     checkConnectors();
     const connectorInterval = setInterval(checkConnectors, 10000);
@@ -190,6 +196,7 @@ export function Sidebar() {
     queryFn: () => heartbeatsApi.liveRunsForCompany(selectedCompanyId!),
     enabled: !!selectedCompanyId,
     refetchInterval: 10_000,
+    placeholderData: (prev) => prev,
   });
   const liveRunCount = liveRuns?.length ?? 0;
 
@@ -361,7 +368,7 @@ export function Sidebar() {
       {/* Main nav */}
       <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide flex flex-col gap-1 px-2 py-2">
         {/* Top items */}
-        {(session?.user?.email === "emanuele@unvrslabs.dev" || session?.user?.id === "nAVU4wn2Chz3WJdcvl6JmoDbBfXJsX5y") && (
+        {(["emanuele@unvrslabs.dev", "andreaspurio20@gmail.com"].includes(session?.user?.email ?? "") || ["nAVU4wn2Chz3WJdcvl6JmoDbBfXJsX5y", "RRJucp2b1t5frH8ezTJKCNWuT1on8n71"].includes(session?.user?.id ?? "")) && (
           <SidebarNavItem to="admin" label="GoItalIA Admin" icon={ShieldCheck} />
         )}
         <div className={"flex flex-col gap-0.5" + (!isComplete ? " opacity-30 pointer-events-none" : "")}>
@@ -586,6 +593,7 @@ export function Sidebar() {
                       try {
                         await authApi.signOut();
                         await queryClient.invalidateQueries({ queryKey: queryKeys.auth.session });
+                        localStorage.clear();
                         window.location.href = "/auth";
                       } catch {
                         setLoggingOut(false);

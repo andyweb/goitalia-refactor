@@ -86,7 +86,7 @@ export function Dashboard() {
   const lastMessages = (chatHistory?.messages || []).filter((m: any) => !m.content?.startsWith("__PENDING__")).slice(-5);
 
   return (
-    <div className="space-y-5 max-w-5xl">
+    <div className="space-y-5 w-full">
       {/* Header — Company Info */}
       <div className="rounded-xl p-5 flex items-center gap-4" style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.08), rgba(34,197,94,0.02))", border: "1px solid rgba(34,197,94,0.15)" }}>
         <div className="h-12 w-12 rounded-xl flex items-center justify-center text-sm font-bold shrink-0" style={{ background: "hsl(158 64% 42% / 0.15)", color: "hsl(158 64% 42%)" }}>

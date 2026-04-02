@@ -785,6 +785,7 @@ function AccountSection() {
               try {
                 await authApi.signOut();
                 await queryClient.invalidateQueries({ queryKey: queryKeys.auth.session });
+                localStorage.clear();
                 window.location.href = "/auth";
               } catch {
                 setLoggingOut(false);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Upload, ExternalLink, Phone, User, FileText, ChevronDown, ChevronRight, X, Search, MessageSquare } from "lucide-react";
+import { Plus, Trash2, Upload, ExternalLink, Phone, User, FileText, ChevronDown, ChevronRight, X, Search, MessageSquare, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface CompanyContact {
@@ -69,6 +69,29 @@ export function WhatsappContactsTab({ agentId, companyId }: { agentId: string; c
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const [driveUrl, setDriveUrl] = useState("");
   const [driveLinking, setDriveLinking] = useState(false);
+
+  // File preview
+  const [previewFile, setPreviewFile] = useState<{ id: string; name: string; contactId: string } | null>(null);
+  const [previewContent, setPreviewContent] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const openFilePreview = async (contactId: string, fileId: string, fileName: string) => {
+    setPreviewFile({ id: fileId, name: fileName, contactId });
+    setPreviewLoading(true);
+    setPreviewContent(null);
+    try {
+      const r = await fetch(`/api/whatsapp-contacts/${contactId}/files/${fileId}/content`, { credentials: "include" });
+      if (r.ok) {
+        const data = await r.json();
+        setPreviewContent(data.file?.contentText || "[Nessun contenuto testuale]");
+      } else {
+        setPreviewContent("[Errore nel caricamento del file]");
+      }
+    } catch {
+      setPreviewContent("[Errore nel caricamento del file]");
+    }
+    setPreviewLoading(false);
+  };
 
   // Load contacts from company_contacts (source=whatsapp)
   const loadContacts = async (q?: string) => {
@@ -248,7 +271,8 @@ export function WhatsappContactsTab({ agentId, companyId }: { agentId: string; c
   if (loading && contacts.length === 0) return <div className="text-sm text-muted-foreground p-4">Caricamento rubrica...</div>;
 
   return (
-    <div className="flex flex-col h-full" style={{ maxHeight: "calc(100vh - 200px)" }}>
+    <>
+    <div className="flex flex-col h-full w-full" style={{ maxHeight: "calc(100vh - 200px)" }}>
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div>
@@ -356,12 +380,18 @@ export function WhatsappContactsTab({ agentId, companyId }: { agentId: string; c
                       {contact.name && <span className="text-[11px] text-white/30">{contact.phone}</span>}
                     </div>
                   </div>
-                  {detail && mode && (
-                    <button onClick={(e) => { e.stopPropagation(); cycleAutoMode(detail); }}
-                      className={`inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg border backdrop-blur-sm shrink-0 transition-all ${mode.color} ${autoModeActive[detail.autoMode] || ""}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${mode.dot}`} />
-                      {mode.label}
-                    </button>
+                  {detail && (
+                    <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <span className={`text-[11px] font-medium ${detail.autoMode === "auto" ? "text-green-400/80" : "text-white/30"}`}>
+                        {detail.autoMode === "auto" ? "Auto" : "Manuale"}
+                      </span>
+                      <label onClick={(e) => e.stopPropagation()} style={{ position: "relative", display: "inline-block", width: 48, height: 28, minWidth: 48, flexShrink: 0 }}>
+                        <input type="checkbox" checked={detail.autoMode === "auto"} onChange={() => updateWaContact(detail.id, { autoMode: detail.autoMode === "auto" ? "manual" : "auto" })} style={{ opacity: 0, width: 0, height: 0, position: "absolute" }} />
+                        <span style={{ position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0, background: detail.autoMode === "auto" ? "#16a34a" : "rgba(255,255,255,0.15)", borderRadius: 14, transition: "background 0.2s" }}>
+                          <span style={{ position: "absolute", height: 22, width: 22, left: detail.autoMode === "auto" ? 23 : 3, bottom: 3, background: "white", borderRadius: 11, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+                        </span>
+                      </label>
+                    </div>
                   )}
                   {detail && detail.files.length > 0 && (
                     <span className="text-xs text-muted-foreground shrink-0">{detail.files.length} file</span>
@@ -374,71 +404,119 @@ export function WhatsappContactsTab({ agentId, companyId }: { agentId: string; c
 
                 {/* Expanded details */}
                 {expanded && detail && (
-                  <div className="border-t border-white/8 p-4 space-y-4 rounded-b-2xl" style={{ background: "rgba(255,255,255,0.04)" }}>
+                  <div className="border-t border-white/8 rounded-b-2xl" style={{ background: "rgba(255,255,255,0.03)" }}>
+
+                    {/* Summary card */}
                     {detail.lastSummary && (
-                      <div className="rounded-lg bg-amber-500/8 border border-amber-500/15 p-3">
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <MessageSquare className="w-3 h-3 text-amber-400/70" />
-                          <span className="text-[10px] font-semibold text-amber-400/70 uppercase tracking-wider">Ultimo riassunto</span>
-                          {detail.lastSummaryAt && <span className="text-[10px] text-white/25 ml-auto">{new Date(detail.lastSummaryAt).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>}
+                      <div className="px-5 pt-5 pb-0">
+                        <div className="rounded-xl bg-amber-500/8 border border-amber-500/15 p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <MessageSquare className="w-4 h-4 text-amber-400/70" />
+                            <span className="text-xs font-semibold text-amber-400/80 uppercase tracking-wider">Riassunto conversazione</span>
+                            {detail.lastSummaryAt && (
+                              <span className="text-[10px] text-white/30 ml-auto">{new Date(detail.lastSummaryAt).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                            )}
+                          </div>
+                          <p className="text-[13px] text-white/70 whitespace-pre-line leading-relaxed">{detail.lastSummary}</p>
                         </div>
-                        <p className="text-xs text-white/70 whitespace-pre-line leading-relaxed">{detail.lastSummary}</p>
                       </div>
                     )}
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                      <EditableField label="Nome" value={detail.name || ""} onSave={v => updateWaContact(detail.id, { name: v || null })} />
-                      <EditableField label="Note" value={detail.notes || ""} onSave={v => updateWaContact(detail.id, { notes: v || null })} />
+
+                    {/* Info fields */}
+                    <div className="px-5 pt-5 pb-0">
+                      <div className="flex items-center gap-2 mb-3">
+                        <User className="w-4 h-4 text-white/40" />
+                        <span className="text-xs font-semibold text-white/50 uppercase tracking-wider">Informazioni contatto</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-medium text-white/40 block">Nome</label>
+                          <EditableField label="" value={detail.name || ""} onSave={v => updateWaContact(detail.id, { name: v || null })} inline placeholder="Aggiungi nome" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-medium text-white/40 block">Note</label>
+                          <EditableField label="" value={detail.notes || ""} onSave={v => updateWaContact(detail.id, { notes: v || null })} inline placeholder="Aggiungi note" />
+                        </div>
+                      </div>
                     </div>
-                    <EditableField label="Istruzioni agente" value={detail.customInstructions || ""} onSave={v => updateWaContact(detail.id, { customInstructions: v || null })} multiline />
+
+                    {/* Custom instructions */}
+                    <div className="px-5 pt-5 pb-0">
+                      <div className="flex items-center gap-2 mb-3">
+                        <FileText className="w-4 h-4 text-purple-400/60" />
+                        <span className="text-xs font-semibold text-white/50 uppercase tracking-wider">Istruzioni agente</span>
+                      </div>
+                      <EditableField label="" value={detail.customInstructions || ""} onSave={v => updateWaContact(detail.id, { customInstructions: v || null })} multiline inline placeholder="Es: Rispondi sempre in inglese a questo cliente..." />
+                    </div>
+
+                    {/* Chat export tip */}
                     {detail.files.length === 0 && (
-                      <div className="rounded-lg bg-blue-500/5 border border-blue-500/15 px-3 py-2.5 flex items-start gap-2.5">
-                        <Upload className="w-4 h-4 text-blue-400/60 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-[11px] text-white/70 leading-relaxed">
-                            <span className="font-medium text-white/90">Esporta la chat WhatsApp</span> con questo contatto (senza media) e caricala qui.
-                          </p>
-                          <p className="text-[10px] text-white/30 mt-1">WhatsApp → Chat → Esporta chat → Senza media</p>
+                      <div className="px-5 pt-5 pb-0">
+                        <div className="rounded-xl bg-blue-500/5 border border-blue-500/15 px-4 py-3 flex items-start gap-3">
+                          <Upload className="w-5 h-5 text-blue-400/60 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs text-white/80 leading-relaxed">
+                              <span className="font-semibold">Esporta la chat WhatsApp</span> con questo contatto (senza media) e caricala qui sotto.
+                            </p>
+                            <p className="text-[11px] text-white/30 mt-1">WhatsApp → Chat → Esporta chat → Senza media</p>
+                          </div>
                         </div>
                       </div>
                     )}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-4">
-                        <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">File</span>
+
+                    {/* Files section */}
+                    <div className="px-5 pt-5 pb-5">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-white/40" />
+                          <span className="text-xs font-semibold text-white/50 uppercase tracking-wider">File</span>
+                        </div>
                         <input type="file" ref={fileInputRef} className="hidden" onChange={e => {
                           if (e.target.files?.[0]) uploadFile(detail.id, e.target.files[0]);
                           e.target.value = "";
                         }} />
-                        <button className="text-[10px] text-white/30 hover:text-white/60 transition-colors" onClick={() => fileInputRef.current?.click()} disabled={!!uploadingFor}>
-                          {uploadingFor === detail.id ? "Caricamento..." : uploadingFor === "generating-" + detail.id ? <span className="shiny-text">Generando istruzioni AI...</span> : "+ Upload"}
+                        <button className="text-[11px] text-blue-400/60 hover:text-blue-400 font-medium transition-colors" onClick={() => fileInputRef.current?.click()} disabled={!!uploadingFor}>
+                          {uploadingFor === detail.id ? "⏳ Caricamento..." : uploadingFor === "generating-" + detail.id ? <span className="shiny-text">✨ Generando istruzioni AI...</span> : "+ Carica file"}
                         </button>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {detail.files.map(file => (
-                          <div key={file.id} className="inline-flex items-center gap-1.5 text-[11px] rounded-md bg-white/5 border border-white/8 px-2 py-1 group">
-                            <FileText className="w-3 h-3 text-amber-400/70 shrink-0" />
-                            <span className="text-white/60 max-w-[120px] truncate">{file.name}</span>
-                            {file.driveUrl && (
-                              <a href={file.driveUrl} target="_blank" rel="noopener" className="text-blue-400/50 hover:text-blue-400" onClick={e => e.stopPropagation()}>
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-                            )}
-                            <button onClick={() => deleteFile(detail.id, file.id)} className="text-white/0 group-hover:text-white/30 hover:!text-red-400 transition-colors">
-                              <X className="w-2.5 h-2.5" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <input placeholder="Link Google Drive..." className="flex-1 h-6 rounded border border-white/8 bg-transparent px-2 text-[11px] text-white/50 placeholder:text-white/20 focus:outline-none focus:border-white/20 transition-colors"
+
+                      {detail.files.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {detail.files.map(file => (
+                            <div key={file.id} className="inline-flex items-center gap-2 text-xs rounded-lg bg-white/5 border border-white/10 px-3 py-2 group hover:border-white/15 transition-colors">
+                              <FileText className="w-3.5 h-3.5 text-amber-400/70 shrink-0" />
+                              <button className="text-white/70 max-w-[150px] truncate hover:text-white transition-colors" onClick={() => openFilePreview(detail.id, file.id, file.name)}>{file.name}</button>
+                              <button onClick={() => openFilePreview(detail.id, file.id, file.name)} className="text-white/20 hover:text-blue-400 transition-colors" title="Visualizza contenuto">
+                                <Eye className="w-3 h-3" />
+                              </button>
+                              {file.driveUrl && (
+                                <a href={file.driveUrl} target="_blank" rel="noopener" className="text-blue-400/50 hover:text-blue-400 transition-colors" onClick={e => e.stopPropagation()}>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                              <button onClick={() => deleteFile(detail.id, file.id)} className="text-white/0 group-hover:text-white/30 hover:!text-red-400 transition-colors">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <input placeholder="Incolla link Google Drive..." className="flex-1 h-8 rounded-lg border border-white/10 bg-white/5 px-3 text-xs text-white/60 placeholder:text-white/20 focus:outline-none focus:border-white/25 focus:bg-white/8 transition-colors"
                           value={driveUrl} onChange={e => setDriveUrl(e.target.value)} />
                         {driveUrl.trim() && (
-                          <button className="text-[10px] text-white/40 hover:text-white/70" onClick={() => addDriveLink(detail.id)} disabled={driveLinking}>
+                          <button className="text-xs text-blue-400/70 hover:text-blue-400 font-medium transition-colors px-2" onClick={() => addDriveLink(detail.id)} disabled={driveLinking}>
                             {driveLinking ? "..." : "Aggiungi"}
                           </button>
                         )}
                       </div>
                     </div>
-                    <ConversationHistory contactId={detail.id} />
+
+                    {/* Conversation history */}
+                    <div className="border-t border-white/6 px-5 py-4">
+                      <ConversationHistory contactId={detail.id} />
+                    </div>
                   </div>
                 )}
 
@@ -462,6 +540,31 @@ export function WhatsappContactsTab({ agentId, companyId }: { agentId: string; c
         </div>
       )}
     </div>
+
+    {/* File preview modal */}
+    {previewFile && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setPreviewFile(null)}>
+        <div className="bg-[#1a1f2e] border border-white/15 rounded-2xl shadow-2xl w-[90vw] max-w-3xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+            <div className="flex items-center gap-3">
+              <FileText className="w-5 h-5 text-amber-400/70" />
+              <span className="text-sm font-semibold text-white/90">{previewFile.name}</span>
+            </div>
+            <button onClick={() => setPreviewFile(null)} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-5">
+            {previewLoading ? (
+              <div className="text-sm text-white/30 animate-pulse">Caricamento contenuto...</div>
+            ) : (
+              <pre className="text-sm text-white/80 whitespace-pre-wrap font-sans leading-relaxed">{previewContent}</pre>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -536,28 +639,35 @@ function ConversationHistory({ contactId }: { contactId: string }) {
   );
 }
 
-function EditableField({ label, value, onSave, multiline }: { label: string; value: string; onSave: (v: string) => void; multiline?: boolean }) {
+function EditableField({ label, value, onSave, multiline, inline, placeholder }: { label: string; value: string; onSave: (v: string) => void; multiline?: boolean; inline?: boolean; placeholder?: string }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(value);
   useEffect(() => { setVal(value); }, [value]);
 
   if (!editing) {
+    if (inline) {
+      return (
+        <div className="cursor-pointer rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm text-white/80 hover:border-white/15 hover:bg-white/8 transition-colors min-h-[36px] flex items-center" onClick={() => setEditing(true)}>
+          {value || <span className="text-white/25 italic text-xs">{placeholder || "Clicca per aggiungere"}</span>}
+        </div>
+      );
+    }
     return (
       <div className="flex items-start gap-2 text-xs cursor-pointer hover:bg-white/5 rounded-lg px-3 py-2 -mx-1 transition-colors" onClick={() => setEditing(true)}>
         <span className="text-white/40 shrink-0 w-28 font-medium">{label}:</span>
-        <span className={value ? "text-white/80" : "text-white/25 italic"}>{value || "Clicca per aggiungere"}</span>
+        <span className={value ? "text-white/80" : "text-white/25 italic"}>{value || placeholder || "Clicca per aggiungere"}</span>
       </div>
     );
   }
 
   const save = () => { onSave(val); setEditing(false); };
   return (
-    <div className="space-y-1.5 px-3 -mx-1">
-      <span className="text-xs font-medium text-white/50">{label}</span>
+    <div className={inline ? "" : "space-y-1.5 px-3 -mx-1"}>
+      {!inline && label && <span className="text-xs font-medium text-white/50">{label}</span>}
       {multiline ? (
-        <textarea className="w-full rounded-lg border border-white/15 bg-white/8 px-3 py-2 text-xs text-white placeholder:text-white/25 focus:outline-none focus:border-white/30 transition-colors resize-none" rows={2} value={val} onChange={e => setVal(e.target.value)} onBlur={save} autoFocus />
+        <textarea className="w-full rounded-lg border border-white/15 bg-white/8 px-3 py-2 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-white/30 transition-colors resize-none" rows={3} value={val} onChange={e => setVal(e.target.value)} onBlur={save} autoFocus placeholder={placeholder} />
       ) : (
-        <input className="w-full h-7 rounded-lg border border-white/15 bg-white/8 px-3 text-xs text-white focus:outline-none focus:border-white/30 transition-colors" value={val} onChange={e => setVal(e.target.value)} onBlur={save} onKeyDown={e => e.key === "Enter" && save()} autoFocus />
+        <input className="w-full h-9 rounded-lg border border-white/15 bg-white/8 px-3 text-sm text-white focus:outline-none focus:border-white/30 transition-colors" value={val} onChange={e => setVal(e.target.value)} onBlur={save} onKeyDown={e => e.key === "Enter" && save()} autoFocus placeholder={placeholder} />
       )}
     </div>
   );

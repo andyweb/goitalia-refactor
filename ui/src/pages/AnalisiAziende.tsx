@@ -210,7 +210,7 @@ export function AnalisiAziende() {
 
   return (
     <div className="flex-1 overflow-auto p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="w-full mx-auto space-y-6">
         {/* Tabs */}
         <div className="flex gap-1.5 flex-wrap">
           {TABS.filter((t) => t.service === "_always_" || services.includes(t.service)).map((tab) => {

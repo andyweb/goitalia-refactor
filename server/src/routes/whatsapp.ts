@@ -74,7 +74,7 @@ export function whatsappRoutes(db: Db) {
           log_messages: true,
           webhook_url: webhookUrl,
           webhook_enabled: true,
-          webhook_events: ["messages.received", "session.status", "qrcode.updated"],
+          webhook_events: ["messages.received", "messages.upsert", "session.status", "qrcode.updated"],
         }),
       });
 
@@ -132,7 +132,10 @@ export function whatsappRoutes(db: Db) {
           } catch (lookupErr) { console.error("[wa] Session lookup error:", lookupErr); }
         }
         console.error("WaSender create error:", r.status, err);
-        res.status(502).json({ error: "Errore creazione sessione WhatsApp" });
+        const errMsg = (r.status === 422 && err.includes("already been taken")) 
+          ? "Questo numero è già collegato ad un'altra sessione WaSender. Scollegalo prima dalla dashboard WaSender."
+          : "Errore creazione sessione WhatsApp: " + err.substring(0, 200);
+        res.status(502).json({ error: errMsg });
         return;
       }
 
@@ -217,15 +220,21 @@ export function whatsappRoutes(db: Db) {
     try {
       const dec = JSON.parse(decrypt(secret.description));
       const sessions = Array.isArray(dec) ? dec : [dec];
-      const numbers = sessions.map((s: any) => ({ phoneNumber: s.phoneNumber, sessionId: s.sessionId }));
-      // Check first session status
-      if (sessions.length > 0) {
-        const r = await fetch(WASENDER_API + "/status", { headers: { Authorization: "Bearer " + sessions[0].apiKey } });
-        const status = await r.json() as { status?: string };
-        res.json({ connected: status.status === "connected", status: status.status, numbers });
-      } else {
-        res.json({ connected: false, numbers: [] });
+      const numbers: Array<{ phoneNumber: string; sessionId: any; status: string; connected: boolean }> = [];
+      let anyConnected = false;
+      for (const s of sessions) {
+        try {
+          const r = await fetch(WASENDER_API + "/status", { headers: { Authorization: "Bearer " + s.apiKey } });
+          const data = await r.json() as { status?: string };
+          const st = data.status || "unknown";
+          const conn = st === "connected";
+          if (conn) anyConnected = true;
+          numbers.push({ phoneNumber: s.phoneNumber, sessionId: s.sessionId, status: st, connected: conn });
+        } catch {
+          numbers.push({ phoneNumber: s.phoneNumber, sessionId: s.sessionId, status: "error", connected: false });
+        }
       }
+      res.json({ connected: anyConnected, numbers });
     } catch { res.json({ connected: false, numbers: [] }); }
   });
 
@@ -334,21 +343,70 @@ export function whatsappRoutes(db: Db) {
       if (!data) { res.status(400).json({ error: "Nessuna sessione" }); return; }
 
       // WaSender send-media API
-      const formData = new FormData();
-      formData.append("to", recipient);
-      formData.append("media", new Blob([file.buffer], { type: file.mimetype }), file.originalname);
-      if (caption) formData.append("caption", caption);
+      let mediaBuffer = file.buffer;
+      let mediaMime = file.mimetype;
+      let mediaFilename = file.originalname;
 
-      const r = await fetch(WASENDER_API + "/send-media", {
+      // Convert webm audio to ogg/opus (WhatsApp requires ogg, not webm)
+      if (file.mimetype.includes("webm") || file.originalname.endsWith(".webm")) {
+        try {
+          const { execSync } = await import("child_process");
+          const fs = await import("node:fs/promises");
+          const crypto = await import("node:crypto");
+          const tmpIn = "/tmp/wa-voice-" + crypto.randomUUID() + ".webm";
+          const tmpOut = tmpIn.replace(".webm", ".ogg");
+          await fs.writeFile(tmpIn, file.buffer);
+          execSync(`ffmpeg -y -i ${tmpIn} -c:a libopus -b:a 64k ${tmpOut}`, { timeout: 15000 });
+          mediaBuffer = await fs.readFile(tmpOut);
+          mediaMime = "audio/ogg";
+          mediaFilename = "vocale.ogg";
+          // Cleanup temp files
+          await fs.unlink(tmpIn).catch(() => {});
+          await fs.unlink(tmpOut).catch(() => {});
+          console.log("[wa-voice-send] converted webm -> ogg, size:", mediaBuffer.length);
+        } catch (convErr) {
+          console.error("[wa-voice-send] ffmpeg conversion failed:", convErr);
+        }
+      }
+
+      // Save file locally and use public URL for WaSender
+      let localMediaUrl: string | undefined;
+      const fs2 = await import("node:fs/promises");
+      const crypto2 = await import("node:crypto");
+      const ext = mediaMime.includes("ogg") ? ".ogg" : mediaMime.includes("webm") ? ".webm" : mediaMime.includes("mp3") || mediaMime.includes("mpeg") ? ".mp3" : mediaMime.startsWith("image/") ? (mediaMime.includes("png") ? ".png" : ".jpg") : mediaMime.startsWith("video/") ? ".mp4" : ".bin";
+      const savedFilename = crypto2.randomUUID() + ext;
+      await fs2.mkdir("data/wa-media", { recursive: true });
+      await fs2.writeFile("data/wa-media/" + savedFilename, mediaBuffer);
+      localMediaUrl = "/api/wa-media/" + savedFilename;
+
+      // Build public URL for WaSender
+      const publicBase = "https://impresa.goitalia.eu";
+      const publicUrl = publicBase + localMediaUrl;
+      console.log("[wa-voice-send] saved locally, publicUrl:", publicUrl);
+
+      // Send message with media URL
+      const sendPayload: Record<string, string> = { to: recipient };
+      if (mediaMime.startsWith("audio/")) {
+        sendPayload.audioUrl = publicUrl;
+      } else if (mediaMime.startsWith("image/")) {
+        sendPayload.imageUrl = publicUrl;
+        if (caption) sendPayload.text = caption;
+      } else if (mediaMime.startsWith("video/")) {
+        sendPayload.videoUrl = publicUrl;
+        if (caption) sendPayload.text = caption;
+      } else {
+        sendPayload.documentUrl = publicUrl;
+        if (caption) sendPayload.text = caption;
+      }
+
+      const r = await fetch(WASENDER_API + "/send-message", {
         method: "POST",
-        headers: { Authorization: "Bearer " + data.apiKey },
-        body: formData,
+        headers: { Authorization: "Bearer " + data.apiKey, "Content-Type": "application/json" },
+        body: JSON.stringify(sendPayload),
       });
-      if (!r.ok) { const err = await r.text(); console.error("WA send-media error:", err); res.status(502).json({ error: "Errore invio media" }); return; }
-      try {
-        const msgText = caption ? "[Allegato] " + caption : "[Allegato: " + file.originalname + "]";
-        await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction) VALUES (${companyId}, ${remoteJid}, Bot, ${msgText}, outgoing)`);
-      } catch {}
+      if (!r.ok) { const err = await r.text(); console.error("WA send-message error:", err); res.status(502).json({ error: "Errore invio media" }); return; }
+      console.log("[wa-voice-send] message sent successfully");
+      // Don't INSERT here — the webhook will save the outgoing message to avoid duplicates
       res.json({ sent: true });
     } catch (err) { console.error("WA send-media:", err); res.status(500).json({ error: "Errore invio" }); }
   });
@@ -382,9 +440,57 @@ export function whatsappRoutes(db: Db) {
     if (!companyId) { res.json({ ok: true }); return; }
     try {
       if (chatId) {
-        // Per-chat mark-read
+        // Per-chat mark-read — also mark related JIDs (same contact may use @lid and @s.whatsapp.net)
         await db.execute(sql`DELETE FROM read_markers WHERE company_id = ${companyId} AND user_id = ${actor.userId} AND channel = 'whatsapp' AND chat_id = ${chatId}`);
         await db.execute(sql`INSERT INTO read_markers (company_id, user_id, channel, chat_id, last_read_at) VALUES (${companyId}, ${actor.userId}, 'whatsapp', ${chatId}, now())`);
+        
+        // Find related JIDs from same contact (by from_name) and mark those as read too
+        try {
+          const relatedJids = await db.execute(sql`
+            SELECT DISTINCT remote_jid FROM whatsapp_messages 
+            WHERE company_id = ${companyId} AND remote_jid != ${chatId}
+            AND from_name = (SELECT from_name FROM whatsapp_messages WHERE company_id = ${companyId} AND remote_jid = ${chatId} AND direction = 'incoming' LIMIT 1)
+            AND direction = 'incoming'
+          `) as any[];
+          for (const row of relatedJids) {
+            if (row.remote_jid) {
+              await db.execute(sql`DELETE FROM read_markers WHERE company_id = ${companyId} AND user_id = ${actor.userId} AND channel = 'whatsapp' AND chat_id = ${row.remote_jid}`);
+              await db.execute(sql`INSERT INTO read_markers (company_id, user_id, channel, chat_id, last_read_at) VALUES (${companyId}, ${actor.userId}, 'whatsapp', ${row.remote_jid}, now())`);
+            }
+          }
+        } catch {} 
+        // Also mark as read on WhatsApp via WaSender API
+        try {
+          // Get the latest incoming message ID for this chat (search across all JIDs of same contact)
+          const lastMsg = await db.execute(sql`
+            SELECT wa_message_id, remote_jid FROM whatsapp_messages 
+            WHERE company_id = ${companyId} AND direction = 'incoming' AND wa_message_id IS NOT NULL
+            AND (remote_jid = ${chatId} OR from_name = (
+              SELECT from_name FROM whatsapp_messages WHERE company_id = ${companyId} AND remote_jid = ${chatId} AND direction = 'incoming' LIMIT 1
+            ))
+            ORDER BY created_at DESC LIMIT 1
+          `) as any[];
+          const msgId = lastMsg?.[0]?.wa_message_id;
+          const msgJid = lastMsg?.[0]?.remote_jid;
+          if (msgId && msgJid) {
+            const waSecret = await db.select().from(companySecrets)
+              .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
+              .then((r: any) => r[0]);
+            if (waSecret?.description) {
+              const sessions = JSON.parse(decrypt(waSecret.description));
+              const session = Array.isArray(sessions) ? sessions[0] : sessions;
+              if (session?.apiKey) {
+                const readRes = await fetch(WASENDER_API + "/messages/read", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.apiKey },
+                  body: JSON.stringify({ key: { id: msgId, remoteJid: String(msgJid), fromMe: false } }),
+                });
+                const readBody = await readRes.text();
+                console.log(`[wa-mark-read] WaSender response: ${readRes.status} body=${readBody.substring(0, 200)}`);
+              }
+            }
+          }
+        } catch (err) { console.error("[wa-mark-read] WaSender API error:", err); }
       } else {
         // Global mark-read (page open)
         await db.execute(sql`DELETE FROM read_markers WHERE company_id = ${companyId} AND user_id = ${actor.userId} AND channel = 'whatsapp'`);
@@ -601,7 +707,79 @@ export function whatsappRoutes(db: Db) {
     }
   });
 
+  // GET /whatsapp/health-check — Check all sessions across all companies
+  router.get("/whatsapp/health-check", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    try {
+      const results = await checkAllWhatsAppSessions(db);
+      res.json({ results });
+    } catch (err) {
+      res.status(500).json({ error: "Errore health check" });
+    }
+  });
+
+  // Periodic health check every 5 minutes
+  setInterval(async () => {
+    try {
+      await checkAllWhatsAppSessions(db);
+    } catch (err) {
+      console.error("[wa-health] periodic check error:", err);
+    }
+  }, 5 * 60 * 1000);
+
+  // Run initial check after 30 seconds
+  setTimeout(async () => {
+    try {
+      await checkAllWhatsAppSessions(db);
+    } catch (err) {
+      console.error("[wa-health] initial check error:", err);
+    }
+  }, 30 * 1000);
+
   return router;
+}
+
+async function checkAllWhatsAppSessions(db: Db) {
+  const allSecrets = await db.select().from(companySecrets)
+    .where(eq(companySecrets.name, "whatsapp_sessions"));
+  
+  const results: Array<{ companyId: string; phoneNumber: string; sessionId: string; status: string; connected: boolean }> = [];
+
+  for (const secret of allSecrets) {
+    if (!secret.description) continue;
+    try {
+      const dec = JSON.parse(decrypt(secret.description));
+      const sessions = Array.isArray(dec) ? dec : [dec];
+      for (const s of sessions) {
+        try {
+          const r = await fetch(WASENDER_API + "/status", { 
+            headers: { Authorization: "Bearer " + s.apiKey },
+          });
+          const data = await r.json() as { status?: string };
+          const status = data.status || "unknown";
+          const connected = status === "connected";
+          results.push({ 
+            companyId: secret.companyId, 
+            phoneNumber: s.phoneNumber || "?", 
+            sessionId: s.sessionId || "?", 
+            status, 
+            connected 
+          });
+          if (!connected) {
+            console.warn(`[wa-health] ⚠️ Session DISCONNECTED: company=${secret.companyId} phone=${s.phoneNumber} status=${status}`);
+          } else {
+            console.log(`[wa-health] ✅ Session OK: company=${secret.companyId} phone=${s.phoneNumber}`);
+          }
+        } catch (err) {
+          console.error(`[wa-health] ❌ Error checking session: company=${secret.companyId} phone=${s.phoneNumber}`, err);
+          results.push({ companyId: secret.companyId, phoneNumber: s.phoneNumber || "?", sessionId: s.sessionId || "?", status: "error", connected: false });
+        }
+      }
+    } catch {}
+  }
+
+  return results;
 }
 
 export function whatsappWebhookRouter(db: Db) {
@@ -618,13 +796,21 @@ export function whatsappWebhookRouter(db: Db) {
     // Respond immediately
     res.json({ ok: true });
 
+    // Log all webhook events for debugging
+    const fromMe = event?.data?.messages?.key?.fromMe;
+    console.log(`[wa-webhook] event=${event?.event} fromMe=${fromMe} remoteJid=${event?.data?.messages?.key?.remoteJid || "?"} keys=${Object.keys(event?.data || {}).join(",")}`);
+
     if (event?.event === "messages.received" && event?.data?.messages) {
       const msg = event.data.messages;
       const remoteJid = msg.key?.remoteJid || "";
       const fromName = msg.pushName || msg.key?.cleanedSenderPn || "";
+      const waMessageId = msg.key?.id || null;
       // Extract real phone number for rubrica lookup (WaSender may use LID format in remoteJid)
       const senderPhone = msg.key?.cleanedSenderPn || msg.senderPn || msg.cleanedSenderPn || (remoteJid.includes("@lid") ? "" : remoteJid);
+      console.log(`[wa-webhook-debug] remoteJid=${remoteJid} senderPhone=${senderPhone} pushName=${msg.pushName} cleanedSenderPn=${msg.key?.cleanedSenderPn || msg.cleanedSenderPn} senderPn=${msg.senderPn} participant=${msg.key?.participant} msgKeys=${JSON.stringify(Object.keys(msg.key || {}))} topKeys=${JSON.stringify(Object.keys(msg).filter(k => k !== 'message'))}`);
       let text = msg.messageBody || msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
+      let messageType = "text";
+      let mediaUrl = "";
       
       // Handle voice messages
       if (!text && (msg.message?.audioMessage || msg.messageType === "audio")) {
@@ -695,8 +881,6 @@ export function whatsappWebhookRouter(db: Db) {
       }
       
       // Handle image/video/document messages
-      let messageType = "text";
-      let mediaUrl = "";
       
       if (msg.message?.imageMessage || msg.message?.videoMessage || msg.message?.documentMessage || msg.messageType === "image" || msg.messageType === "video" || msg.messageType === "document") {
         messageType = msg.message?.imageMessage ? "image" : msg.message?.videoMessage ? "video" : "document";
@@ -745,8 +929,24 @@ export function whatsappWebhookRouter(db: Db) {
       }
       
       if (text) {
+        const isFromMe = msg.key?.fromMe === true;
+        const direction = isFromMe ? "outgoing" : "incoming";
+        const saveName = isFromMe ? "Tu" : fromName;
         try {
-          await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction, message_type, media_url) VALUES (${companyId}, ${remoteJid}, ${fromName}, ${text}, ${"incoming"}, ${messageType}, ${mediaUrl || null})`);
+          if (isFromMe) {
+            // Avoid duplicates for outgoing messages (may already be saved from dashboard send)
+            const existing = await db.execute(sql`
+              SELECT id FROM whatsapp_messages 
+              WHERE company_id = ${companyId} AND remote_jid = ${remoteJid} AND direction = ${"outgoing"} AND message_text = ${text}
+              AND created_at > NOW() - INTERVAL '30 seconds' LIMIT 1
+            `) as any[];
+            if (!existing || existing.length === 0) {
+              await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction, message_type, media_url, wa_message_id) VALUES (${companyId}, ${remoteJid}, ${saveName}, ${text}, ${direction}, ${messageType}, ${mediaUrl || null}, ${waMessageId})`);
+              console.log(`[wa-webhook] saved phone-sent message to ${remoteJid}: ${text.substring(0, 50)}`);
+            }
+          } else {
+            await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction, message_type, media_url, wa_message_id) VALUES (${companyId}, ${remoteJid}, ${saveName}, ${text}, ${direction}, ${messageType}, ${mediaUrl || null}, ${waMessageId})`);
+          }
         } catch (err) { console.error("[wa-webhook] save error:", err); }
 
         // Auto-reply via agent connector
@@ -859,7 +1059,7 @@ export function whatsappWebhookRouter(db: Db) {
     }
 
     // Handle messages sent from the phone (so they appear in the dashboard)
-    if ((event?.event === "messages.upsert" || event?.event === "messages.sent") && event?.data?.messages) {
+    if ((event?.event === "messages.upsert" || event?.event === "message.sent") && event?.data?.messages) {
       const msg = event.data.messages;
       const fromMe = msg.key?.fromMe === true;
       if (fromMe) {
@@ -884,6 +1084,42 @@ export function whatsappWebhookRouter(db: Db) {
           } else if (msg.message?.documentMessage) {
             messageType = "document";
             text = msg.message.documentMessage.fileName || "[Documento]";
+          }
+
+          // Download media for playback (images, videos, audio)
+          if (messageType !== "text" && messageType !== "document") {
+            try {
+              const waSecret = await db.select().from(companySecrets)
+                .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
+                .then((r: any) => r[0]);
+              if (waSecret?.description) {
+                const sessions = JSON.parse(decrypt(waSecret.description));
+                const session = Array.isArray(sessions) ? sessions[0] : sessions;
+                if (session?.apiKey) {
+                  const decryptRes = await fetch("https://www.wasenderapi.com/api/decrypt-media", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.apiKey },
+                    body: JSON.stringify({ data: { messages: msg } }),
+                  });
+                  if (decryptRes.ok || decryptRes.status === 200) {
+                    let decData: any = {};
+                    try { decData = JSON.parse(await decryptRes.text()); } catch {}
+                    const fileUrl = decData.data?.url || decData.publicUrl;
+                    if (fileUrl) {
+                      const fileRes = await fetch(fileUrl);
+                      const fileBuffer = await fileRes.arrayBuffer();
+                      const ext = messageType === "image" ? ".jpg" : messageType === "video" ? ".mp4" : ".ogg";
+                      const filename = crypto.randomUUID() + ext;
+                      const fs = await import("node:fs/promises");
+                      await fs.mkdir("data/wa-media", { recursive: true });
+                      await fs.writeFile("data/wa-media/" + filename, Buffer.from(fileBuffer));
+                      mediaUrl = "/api/wa-media/" + filename;
+                      console.log(`[wa-webhook] saved outgoing ${messageType}: ${fileBuffer.byteLength} bytes`);
+                    }
+                  }
+                }
+              }
+            } catch (err) { console.error("[wa-webhook] outgoing media download error:", err); }
           }
 
           if (text) {

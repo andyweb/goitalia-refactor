@@ -278,12 +278,16 @@ export function PluginManager() {
         const d = await r.json();
         if (d.connected) {
           setWaStatus(d);
-          setWaQrCode(null);
-          clearInterval(poll);
-          // Auto-create agent for the connected number
-          const latestNumber = d.numbers?.[d.numbers.length - 1]?.phoneNumber;
-          if (latestNumber) {
-            autoCreateAgent("whatsapp", latestNumber);
+          // Only clear QR if ALL numbers are connected (not just some)
+          const allConnected = (d.numbers || []).every((n: any) => n.connected !== false);
+          if (allConnected) {
+            setWaQrCode(null);
+            clearInterval(poll);
+            // Auto-create agent for the connected number
+            const latestNumber = d.numbers?.[d.numbers.length - 1]?.phoneNumber;
+            if (latestNumber) {
+              autoCreateAgent("whatsapp", latestNumber);
+            }
           }
         }
       } catch {}
@@ -391,7 +395,7 @@ export function PluginManager() {
           body: JSON.stringify({ companyId: selectedCompany.id, phoneNumber: phone }),
         });
         const d = await r.json();
-        if (d.qrCode) { setWaQrCode(d.qrCode); setShowWaForm(false); }
+        if (d.qrCode) { setWaQrCode(d.qrCode); setShowWaForm(false); setWaPhone(""); }
         else if (d.connected) {
           const status = await fetch("/api/whatsapp/status?companyId=" + selectedCompany.id, { credentials: "include" }).then((r) => r.json());
           setWaStatus(status);
@@ -627,6 +631,22 @@ export function PluginManager() {
       capabilities: "Gestisci il connettore " + connector,
       connectors: { [connector]: true },
     };
+    // Check if agent already exists for this connector
+    try {
+      const agentsRes = await fetch("/api/companies/" + selectedCompany.id + "/agents", { credentials: "include" });
+      if (agentsRes.ok) {
+        const agents = await agentsRes.json();
+        const existing = agents.find((a: any) =>
+          a.adapterConfig?.primaryConnector === connector ||
+          (connector === "whatsapp" && a.name?.toLowerCase().includes("whatsapp")) ||
+          (connector === "telegram" && a.name?.toLowerCase().includes("telegram"))
+        );
+        if (existing) {
+          console.log("[autoCreateAgent] Agent already exists for", connector, "- skipping");
+          return;
+        }
+      }
+    } catch {}
     const prompt = AGENT_PROMPTS[connector] || "";
     try {
       const res = await fetch("/api/companies/" + selectedCompany.id + "/agents", {
@@ -875,14 +895,43 @@ export function PluginManager() {
           </button>
           {expandedConnector === "whatsapp" && (
             <div className="px-4 pb-3 pt-3 space-y-2 border-t border-white/5">
-              {isWaConnected ? (
+              {(isWaConnected || (waStatus?.numbers && waStatus.numbers.length > 0)) ? (
                 <>
-                  {waStatus!.numbers!.map((num) => (
+                  {waStatus!.numbers!.map((num: any) => (
                     <div key={num.phoneNumber} className="flex items-center gap-2">
                     <div className={row + " flex-1"} style={rowBg}>
-                      {greenDot}
+                      <span className={"w-2 h-2 rounded-full shrink-0 " + (num.connected !== false ? "bg-green-500" : "bg-amber-500")} />
                       {miniWa}
                       <span className="flex-1 truncate">{num.phoneNumber}</span>
+                      {num.connected === false && (
+                        <button onClick={async () => {
+                          setWaConnecting(true);
+                          try {
+                            const r = await fetch("/api/whatsapp/connect", {
+                              method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+                              body: JSON.stringify({ companyId: selectedCompany?.id, phoneNumber: num.phoneNumber }),
+                            });
+                            const d = await r.json();
+                            if (d.qrCode) { setWaQrCode(d.qrCode); }
+                            else if (d.connected) {
+                              const status = await fetch("/api/whatsapp/status?companyId=" + selectedCompany?.id, { credentials: "include" }).then(r => r.json());
+                              setWaStatus(status);
+                              pushToast({ title: "WhatsApp riconnesso", body: num.phoneNumber + " è di nuovo online!", tone: "success" });
+                            }
+                            else {
+                              // QR not in response — poll /qr endpoint
+                              for (let i = 0; i < 5; i++) {
+                                await new Promise(r => setTimeout(r, 2000));
+                                const qrRes = await fetch("/api/whatsapp/qr?companyId=" + selectedCompany?.id, { credentials: "include" });
+                                const qrData = await qrRes.json();
+                                if (qrData.qrCode) { setWaQrCode(qrData.qrCode); break; }
+                              }
+                              if (d.error) alert(d.error);
+                            }
+                          } catch {}
+                          setWaConnecting(false);
+                        }} disabled={waConnecting} className="text-[10px] px-2 py-0.5 rounded-md" style={{ background: "rgba(37,211,102,0.15)", border: "1px solid rgba(37,211,102,0.3)", color: "rgba(37,211,102,0.9)" }}>{waConnecting ? "..." : "Riconnetti"}</button>
+                      )}
                       <div className="flex items-center gap-3 shrink-0">
                         {toggleBtn(waAutoReply[num.phoneNumber] ?? true, async () => {
                             const newVal = !waAutoReply[num.phoneNumber];
@@ -897,14 +946,36 @@ export function PluginManager() {
                     <button className="text-red-400/50 hover:text-red-400 transition-colors shrink-0" onClick={() => {
                           showDisconnectDialog("WhatsApp " + num.phoneNumber, "whatsapp", async () => {
                             await fetch("/api/whatsapp/disconnect?companyId=" + selectedCompany?.id + "&phone=" + encodeURIComponent(num.phoneNumber), { method: "POST", credentials: "include" });
-                            const newNums = (waStatus!.numbers || []).filter((n) => n.phoneNumber !== num.phoneNumber);
+                            const newNums = (waStatus!.numbers || []).filter((n: any) => n.phoneNumber !== num.phoneNumber);
                             setWaStatus(newNums.length > 0 ? { connected: true, numbers: newNums } : { connected: false });
                           });
                         }} title="Disconnetti">{xIcon}</button>
                     </div>
                   ))}
+                  {waQrCode && (
+                    <div className="mt-3 flex justify-center">
+                      <div className="rounded-2xl p-5 flex flex-col items-center gap-3" style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 4px 24px rgba(0,0,0,0.2)" }}>
+                        <div className="flex items-center gap-2">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(37,211,102,0.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9m-9 9a9 9 0 019-9"/></svg>
+                          <p className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.8)" }}>Scansiona con WhatsApp</p>
+                        </div>
+                        <div className="rounded-xl p-2" style={{ background: "white" }}>
+                          <img src={"https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data=" + encodeURIComponent(waQrCode)} alt="QR Code WhatsApp" className="w-44 h-44" />
+                        </div>
+                        <p className="text-[10px] text-center" style={{ color: "rgba(255,255,255,0.4)" }}>Il QR scade ogni 45 secondi</p>
+                        <div className="flex gap-2">
+                          <button onClick={async () => {
+                            const r = await fetch("/api/whatsapp/qr?companyId=" + selectedCompany?.id, { credentials: "include" });
+                            const d = await r.json();
+                            if (d.qrCode) setWaQrCode(d.qrCode);
+                          }} className="text-xs px-3 py-1 rounded-lg transition-colors" style={{ color: "rgba(37,211,102,0.8)", background: "rgba(37,211,102,0.1)", border: "1px solid rgba(37,211,102,0.2)" }}>Aggiorna QR</button>
+                          <button onClick={() => setWaQrCode("")} className="text-xs px-3 py-1 rounded-lg text-muted-foreground hover:text-white transition-colors" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>Chiudi</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div className={actionRow}>
-                    {actionBtn("+ Aggiungi numero", () => setShowWaForm(true))}
+                    {actionBtn("+ Aggiungi numero", () => { setWaPhone(""); setShowWaForm(true); })}
                     {actionBtn("📇 Sincronizza Contatti", async () => {
                       pushToast({ title: "Sincronizzazione...", body: "Importo contatti WhatsApp...", tone: "info" });
                       try {

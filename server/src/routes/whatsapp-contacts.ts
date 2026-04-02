@@ -299,6 +299,16 @@ export function whatsappContactsRoutes(db: Db) {
     res.json({ deleted: true });
   });
 
+  // GET /whatsapp-contacts/:id/files/:fileId/content — get file content
+  router.get("/whatsapp-contacts/:id/files/:fileId/content", async (req, res) => {
+    const actor = req.actor as { userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const file = await db.select({ id: whatsappContactFiles.id, name: whatsappContactFiles.name, contentText: whatsappContactFiles.contentText })
+      .from(whatsappContactFiles).where(eq(whatsappContactFiles.id, req.params.fileId as string)).then(r => r[0]);
+    if (!file) { res.status(404).json({ error: "File non trovato" }); return; }
+    res.json({ file: { id: file.id, name: file.name, contentText: file.contentText } });
+  });
+
   return router;
 }
 

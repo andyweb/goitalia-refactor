@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
-import { Send as SendIcon, Sparkles, Loader2, RefreshCw, User, Bot, Paperclip } from "lucide-react";
+import { Send as SendIcon, Sparkles, Loader2, RefreshCw, User, Bot, Paperclip, Mic, Square } from "lucide-react";
 import { MarkdownBody } from "../components/MarkdownBody";
 
 interface TgMessage {
@@ -41,9 +41,71 @@ export function WhatsAppPage() {
   const [selectedBot, setSelectedBot] = useState(-1); // -1 = all
   const bottomRef = useRef<HTMLDivElement>(null);
   const [readMarkers, setReadMarkers] = useState<Record<string, string>>({});
-  const [, forceRender] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  // Voice recording state
+  const [recording, setRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Refs to avoid stale closures in MediaRecorder onstop
+  const selectedChatRef = useRef(selectedChat);
+  selectedChatRef.current = selectedChat;
+  const companyIdRef = useRef(selectedCompany?.id);
+  companyIdRef.current = selectedCompany?.id;
+
+  const toggleRecording = useCallback(async () => {
+    if (recording) {
+      // Stop recording
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
+      setRecording(false);
+      setRecordingTime(0);
+    } else {
+      // Start recording
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunksRef.current = [];
+        const mr = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm" });
+        mediaRecorderRef.current = mr;
+        mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+        mr.onstop = async () => {
+          stream.getTracks().forEach(t => t.stop());
+          const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          const chatId = selectedChatRef.current;
+          const cId = companyIdRef.current;
+          console.log("[voice-rec] onstop blob.size=", blob.size, "chatId=", chatId, "companyId=", cId);
+          if (blob.size > 0 && cId && chatId) {
+            setSending(true);
+            try {
+              const fd = new FormData();
+              fd.append("file", new File([blob], "vocale.webm", { type: "audio/webm" }));
+              fd.append("companyId", cId);
+              fd.append("remoteJid", String(chatId));
+              const res = await fetch("/api/whatsapp/send-media", { method: "POST", credentials: "include", body: fd });
+              console.log("[voice-rec] send-media status=", res.status);
+              await new Promise(r => setTimeout(r, 500));
+              window.dispatchEvent(new Event("wa-refresh"));
+            } catch (e) { console.error("[voice-rec] send error:", e); }
+            setSending(false);
+          }
+        };
+        mr.start();
+        setRecording(true);
+        setRecordingTime(0);
+        recordingTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+      } catch (err) {
+        console.error("Mic access denied:", err);
+      }
+    }
+  }, [recording]);
+
 
   const sendMedia = async (file: File) => {
     if (!selectedCompany?.id || !selectedChat) return;
@@ -100,6 +162,11 @@ export function WhatsAppPage() {
   useEffect(() => { fetchMessages(); fetchReadMarkers(); }, [selectedCompany?.id, selectedBot]);
   useEffect(() => { const i = setInterval(() => { fetchMessages(); fetchReadMarkers(); }, 10000); return () => clearInterval(i); }, [selectedCompany?.id]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, selectedChat]);
+  useEffect(() => {
+    const handler = () => fetchMessages();
+    window.addEventListener("wa-refresh", handler);
+    return () => window.removeEventListener("wa-refresh", handler);
+  }, [selectedCompany?.id]);
 
   // Build chat threads — merge @lid and @s.whatsapp.net JIDs for same contact
   const threads: ChatThread[] = [];
@@ -217,6 +284,7 @@ export function WhatsAppPage() {
   let lastDate = "";
 
   return (
+    <>
     <div className="flex flex-col h-[calc(100vh-120px)]">
       {/* Bot selector */}
       {numbers.length > 1 && (
@@ -287,7 +355,7 @@ export function WhatsAppPage() {
                     <div className={"flex mb-1 " + (isOut ? "justify-end" : "justify-start")}>
                       <div className={"max-w-[70%] px-3 py-2 rounded-2xl " + (isOut ? "rounded-br-sm bg-green-500/15 border border-green-500/20" : "rounded-bl-sm bg-white/5 border border-white/8")}>
                         {msg.media_url && msg.message_type === "image" && (
-                        <img src={msg.media_url} alt="" className="max-w-[240px] rounded-lg mb-1" loading="lazy" onLoad={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })} />
+                        <img src={msg.media_url} alt="" className="max-w-[240px] rounded-lg mb-1 cursor-pointer hover:opacity-80 transition-opacity" loading="lazy" onClick={() => setLightboxUrl(msg.media_url!)} onLoad={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })} />
                       )}
                       {msg.media_url && msg.message_type === "video" && (
                         <video src={msg.media_url} controls className="max-w-[240px] rounded-lg mb-1" />
@@ -317,19 +385,34 @@ export function WhatsAppPage() {
               <button onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0 text-muted-foreground hover:text-foreground transition-colors" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                 <Paperclip className="h-4 w-4" />
               </button>
-              <textarea
-                ref={inputRef}
-                className="flex-1 resize-none rounded-xl px-4 py-3 text-sm outline-none"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "hsl(0 0% 98%)", maxHeight: "120px" }}
-                placeholder="Scrivi un messaggio..."
-                rows={1}
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
-              />
-              <button onClick={sendReply} disabled={sending || !replyText.trim()} className="h-11 w-11 rounded-xl flex items-center justify-center transition-all disabled:opacity-30" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", boxShadow: "0 4px 20px hsl(158 64% 42% / 0.3)" }}>
-                {sending ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <SendIcon className="w-4 h-4 text-white" />}
+              {recording ? (
+                <div className="flex-1 flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>
+                  <span className="relative flex h-3 w-3 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+                  </span>
+                  <span className="text-sm text-red-400 font-medium">Registrando... {Math.floor(recordingTime / 60)}:{String(recordingTime % 60).padStart(2, "0")}</span>
+                </div>
+              ) : (
+                <textarea
+                  ref={inputRef}
+                  className="flex-1 resize-none rounded-xl px-4 py-3 text-sm outline-none"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "hsl(0 0% 98%)", maxHeight: "120px" }}
+                  placeholder="Scrivi un messaggio..."
+                  rows={1}
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
+                />
+              )}
+              <button onClick={toggleRecording} className={"h-11 w-11 rounded-xl flex items-center justify-center shrink-0 transition-all " + (recording ? "" : "text-muted-foreground hover:text-foreground")} style={recording ? { background: "rgba(239,68,68,0.2)", border: "1px solid rgba(239,68,68,0.4)" } : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} title={recording ? "Invia vocale" : "Registra vocale"}>
+                {recording ? <Square className="w-4 h-4 text-red-400" /> : <Mic className="h-4 w-4" />}
               </button>
+              {!recording && (
+                <button onClick={sendReply} disabled={sending || !replyText.trim()} className="h-11 w-11 rounded-xl flex items-center justify-center transition-all disabled:opacity-30" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", boxShadow: "0 4px 20px hsl(158 64% 42% / 0.3)" }}>
+                  {sending ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <SendIcon className="w-4 h-4 text-white" />}
+                </button>
+              )}
             </div>
             {/* Delete chat */}
             <button onClick={async () => {
@@ -343,5 +426,14 @@ export function WhatsAppPage() {
       </div>
     </div>
     </div>
+
+    {/* Lightbox */}
+    {lightboxUrl && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setLightboxUrl(null)} onKeyDown={(e) => { if (e.key === "Escape") setLightboxUrl(null); }} tabIndex={0}>
+        <button onClick={() => setLightboxUrl(null)} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-xl transition-all">✕</button>
+        <img src={lightboxUrl} alt="" className="max-w-[90vw] max-h-[90vh] rounded-xl shadow-2xl" onClick={(e) => e.stopPropagation()} />
+      </div>
+    )}
+    </>
   );
 }

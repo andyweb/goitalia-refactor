@@ -2086,7 +2086,7 @@ function PromptsTab({
   }
 
   return (
-    <div className="max-w-6xl space-y-6">
+    <div className="w-full space-y-6">
       {(bundle?.warnings ?? []).length > 0 && (
         <div className="space-y-2">
           {(bundle?.warnings ?? []).map((warning) => (
@@ -2840,7 +2840,7 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
             {agentHasWhatsApp ? (
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">Connesso</span>
-                <span className="text-xs text-muted-foreground">{whatsappStatus?.numbers?.[0]?.phoneNumber || ""}</span>
+                <span className="text-xs text-muted-foreground">{accountEmail || whatsappStatus?.numbers?.[0]?.phoneNumber || ""}</span>
               </div>
             ) : (
               <div className="flex items-center gap-2 mt-0.5">
@@ -2854,7 +2854,7 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
             <div className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
               <div className="flex items-center gap-2">
                 <span className={"w-2 h-2 rounded-full shrink-0 " + (agentConnectors.whatsapp === true ? "bg-green-500" : "bg-white/20")} />
-                <div className="text-xs font-medium">{whatsappStatus?.numbers?.[0]?.phoneNumber || "WhatsApp"}</div>
+                <div className="text-xs font-medium">{accountEmail || whatsappStatus?.numbers?.[0]?.phoneNumber || "WhatsApp"}</div>
                 <div className="text-[10px] text-muted-foreground">Messaggi e vocali</div>
               </div>
               {nativeToggle(agentConnectors.whatsapp === true, () => toggleConnector("whatsapp"))}
