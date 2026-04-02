@@ -457,6 +457,7 @@ export function ChatPage() {
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    if (inputRef.current) inputRef.current.style.height = "44px";
     setAttachedFile(null);
     setIsStreaming(true);
 
@@ -799,6 +800,9 @@ export function ChatPage() {
             onChange={(e) => {
               const val = e.target.value;
               setInput(val);
+              // Auto-resize
+              e.target.style.height = "auto";
+              e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
               // Detect @query for contact autocomplete
               const cursorPos = e.target.selectionStart || 0;
               const textBefore = val.substring(0, cursorPos);
@@ -851,12 +855,13 @@ export function ChatPage() {
             onBlur={() => { setTimeout(() => { setShowContacts(false); }, 200); }}
             placeholder="Scrivi un messaggio... (usa @ per cercare contatti)"
             rows={1}
-            className="resize-none rounded-xl px-4 py-3 text-sm outline-none w-full"
+            className="resize-none rounded-xl px-4 py-3 text-sm outline-none w-full overflow-y-auto"
             style={{
               background: "rgba(255,255,255,0.04)",
               border: "1px solid rgba(255,255,255,0.1)",
               color: "hsl(0 0% 98%)",
-              maxHeight: "120px",
+              maxHeight: "160px",
+              minHeight: "44px",
             }}
           />
           {/* Contact autocomplete dropdown */}
