@@ -19,10 +19,27 @@ interface ActorMiddlewareOptions {
 
 export function actorMiddleware(db: Db, opts: ActorMiddlewareOptions): RequestHandler {
   return async (req, _res, next) => {
-    req.actor =
-      opts.deploymentMode === "local_trusted"
-        ? { type: "board", userId: "local-board", isInstanceAdmin: true, source: "local_implicit" }
-        : { type: "none", source: "none" };
+    if (opts.deploymentMode === "local_trusted") {
+      const memberships = await db
+        .select({ companyId: companyMemberships.companyId })
+        .from(companyMemberships)
+        .where(
+          and(
+            eq(companyMemberships.principalType, "user"),
+            eq(companyMemberships.principalId, "local-board"),
+            eq(companyMemberships.status, "active"),
+          ),
+        );
+      req.actor = {
+        type: "board",
+        userId: "local-board",
+        isInstanceAdmin: true,
+        source: "local_implicit",
+        companyIds: memberships.map((row) => row.companyId),
+      };
+    } else {
+      req.actor = { type: "none", source: "none" };
+    }
 
     const runIdHeader = req.header("x-paperclip-run-id");
 

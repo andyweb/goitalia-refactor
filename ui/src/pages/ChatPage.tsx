@@ -6,7 +6,7 @@ import { useOnboarding } from "../context/OnboardingContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { agentsApi } from "../api/agents";
 import { queryKeys } from "../lib/queryKeys";
-import { Send, Paperclip, Bot, User, Loader2 } from "lucide-react";
+import { Send, Paperclip, Bot, User, Loader2, X } from "lucide-react";
 import { MarkdownBody } from "../components/MarkdownBody";
 import { AgentProgressList } from "../components/AgentProgress";
 import { useNavigate } from "@/lib/router";
@@ -35,6 +35,12 @@ export function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<{ fileId: string; name: string } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [contactSuggestions, setContactSuggestions] = useState<Array<{ name: string; email: string; phone?: string | null; source?: string | null }>>([]);
+  const [contactHighlight, setContactHighlight] = useState(0);
+  const [showContacts, setShowContacts] = useState(false);
+  const contactDebounceRef = useRef<ReturnType<typeof setTimeout>>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -103,10 +109,110 @@ export function ChatPage() {
       .catch(() => { setHistoryLoaded(true); });
   };
   useEffect(() => { loadHistory(); }, [selectedCompany?.id]);
-  // Re-check for pending messages when page becomes visible (handles SPA navigation)
+
+  // ── Background task reconnection: poll server for running tasks ──
+  const bgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const bgAssistantIdRef = useRef<string | null>(null);
+  const bgLastChunkIdx = useRef(0);
+  const bgLastProgressIdx = useRef(0);
+
+  const startBgPoll = (assistantMsgId?: string) => {
+    if (bgPollRef.current) return; // already polling
+    const aId = assistantMsgId || crypto.randomUUID();
+    bgAssistantIdRef.current = aId;
+    bgLastChunkIdx.current = 0;
+    bgLastProgressIdx.current = 0;
+
+    if (!assistantMsgId) {
+      // Add a placeholder assistant message
+      setMessages(prev => [...prev, { id: aId, role: "assistant", content: "", timestamp: new Date() }]);
+    }
+    setIsStreaming(true);
+
+    bgPollRef.current = setInterval(async () => {
+      if (!selectedCompany?.id) return;
+      try {
+        const r = await fetch("/api/chat/task-status?companyId=" + selectedCompany.id, { credentials: "include" });
+        const data = await r.json();
+        if (!data.running && data.status !== "done" && data.status !== "error") {
+          // No task at all
+          stopBgPoll();
+          return;
+        }
+
+        // Apply new progress items
+        const newProgress = (data.progress || []).slice(bgLastProgressIdx.current);
+        if (newProgress.length > 0) {
+          bgLastProgressIdx.current = (data.progress || []).length;
+          const progressItems = newProgress.map((label: string) => ({
+            id: crypto.randomUUID(),
+            connector: "system",
+            label,
+          }));
+          setMessages(prev => prev.map(m =>
+            m.id === aId ? { ...m, progressItems: [...(m.progressItems || []), ...progressItems] } : m
+          ));
+        }
+
+        // Apply new text chunks
+        const newChunks = (data.textChunks || []).slice(bgLastChunkIdx.current);
+        if (newChunks.length > 0) {
+          bgLastChunkIdx.current = (data.textChunks || []).length;
+          const fullText = (data.textChunks || []).join("");
+          setMessages(prev => prev.map(m =>
+            m.id === aId ? { ...m, content: fullText } : m
+          ));
+        }
+
+        // Task completed — reload from DB and stop polling
+        if (!data.running) {
+          stopBgPoll();
+          // Reload history to get the DB-saved version
+          setTimeout(() => loadHistory(), 500);
+        }
+      } catch {
+        // Network error — keep polling
+      }
+    }, 2000);
+  };
+
+  const stopBgPoll = () => {
+    if (bgPollRef.current) { clearInterval(bgPollRef.current); bgPollRef.current = null; }
+    setIsStreaming(false);
+    bgAssistantIdRef.current = null;
+  };
+
+  // Cleanup on unmount
+  useEffect(() => () => { if (bgPollRef.current) clearInterval(bgPollRef.current); }, []);
+
+  // Check for background task when page loads or becomes visible
   useEffect(() => {
-    const onVisible = () => { if (document.visibilityState === "visible") loadHistory(); };
-    const onFocus = () => loadHistory();
+    if (!selectedCompany?.id || !historyLoaded) return;
+    const checkBg = async () => {
+      try {
+        const r = await fetch("/api/chat/task-status?companyId=" + selectedCompany.id, { credentials: "include" });
+        const data = await r.json();
+        if (data.running || data.status === "running") {
+          startBgPoll();
+        }
+      } catch {}
+    };
+    checkBg();
+  }, [selectedCompany?.id, historyLoaded]);
+
+  // Re-check for pending messages and background tasks when page becomes visible
+  useEffect(() => {
+    const checkBgAndHistory = async () => {
+      loadHistory();
+      if (!selectedCompany?.id || bgPollRef.current) return;
+      try {
+        const r = await fetch("/api/chat/task-status?companyId=" + selectedCompany.id, { credentials: "include" });
+        const data = await r.json();
+        if (data.running || data.status === "running") startBgPoll();
+      } catch {}
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") checkBgAndHistory(); };
+    const onFocus = () => checkBgAndHistory();
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onFocus);
     return () => { document.removeEventListener("visibilitychange", onVisible); window.removeEventListener("focus", onFocus); };
@@ -343,12 +449,15 @@ export function ChatPage() {
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
-      content: input.trim(),
+      content: attachedFile
+        ? `${input.trim()}\n\n📎 File allegato: ${attachedFile.name} (allegato_id: ${attachedFile.fileId})`
+        : input.trim(),
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    setAttachedFile(null);
     setIsStreaming(true);
 
     const assistantId = crypto.randomUUID();
@@ -475,6 +584,16 @@ export function ChatPage() {
     return content.includes("Connettori") || content.includes("connettori") || content.includes("collegare");
   })();
 
+  const startNewChat = async () => {
+    if (!selectedCompanyId || isStreaming) return;
+    try {
+      await fetch("/api/chat/history?companyId=" + selectedCompanyId, { method: "DELETE", credentials: "include" });
+    } catch {}
+    setMessages([]);
+    setAutoStarted(false);
+    inputRef.current?.focus();
+  };
+
   return (
     <div className="flex flex-col h-full max-w-5xl mx-auto" style={{ maxHeight: "calc(100dvh - 3rem)" }}>
       {/* Header */}
@@ -482,12 +601,27 @@ export function ChatPage() {
         <div className="h-10 w-10 rounded-xl flex items-center justify-center" style={{ background: "hsl(158 64% 42% / 0.15)" }}>
           <Bot className="h-5 w-5" style={{ color: "hsl(158 64% 42%)" }} />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="text-sm font-semibold">{ceoAgent?.name ?? "CEO"}</h1>
           <p className="text-xs text-muted-foreground">
             {selectedCompany?.name ?? "La tua impresa AI"} — Parla con il tuo CEO
           </p>
         </div>
+        {messages.length > 0 && (
+          <button
+            onClick={startNewChat}
+            disabled={isStreaming}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-105 disabled:opacity-30"
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              color: "rgba(255,255,255,0.7)",
+            }}
+            title="Inizia una nuova conversazione"
+          >
+            + Nuova Chat
+          </button>
+        )}
       </div>
 
       {/* Messages */}
@@ -525,7 +659,7 @@ export function ChatPage() {
           </div>
         )}
 
-        {messages.map((msg) => (
+        {messages.map((msg, idx) => (
           <div
             key={msg.id}
             className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
@@ -548,7 +682,7 @@ export function ChatPage() {
               {msg.role === "assistant" && msg.content === "" && isStreaming && (!msg.progressItems || msg.progressItems.length === 0) ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Sta scrivendo...</span>
+                  <span className="text-xs text-muted-foreground">Sta pensando...</span>
                 </div>
               ) : msg.role === "assistant" ? (
                 <>
@@ -558,6 +692,38 @@ export function ChatPage() {
                   {msg.content && (
                     <MarkdownBody className="prose-sm prose-invert [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">{msg.content}</MarkdownBody>
                   )}
+                  {/* Quick-reply buttons for numbered options */}
+                  {!isStreaming && msg.content && (() => {
+                    const lines = msg.content.split("\n");
+                    const options = lines
+                      .map(l => l.match(/^\d+\.\s+(.+)$/))
+                      .filter(Boolean)
+                      .map(m => m![1].trim().replace(/\*\*/g, ""));
+                    if (options.length >= 2 && options.length <= 6 && idx === messages.length - 1) {
+                      return (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {options.map((opt, oi) => (
+                            <button
+                              key={oi}
+                              onClick={() => {
+                                // Set input and trigger send on next tick
+                                setInput(opt);
+                                requestAnimationFrame(() => {
+                                  const btn = document.querySelector("[data-chat-send]") as HTMLButtonElement;
+                                  btn?.click();
+                                });
+                              }}
+                              className="text-xs px-3 py-1.5 rounded-full transition-all hover:scale-105"
+                              style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", color: "hsl(158 64% 52%)" }}
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </>
               ) : (
                 <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -592,31 +758,139 @@ export function ChatPage() {
 
       {/* Input */}
       <div className="glass-card p-3 flex items-end gap-2 shrink-0">
-        <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setInput((prev) => prev + (prev ? "\n" : "") + "[Allegato: " + f.name + "]"); } e.target.value = ""; }} />
-        <button onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0 text-muted-foreground hover:text-foreground transition-colors" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} disabled={isStreaming}>
-          <Paperclip className="h-4 w-4" />
-        </button>
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              sendMessage();
+        <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip" onChange={async (e) => {
+          const f = e.target.files?.[0];
+          if (!f || !selectedCompanyId) return;
+          e.target.value = "";
+          setIsUploading(true);
+          try {
+            const fd = new FormData();
+            fd.append("file", f);
+            fd.append("companyId", selectedCompanyId);
+            const res = await fetch("/api/chat/upload", { method: "POST", credentials: "include", body: fd });
+            if (res.ok) {
+              const data = await res.json();
+              console.log("[chat] File uploaded:", data);
+              setAttachedFile({ fileId: data.fileId, name: data.name });
+            } else {
+              const errText = await res.text();
+              console.error("Upload failed:", res.status, errText);
+              alert("Errore upload: " + res.status);
             }
-          }}
-          placeholder="Scrivi un messaggio..."
-          rows={1}
-          className="flex-1 resize-none rounded-xl px-4 py-3 text-sm outline-none"
-          style={{
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            color: "hsl(0 0% 98%)",
-            maxHeight: "120px",
-          }}
-        />
+          } catch (err) { console.error("Upload error:", err); alert("Errore upload: " + err); }
+          setIsUploading(false);
+        }} />
+        <button onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0 text-muted-foreground hover:text-foreground transition-colors" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} disabled={isStreaming || isUploading}>
+          {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+        </button>
+        <div className="flex-1 flex flex-col gap-1 relative">
+          {attachedFile && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs" style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.5)" }}>
+              <Paperclip className="h-3.5 w-3.5 shrink-0" style={{ color: "hsl(158 64% 52%)" }} />
+              <span className="truncate font-medium" style={{ color: "hsl(158 64% 62%)" }}>📎 {attachedFile.name}</span>
+              <button onClick={() => setAttachedFile(null)} className="ml-auto hover:text-white shrink-0" style={{ color: "rgba(255,255,255,0.5)" }}>
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => {
+              const val = e.target.value;
+              setInput(val);
+              // Detect @query for contact autocomplete
+              const cursorPos = e.target.selectionStart || 0;
+              const textBefore = val.substring(0, cursorPos);
+              const atMatch = textBefore.match(/@([\w.+-]*)$/);
+              if (atMatch && atMatch[1].length >= 2 && selectedCompanyId) {
+                const q = atMatch[1];
+                if (contactDebounceRef.current) clearTimeout(contactDebounceRef.current);
+                contactDebounceRef.current = setTimeout(async () => {
+                  try {
+                    const res = await fetch(`/api/gmail/contacts/search?companyId=${selectedCompanyId}&q=${encodeURIComponent(q)}`, { credentials: "include" });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setContactSuggestions(data.contacts || []);
+                      setContactHighlight(0);
+                      setShowContacts((data.contacts || []).length > 0);
+                    }
+                  } catch {}
+                }, 300);
+              } else {
+                if (contactDebounceRef.current) clearTimeout(contactDebounceRef.current);
+                setShowContacts(false);
+                setContactSuggestions([]);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (showContacts && contactSuggestions.length > 0) {
+                if (e.key === "ArrowDown") { e.preventDefault(); setContactHighlight(h => Math.min(h + 1, contactSuggestions.length - 1)); return; }
+                if (e.key === "ArrowUp") { e.preventDefault(); setContactHighlight(h => Math.max(h - 1, 0)); return; }
+                if (e.key === "Enter" || e.key === "Tab") {
+                  e.preventDefault();
+                  const selected = contactSuggestions[contactHighlight];
+                  if (selected) {
+                    const cursorPos = inputRef.current?.selectionStart || input.length;
+                    const textBefore = input.substring(0, cursorPos);
+                    const textAfter = input.substring(cursorPos);
+                    const insertVal = (selected.source === "whatsapp" && selected.phone) ? selected.phone : selected.email;
+                    const newBefore = textBefore.replace(/@[\w.+-]*$/, insertVal);
+                    setInput(newBefore + textAfter);
+                  }
+                  setShowContacts(false);
+                  return;
+                }
+                if (e.key === "Escape") { setShowContacts(false); return; }
+              }
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+              }
+            }}
+            onBlur={() => { setTimeout(() => { setShowContacts(false); }, 200); }}
+            placeholder="Scrivi un messaggio... (usa @ per cercare contatti)"
+            rows={1}
+            className="resize-none rounded-xl px-4 py-3 text-sm outline-none w-full"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "hsl(0 0% 98%)",
+              maxHeight: "120px",
+            }}
+          />
+          {/* Contact autocomplete dropdown */}
+          {showContacts && contactSuggestions.length > 0 && (
+            <div className="absolute bottom-full left-0 right-0 mb-1 rounded-xl overflow-hidden shadow-xl glass-card" style={{ zIndex: 50 }}>
+              {contactSuggestions.map((c, i) => {
+                const isWa = c.source === "whatsapp";
+                const insertVal = (isWa && c.phone) ? c.phone : c.email;
+                return (
+                <button
+                  key={insertVal + i}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    const cursorPos = inputRef.current?.selectionStart || input.length;
+                    const textBefore = input.substring(0, cursorPos);
+                    const textAfter = input.substring(cursorPos);
+                    const newBefore = textBefore.replace(/@[\w.+-]*$/, insertVal);
+                    setInput(newBefore + textAfter);
+                    setShowContacts(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors"
+                  style={{ background: i === contactHighlight ? "rgba(255,255,255,0.08)" : "transparent" }}
+                >
+                  {isWa && <span style={{ fontSize: "14px" }}>💬</span>}
+                  <span className="font-medium" style={{ color: "hsl(0 0% 95%)" }}>{c.name || insertVal}</span>
+                  {c.name && <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{isWa && c.phone ? c.phone : c.email}</span>}
+                  {isWa && c.phone && c.email && <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>{c.email}</span>}
+                </button>
+              );})}
+            </div>
+          )}
+        </div>
         <button
+          data-chat-send
           onClick={sendMessage}
           disabled={!input.trim() || isStreaming}
           className="h-11 w-11 rounded-xl flex items-center justify-center transition-all disabled:opacity-30"

@@ -20,16 +20,16 @@ import {
   ShieldCheck,
   Key,
   LogOut,
-  FolderOpen, Sparkles, Receipt, Globe, CalendarClock, Shield, Network,
+  FolderOpen, Sparkles, Receipt, Globe, CalendarClock, Shield, Network, Crown, Brain,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarNavItem } from "./SidebarNavItem";
 import { SidebarProjects } from "./SidebarProjects";
-import { SidebarAgents } from "./SidebarAgents";
+import { CONNECTOR_ICONS, detectConnector } from "./SidebarAgents";
 import { agentsApi } from "../api/agents";
 import { useDialog } from "../context/DialogContext";
-import { useLocation } from "@/lib/router";
+import { useLocation, NavLink } from "@/lib/router";
 import { useCompany } from "../context/CompanyContext";
 import { useOnboarding } from "../context/OnboardingContext";
 import { heartbeatsApi } from "../api/heartbeats";
@@ -38,7 +38,10 @@ import { queryKeys } from "../lib/queryKeys";
 import { useInboxBadge } from "../hooks/useInboxBadge";
 import { PluginSlotOutlet } from "@/plugins/slots";
 import { CompanyPatternIcon } from "./CompanyPatternIcon";
-import { useState, useEffect } from "react";
+import { useSidebar } from "../context/SidebarContext";
+import { cn, agentRouteRef, agentUrl } from "../lib/utils";
+import type { Agent } from "@goitalia/shared";
+import { useState, useEffect, useMemo, useCallback } from "react";
 
 export function Sidebar() {
   const { openNewIssue } = useDialog();
@@ -113,14 +116,14 @@ export function Sidebar() {
 
     const fetchWaUnread = () => {
       if (!selectedCompanyId) return;
+      if (window.location.pathname.includes("/whatsapp")) { setWaUnread(0); return; }
       fetch("/api/whatsapp/unread-count?companyId=" + selectedCompanyId, { credentials: "include" })
         .then((r) => r.json())
         .then((d) => setWaUnread(d.count || 0))
         .catch(() => {});
     };
     fetchWaUnread();
-    if (location.pathname.includes("/whatsapp")) setWaUnread(0);
-    if (location.pathname.includes("/telegram")) setTelegramUnread(0);
+    if (window.location.pathname.includes("/telegram")) setTelegramUnread(0);
 
     const fetchTgUnread = () => {
       if (!selectedCompanyId) return;
@@ -138,7 +141,7 @@ export function Sidebar() {
         .catch(() => {});
     };
     fetchPecUnread();
-    if (location.pathname.includes("/pec")) setPecUnread(0);
+    if (window.location.pathname.includes("/pec")) setPecUnread(0);
 
     const fetchUnread = () => {
       fetch("/api/gmail/unread-count?companyId=" + selectedCompanyId, { credentials: "include" })
@@ -155,9 +158,8 @@ export function Sidebar() {
     fetchUnread();
     fetchA2aBadge();
     const interval = setInterval(() => { fetchUnread(); fetchTgUnread(); fetchWaUnread(); fetchPecUnread(); fetchA2aBadge();
-    if (location.pathname.includes("/whatsapp")) setWaUnread(0);
-    if (location.pathname.includes("/telegram")) setTelegramUnread(0);
-    if (location.pathname.includes("/pec")) setPecUnread(0); }, 30000);
+    if (window.location.pathname.includes("/telegram")) setTelegramUnread(0);
+    if (window.location.pathname.includes("/pec")) setPecUnread(0); }, 30000);
     const onMailUpdated = () => fetchUnread();
     const onTgRead = () => { setTelegramUnread(0); };
     const onWaRead = () => { setWaUnread(0); };
@@ -191,6 +193,40 @@ export function Sidebar() {
   });
   const liveRunCount = liveRuns?.length ?? 0;
 
+  const { isMobile, setSidebarOpen: closeSidebar } = useSidebar();
+
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
+    try { const s = localStorage.getItem("sidebar_expanded"); return s ? JSON.parse(s) : {}; } catch { return {}; }
+  });
+  const toggleGroup = useCallback((key: string) => {
+    setExpandedGroups(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      try { localStorage.setItem("sidebar_expanded", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  const liveCountByAgent = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const run of liveRuns ?? []) counts.set(run.agentId, (counts.get(run.agentId) ?? 0) + 1);
+    return counts;
+  }, [liveRuns]);
+
+  const agentsByConnector = useMemo(() => {
+    const groups: Record<string, Agent[]> = {};
+    for (const agent of (sidebarAgents ?? []) as Agent[]) {
+      if (agent.status === "terminated") continue;
+      if (agent.role === "ceo") { (groups["ceo"] ??= []).push(agent); continue; }
+      const conn = detectConnector(agent);
+      if (conn) { (groups[conn] ??= []).push(agent); }
+      else { (groups["other"] ??= []).push(agent); }
+    }
+    return groups;
+  }, [sidebarAgents]);
+
+  const agentMatch = location.pathname.match(/\/agents\/([^/]+)/);
+  const activeAgentRef = agentMatch?.[1] ?? null;
+
   const { data: session } = useQuery({
     queryKey: queryKeys.auth.session,
     queryFn: () => authApi.getSession(),
@@ -209,7 +245,7 @@ export function Sidebar() {
 
   // Determine disabled states based on onboarding step
   // null (loading) or 99 (complete) = everything enabled
-  const isComplete = onboardingStep === null || onboardingStep >= 99;
+  const isComplete = onboardingStep == null || onboardingStep >= 99;
   const isStep0 = onboardingStep === 0;
   const isStep1 = onboardingStep === 1;
   const isStep2 = onboardingStep === 2;
@@ -218,6 +254,86 @@ export function Sidebar() {
   const glowStyle = {
     background: "hsl(158 64% 42% / 0.25)",
     boxShadow: "0 0 15px hsl(158 64% 42% / 0.4)",
+  };
+
+  // Connector groups config
+  const connectorGroups = [
+    { key: "google", label: "Google", show: hasGoogle, pages: [
+      { to: "/mail", label: "Mail", icon: Mail, badge: mailUnread > 0 ? mailUnread : undefined },
+      { to: "/calendario", label: "Calendario", icon: Calendar },
+      { to: "/documenti", label: "Documenti", icon: HardDrive },
+    ]},
+    { key: "pec", label: "PEC", show: hasPec, pages: [
+      { to: "/pec", label: "Posta Certificata", icon: Shield, badge: pecUnread > 0 ? pecUnread : undefined },
+    ]},
+    { key: "whatsapp", label: "WhatsApp", show: hasWhatsApp, pages: [
+      { to: "/whatsapp", label: "Chat", icon: MessageCircle, badge: waUnread > 0 ? waUnread : undefined },
+    ]},
+    { key: "telegram", label: "Telegram", show: hasTelegram, pages: [
+      { to: "/telegram", label: "Chat", icon: MessageCircle, badge: telegramUnread > 0 ? telegramUnread : undefined },
+    ]},
+    { key: "meta", label: "Social", show: hasSocial, pages: [
+      { to: "/social", label: "Gestione Social", icon: Share2Icon },
+    ]},
+    { key: "fal", label: "fal.ai", show: hasFal, pages: [
+      { to: "/genera", label: "Genera Contenuti", icon: Sparkles },
+    ]},
+    { key: "fic", label: "Fatture in Cloud", show: hasFic, pages: [
+      { to: "/fatturazione", label: "Fatturazione", icon: Receipt },
+    ]},
+    { key: "openapi", label: "OpenAPI.it", show: hasOpenapi, pages: [
+      { to: "/analisi-aziende", label: "Analisi Aziende", icon: Globe },
+    ]},
+    { key: "hubspot", label: "HubSpot", show: false, pages: [] },
+    { key: "salesforce", label: "Salesforce", show: false, pages: [] },
+    { key: "stripe", label: "Stripe", show: false, pages: [] },
+  ];
+
+  const visibleGroups = connectorGroups.filter(g => g.show || (agentsByConnector[g.key]?.length ?? 0) > 0);
+
+  // Helper to render an agent item inside a connector group
+  const cleanAgentName = (name: string, connKey?: string) => {
+    let clean = name
+      .replace(/^Agente\s+/i, "")
+      .replace(/^AG\.\s*/i, "");
+    // Strip connector label prefix/suffix
+    const labels = ["google", "whatsapp", "telegram", "instagram", "facebook", "meta", "linkedin", "hubspot", "salesforce", "fal.ai", "fal", "fatture in cloud", "openapi", "stripe", "pec"];
+    if (connKey) labels.unshift(connKey);
+    for (const label of labels) {
+      clean = clean.replace(new RegExp("^" + label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "[\\s:·-]*", "i"), "");
+      clean = clean.replace(new RegExp("[\\s:·-]*" + label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*$", "i"), "");
+    }
+    // Remove wrapping parentheses
+    clean = clean.replace(/^\((.+)\)$/, "$1").trim();
+    return clean || name;
+  };
+
+  const renderAgentItem = (agent: Agent, connKey?: string, connColor?: string) => {
+    const runCount = liveCountByAgent.get(agent.id) ?? 0;
+    const isActive = activeAgentRef === agentRouteRef(agent);
+    const displayName = cleanAgentName(agent.name, connKey);
+    return (
+      <NavLink
+        key={agent.id}
+        to={`${agentUrl(agent)}/instructions`}
+        onClick={() => { if (isMobile) closeSidebar(false); }}
+        className={cn(
+          "flex items-center gap-2 px-3 py-1 text-[12px] transition-all rounded-lg",
+          isActive ? "text-white bg-white/8" : "text-foreground/60 hover:text-foreground hover:bg-white/4"
+        )}
+      >
+        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "hsl(158 64% 42%)" }} />
+        <span className="flex-1 truncate">{displayName}</span>
+        {runCount > 0 && (
+          <span className="flex items-center gap-1 shrink-0">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-500" />
+            </span>
+          </span>
+        )}
+      </NavLink>
+    );
   };
 
   return (
@@ -244,7 +360,7 @@ export function Sidebar() {
 
       {/* Main nav */}
       <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide flex flex-col gap-1 px-2 py-2">
-        {/* Top items - disabled during onboarding steps 0-3 */}
+        {/* Top items */}
         {(session?.user?.email === "emanuele@unvrslabs.dev" || session?.user?.id === "nAVU4wn2Chz3WJdcvl6JmoDbBfXJsX5y") && (
           <SidebarNavItem to="admin" label="GoItalIA Admin" icon={ShieldCheck} />
         )}
@@ -255,37 +371,88 @@ export function Sidebar() {
           <SidebarNavItem to="/scheduled" label="Attività" icon={CalendarClock} badge={pendingCount > 0 ? pendingCount : undefined} />
         </div>
 
-        {/* Lavoro */}
+        {/* Lavoro - Connector Groups */}
         <SidebarSection label="Lavoro">
-          {isStep1 ? (
-            <div className="relative" id="chat-ceo-nav">
-              <div className="absolute inset-0 rounded-lg animate-pulse" style={glowStyle} />
-              <SidebarNavItem to="/chat" label="Chat (CEO)" icon={MessageCircle} className="relative z-10 !text-white font-bold" />
+          <div className={!isComplete && !isStep1 && !isStep2 ? "opacity-30 pointer-events-none" : ""}>
+            {/* CEO Group */}
+            <div>
+              <button
+                id={isStep1 || isStep2 ? "chat-ceo-nav" : undefined}
+                onClick={() => toggleGroup("ceo")}
+                className="flex items-center gap-2.5 px-3 py-1.5 w-full text-[13px] font-medium transition-all rounded-lg hover:bg-white/5"
+                style={isStep1 ? { ...glowStyle, position: "relative", zIndex: 10 } : undefined}
+              >
+                <span className="shrink-0 flex items-center justify-center w-5 h-5 rounded-md" style={{ background: "hsl(158 64% 42% / 0.2)" }}>
+                  <Crown className="w-3.5 h-3.5" style={{ color: "hsl(158 64% 42%)" }} />
+                </span>
+                <span className="flex-1 text-left truncate">CEO AI</span>
+                <ChevronDown className={`w-3 h-3 text-muted-foreground/40 transition-transform ${expandedGroups.ceo ? "rotate-180" : ""}`} />
+              </button>
+              {expandedGroups.ceo && (
+                <div onClick={(e) => e.stopPropagation()} className="ml-5 pl-2 mt-0.5 space-y-0.5" style={{ borderLeft: "1px solid rgba(255,255,255,0.06)" }}>
+                  <SidebarNavItem to="/chat" label="Chat" icon={MessageCircle} />
+                </div>
+              )}
             </div>
-          ) : isStep2 ? (
-            <div id="chat-ceo-nav"><SidebarNavItem to="/chat" label="Chat (CEO)" icon={MessageCircle} /></div>
-          ) : (
-            <div className={!isComplete && !isStep1 ? "opacity-30 pointer-events-none" : ""} id="chat-ceo-nav">
-              <SidebarNavItem to="/chat" label="Chat (CEO)" icon={MessageCircle} />
-            </div>
-          )}
-          <div className={!isComplete ? "opacity-30 pointer-events-none" : ""}>
-            {hasPec && <SidebarNavItem to="/pec" label="PEC" icon={Shield} badge={pecUnread > 0 ? pecUnread : undefined} />}
-            {hasGoogle && <SidebarNavItem to="/mail" label="Mail" icon={Mail} badge={mailUnread > 0 ? mailUnread : undefined} />}
-            {hasWhatsApp && <SidebarNavItem to="/whatsapp" label="WhatsApp" icon={Phone} badge={waUnread > 0 ? waUnread : undefined} />}
-            {hasTelegram && <SidebarNavItem to="/telegram" label="Telegram" icon={MessageSquare} badge={telegramUnread > 0 ? telegramUnread : undefined} />}
-            {hasSocial && <SidebarNavItem to="/social" label="Social" icon={Share2Icon} />}
-            {hasFal && <SidebarNavItem to="/genera" label="Genera Contenuti" icon={Sparkles} />}
-            {hasFic && <SidebarNavItem to="/fatturazione" label="Fatture in Cloud" icon={Receipt} />}
-            {hasOpenapi && <SidebarNavItem to="/analisi-aziende" label="OpenAPI.it" icon={Globe} />}
-            {hasGoogle && <SidebarNavItem to="/calendario" label="Calendario" icon={Calendar} />}
-            {hasGoogle && <SidebarNavItem to="/documenti" label="Documenti" icon={HardDrive} />}
+
+            {/* Dynamic Connector Groups */}
+            {visibleGroups.map(group => {
+              const connIcon = CONNECTOR_ICONS[group.key];
+              const groupAgents = agentsByConnector[group.key] || [];
+              const isExpanded = !!expandedGroups[group.key];
+              const totalBadge = group.pages.reduce((sum, p) => sum + (p.badge || 0), 0);
+              return (
+                <div key={group.key}>
+                  <button
+                    onClick={() => toggleGroup(group.key)}
+                    className="flex items-center gap-2.5 px-3 py-1.5 w-full text-[13px] font-medium transition-all rounded-lg hover:bg-white/5"
+                  >
+                    <span className="shrink-0 flex items-center justify-center w-5 h-5 rounded-md" style={{ background: (connIcon?.color || "#888") + "22" }}>
+                      {connIcon?.icon || <Plug className="w-3.5 h-3.5" />}
+                    </span>
+                    <span className="flex-1 text-left truncate">{group.label}</span>
+                    {totalBadge > 0 && group.key !== "whatsapp" && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400">{totalBadge}</span>
+                    )}
+                    <ChevronDown className={`w-3 h-3 text-muted-foreground/40 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                  </button>
+                  {isExpanded && (
+                    <div onClick={(e) => e.stopPropagation()} className="ml-5 pl-2 mt-0.5 space-y-0.5" style={{ borderLeft: "1px solid rgba(255,255,255,0.06)" }}>
+                      {group.pages.map(p => (
+                        <SidebarNavItem key={p.to} to={p.to} label={p.label} icon={p.icon} badge={p.badge} />
+                      ))}
+                      {groupAgents.map(a => renderAgentItem(a, group.key, connIcon?.color))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Orphan agents (no connector) */}
+            {(agentsByConnector.other || []).length > 0 && (
+              <div>
+                <button
+                  onClick={() => toggleGroup("other")}
+                  className="flex items-center gap-2.5 px-3 py-1.5 w-full text-[13px] font-medium transition-all rounded-lg hover:bg-white/5"
+                >
+                  <span className="shrink-0 flex items-center justify-center w-5 h-5 rounded-md" style={{ background: "rgba(150,150,150,0.15)" }}>
+                    <CircleDot className="w-3.5 h-3.5 text-muted-foreground" />
+                  </span>
+                  <span className="flex-1 text-left truncate">Altri Agenti</span>
+                  <ChevronDown className={`w-3 h-3 text-muted-foreground/40 transition-transform ${expandedGroups.other ? "rotate-180" : ""}`} />
+                </button>
+                {expandedGroups.other && (
+                  <div onClick={(e) => e.stopPropagation()} className="ml-5 pl-2 mt-0.5 space-y-0.5" style={{ borderLeft: "1px solid rgba(255,255,255,0.06)" }}>
+                    {(agentsByConnector.other || []).map(a => renderAgentItem(a))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </SidebarSection>
 
-        {/* Agents */}
+        {/* Projects */}
         <div className={!isComplete ? "opacity-30 pointer-events-none" : ""}>
-          <SidebarAgents />
           <SidebarProjects />
         </div>
 
@@ -310,6 +477,7 @@ export function Sidebar() {
               <SidebarNavItem to="/api-claude" label="API Claude" icon={Key} />
             </div>
           )}
+          {/* <div className={!isComplete ? "opacity-30 pointer-events-none" : ""}><SidebarNavItem to="/models" label="Modelli AI" icon={Brain} /></div> */}
         </SidebarSection>
 
         <PluginSlotOutlet

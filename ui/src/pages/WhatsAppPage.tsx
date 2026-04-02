@@ -6,7 +6,7 @@ import { MarkdownBody } from "../components/MarkdownBody";
 
 interface TgMessage {
   id: string;
-  remote_jid: number;
+  remote_jid: string;
   from_name: string;
   from_username: string;
   message_text: string;
@@ -18,7 +18,7 @@ interface TgMessage {
 }
 
 interface ChatThread {
-  remoteJid: number;
+  remoteJid: string;
   name: string;
   username: string;
   lastMessage: string;
@@ -32,7 +32,7 @@ export function WhatsAppPage() {
   const [messages, setMessages] = useState<TgMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedChat, setSelectedChat] = useState<number | null>(null);
+  const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [generating, setGenerating] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -40,9 +40,7 @@ export function WhatsAppPage() {
   const [numbers, setNumbers] = useState<Array<{ phoneNumber: string }>>([]);
   const [selectedBot, setSelectedBot] = useState(-1); // -1 = all
   const bottomRef = useRef<HTMLDivElement>(null);
-  const readChatsRef = useRef<Set<string>>(new Set(
-    (() => { try { return JSON.parse(localStorage.getItem("goitalia_wa_read_chats") || "[]"); } catch { return []; } })()
-  ));
+  const [readMarkers, setReadMarkers] = useState<Record<string, string>>({});
   const [, forceRender] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -90,32 +88,72 @@ export function WhatsAppPage() {
   }, [selectedCompany?.id]);
 
 
+  const fetchReadMarkers = async () => {
+    if (!selectedCompany?.id) return;
+    try {
+      const r = await fetch("/api/whatsapp/read-markers?companyId=" + selectedCompany.id, { credentials: "include" });
+      const d = await r.json();
+      setReadMarkers(d.markers || {});
+    } catch {}
+  };
 
-  useEffect(() => { fetchMessages(); }, [selectedCompany?.id, selectedBot]);
-  useEffect(() => { const i = setInterval(fetchMessages, 10000); return () => clearInterval(i); }, [selectedCompany?.id]);
+  useEffect(() => { fetchMessages(); fetchReadMarkers(); }, [selectedCompany?.id, selectedBot]);
+  useEffect(() => { const i = setInterval(() => { fetchMessages(); fetchReadMarkers(); }, 10000); return () => clearInterval(i); }, [selectedCompany?.id]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, selectedChat]);
 
-  // Build chat threads
+  // Build chat threads — merge @lid and @s.whatsapp.net JIDs for same contact
   const threads: ChatThread[] = [];
-  const chatMap = new Map<number, TgMessage[]>();
+  const chatMap = new Map<string, TgMessage[]>();
+
+  // Step 1: Build name→JIDs mapping to detect duplicates caused by @lid
+  const nameToJids = new Map<string, Set<string>>();
   for (const msg of messages) {
-    if (!chatMap.has(msg.remote_jid)) chatMap.set(msg.remote_jid, []);
-    chatMap.get(msg.remote_jid)!.push(msg);
+    if (msg.direction === "incoming" && msg.from_name) {
+      if (!nameToJids.has(msg.from_name)) nameToJids.set(msg.from_name, new Set());
+      nameToJids.get(msg.from_name)!.add(msg.remote_jid);
+    }
   }
+
+  // Step 2: Build JID merge map — if same name has both @lid and @s.whatsapp.net, merge into @s.whatsapp.net
+  const jidMerge = new Map<string, string>(); // @lid → @s.whatsapp.net
+  for (const [, jids] of nameToJids) {
+    if (jids.size < 2) continue;
+    const arr = [...jids];
+    const sJid = arr.find((j) => j.endsWith("@s.whatsapp.net"));
+    const lidJids = arr.filter((j) => j.endsWith("@lid"));
+    if (sJid && lidJids.length > 0) {
+      for (const lid of lidJids) jidMerge.set(lid, sJid);
+    }
+  }
+
+  // Step 3: Group messages using merged JIDs
+  for (const msg of messages) {
+    const canonicalJid = jidMerge.get(msg.remote_jid) || msg.remote_jid;
+    if (!chatMap.has(canonicalJid)) chatMap.set(canonicalJid, []);
+    chatMap.get(canonicalJid)!.push(msg);
+  }
+
   for (const [remoteJid, msgs] of chatMap) {
     const incoming = msgs.filter((m) => m.direction === "incoming");
     const last = msgs[msgs.length - 1];
     if (last) {
-      // Count unread: incoming messages after last outgoing
+      // Count unread: incoming messages after last outgoing or after last read marker
       const lastOutIdx = msgs.map((m, i) => m.direction === "outgoing" ? i : -1).filter((i) => i >= 0).pop() ?? -1;
-      const unreadCount = msgs.slice(lastOutIdx + 1).filter((m) => m.direction === "incoming").length;
+      const chatReadAt = readMarkers[String(remoteJid)] || readMarkers["__global__"] || null;
+      let unreadCount = 0;
+      for (let i = lastOutIdx + 1; i < msgs.length; i++) {
+        if (msgs[i].direction === "incoming") {
+          if (chatReadAt && new Date(msgs[i].created_at) <= new Date(chatReadAt)) continue;
+          unreadCount++;
+        }
+      }
       threads.push({
         remoteJid,
         name: incoming[0]?.from_name || "Utente",
         username: incoming[0]?.from_username || "",
         lastMessage: last.message_text.slice(0, 60),
         lastTime: last.created_at,
-        unread: readChatsRef.current.has(String(remoteJid)) ? 0 : unreadCount,
+        unread: unreadCount,
       });
     }
   }
@@ -148,6 +186,8 @@ export function WhatsAppPage() {
         body: JSON.stringify({ companyId: selectedCompany.id, remoteJid: selectedChat, text: replyText }),
       });
       setReplyText("");
+      // Small delay to let the backend save the message
+      await new Promise(r => setTimeout(r, 500));
       fetchMessages();
     } catch {}
     setSending(false);
@@ -198,29 +238,31 @@ export function WhatsAppPage() {
         <div className="flex-1 overflow-y-auto">
           {threads.length === 0 ? (
             <div className="p-4 text-xs text-muted-foreground text-center">Nessuna conversazione</div>
-          ) : threads.map((thread) => (
+          ) : threads.map((thread) => {
+            const displayUnread = selectedChat === thread.remoteJid ? 0 : thread.unread;
+            return (
             <button
               key={thread.remoteJid}
-              onClick={() => { setSelectedChat(thread.remoteJid); setReplyText(""); readChatsRef.current.add(String(thread.remoteJid)); localStorage.setItem("goitalia_wa_read_chats", JSON.stringify([...readChatsRef.current])); forceRender((n) => n + 1); if (selectedCompany?.id) { fetch("/api/whatsapp/mark-read", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, chatId: String(thread.remoteJid) }) }).catch(() => {}); window.dispatchEvent(new CustomEvent("whatsapp-read")); } }}
+              onClick={() => { setSelectedChat(thread.remoteJid); setReplyText(""); if (selectedCompany?.id) { fetch("/api/whatsapp/mark-read", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, chatId: String(thread.remoteJid) }) }).then(() => fetchReadMarkers()).catch(() => {}); window.dispatchEvent(new CustomEvent("whatsapp-read")); } }}
               className={"w-full text-left px-3 py-2.5 border-b border-white/5 transition-colors " + (selectedChat === thread.remoteJid ? "bg-white/10" : "hover:bg-white/5")}
             >
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
-                  <User className="w-4 h-4 text-blue-400" />
+                <div className={"w-8 h-8 rounded-full flex items-center justify-center shrink-0 " + (displayUnread > 0 ? "bg-green-500/20" : "bg-blue-500/20")}>
+                  <User className={"w-4 h-4 " + (displayUnread > 0 ? "text-green-400" : "text-blue-400")} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium truncate">{thread.name}</span>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {thread.unread > 0 && <span className="min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-green-500 text-[10px] font-bold text-white px-1">{thread.unread}</span>}
-                      <span className="text-[10px] text-muted-foreground">{timeAgo(thread.lastTime)}</span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={"text-xs truncate " + (displayUnread > 0 ? "font-semibold text-white" : "font-medium")}>{thread.name}</span>
+                      {displayUnread > 0 && <span className="min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-green-500 text-[10px] font-bold text-white px-1 shrink-0">{displayUnread}</span>}
                     </div>
+                    <span className="text-[10px] text-muted-foreground shrink-0 ml-1.5">{timeAgo(thread.lastTime)}</span>
                   </div>
-                  <div className="text-[11px] text-muted-foreground truncate">{thread.lastMessage}</div>
+                  <div className={"text-[11px] truncate " + (displayUnread > 0 ? "text-white/60" : "text-muted-foreground")}>{thread.lastMessage}</div>
                 </div>
               </div>
             </button>
-          ))}
+          ); })}
         </div>
       </div>
 
@@ -250,7 +292,10 @@ export function WhatsAppPage() {
                       {msg.media_url && msg.message_type === "video" && (
                         <video src={msg.media_url} controls className="max-w-[240px] rounded-lg mb-1" />
                       )}
-                      {(!msg.media_url || (msg.message_text && msg.message_text !== "[Immagine]" && msg.message_text !== "[Video]" && msg.message_text !== "[Documento]")) && <div className="text-sm">{msg.message_text}</div>}
+                      {msg.media_url && msg.message_type === "audio" && (
+                        <audio src={msg.media_url} controls className="max-w-[240px] mb-1" style={{ height: "36px" }} />
+                      )}
+                      {(!msg.media_url || (msg.message_text && msg.message_text !== "[Immagine]" && msg.message_text !== "[Video]" && msg.message_text !== "[Documento]" && msg.message_text !== "🎤 [Messaggio vocale]")) && <div className="text-sm">{msg.message_text}</div>}
                         <div className={"text-[10px] mt-0.5 " + (isOut ? "text-green-400/50" : "text-muted-foreground/50")}>{formatTime(msg.created_at)}</div>
                         {!isOut && !autoReply && (
                           <button onClick={() => generateReply(msg)} disabled={generating === msg.id} className="flex items-center gap-1 mt-1 px-2 py-0.5 rounded-lg text-[10px] transition-all" style={{ background: "rgba(251, 191, 36, 0.1)", border: "1px solid rgba(251, 191, 36, 0.2)" }}>

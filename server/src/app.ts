@@ -302,18 +302,8 @@ app.use(express.json({
   api.use(assetRoutes(db, opts.storageService));
   api.use(projectRoutes(db));
   api.use(issueRoutes(db, opts.storageService));
-  api.use(routineRoutes(db));
-  api.use(executionWorkspaceRoutes(db));
-  api.use(goalRoutes(db));
-  api.use(approvalRoutes(db));
-  api.use(secretRoutes(db));
-  api.use(costRoutes(db));
-  api.use(activityRoutes(db));
-  api.use(dashboardRoutes(db));
-  api.use(sidebarBadgeRoutes(db));
-  api.use(instanceSettingsRoutes(db));
-
   // --- Scheduled Activities: approve/reject/pending endpoints ---
+  // Must be registered BEFORE routineRoutes to avoid /routines/:id matching "pending"
   api.get("/routines/pending", async (req, res) => {
     const companyId = req.query.companyId as string;
     if (!companyId) { res.status(400).json({ error: "companyId required" }); return; }
@@ -340,8 +330,6 @@ app.use(express.json({
       .then(r => r[0]);
     if (!run) { res.status(404).json({ error: "Run non trovata" }); return; }
     if (run.status !== "pending_approval") { res.status(400).json({ error: "Non in attesa di approvazione" }); return; }
-
-    // Mark as completed (the draft was already generated, approval means it's accepted)
     await db.update(rr).set({
       status: "completed",
       completedAt: new Date(),
@@ -359,6 +347,19 @@ app.use(express.json({
     }).where(eq(rr.id, runId));
     res.json({ ok: true });
   });
+
+  api.use(routineRoutes(db));
+  api.use(executionWorkspaceRoutes(db));
+  api.use(goalRoutes(db));
+  api.use(approvalRoutes(db));
+  api.use(secretRoutes(db));
+  api.use(costRoutes(db));
+  api.use(activityRoutes(db));
+  api.use(dashboardRoutes(db));
+  api.use(sidebarBadgeRoutes(db));
+  api.use(instanceSettingsRoutes(db));
+
+
 
   // One-shot migration: populate connector_accounts from company_secrets
   api.post("/migrate-connectors", async (req, res) => {

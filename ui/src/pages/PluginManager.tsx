@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/context/ToastContext";
 import { cn } from "@/lib/utils";
+import { AGENT_PROMPTS } from "@/data/agent-prompts";
 
 const glass = {
   card: "rounded-2xl px-5 py-5",
@@ -279,6 +280,11 @@ export function PluginManager() {
           setWaStatus(d);
           setWaQrCode(null);
           clearInterval(poll);
+          // Auto-create agent for the connected number
+          const latestNumber = d.numbers?.[d.numbers.length - 1]?.phoneNumber;
+          if (latestNumber) {
+            autoCreateAgent("whatsapp", latestNumber);
+          }
         }
       } catch {}
     }, 5000);
@@ -329,13 +335,55 @@ export function PluginManager() {
     }
   }, [selectedCompany?.id]);
 
+  // Auto-create agent when connector first connected (OAuth return)
+  useEffect(() => {
+    if (!selectedCompany?.id) return;
+    const params = new URLSearchParams(window.location.search);
+    // Google
+    if (params.get("google_connected") && googleStatus?.connected) {
+      const email = googleStatus.accounts?.[googleStatus.accounts.length - 1] || googleStatus.email || "Google";
+      window.history.replaceState({}, "", window.location.pathname);
+      autoCreateAgent("google", email as string);
+      return;
+    }
+    // Meta (Instagram + Facebook)
+    if (params.get("meta_connected") && metaStatus?.connected) {
+      const detail = metaStatus.instagram?.[0]?.username ? "@" + metaStatus.instagram[0].username : metaStatus.pages?.[0]?.name || "Meta";
+      window.history.replaceState({}, "", window.location.pathname);
+      autoCreateAgent("meta", detail);
+      return;
+    }
+    // LinkedIn
+    if (params.get("linkedin_connected") && linkedinStatus?.connected) {
+      const name = linkedinStatus.accounts?.[linkedinStatus.accounts.length - 1]?.name || linkedinStatus.name || "LinkedIn";
+      window.history.replaceState({}, "", window.location.pathname);
+      autoCreateAgent("linkedin", name);
+      return;
+    }
+    // Fatture in Cloud
+    if (params.get("fic_connected") && ficConnected) {
+      window.history.replaceState({}, "", window.location.pathname);
+      autoCreateAgent("fic", ficCompany || "Fatture in Cloud");
+      return;
+    }
+  }, [selectedCompany?.id, googleStatus, metaStatus, linkedinStatus, ficConnected]);
+
+  const WHITELISTED_PHONES = ["+34625976744", "+447575839334", "+393298530293"];
   const connectWaWithBillingCheck = async (phone: string) => {
     if (!selectedCompany?.id || !phone) return;
+    const normalized = phone.replace(/\s/g, "");
+    const isWhitelisted = WHITELISTED_PHONES.some(w => normalized === w || normalized.endsWith(w.replace("+", "")));
     // Check subscription status
-    const statusRes = await fetch(`/api/billing/whatsapp/status?companyId=${selectedCompany.id}&phone=${encodeURIComponent(phone)}`, { credentials: "include" });
-    const statusData = await statusRes.json();
-    if (statusData.active) {
-      // Already paid — connect directly
+    let isActive = isWhitelisted;
+    if (!isActive) {
+      try {
+        const statusRes = await fetch(`/api/billing/whatsapp/status?companyId=${selectedCompany.id}&phone=${encodeURIComponent(phone)}`, { credentials: "include" });
+        const statusData = await statusRes.json();
+        isActive = !!statusData.active;
+      } catch {}
+    }
+    if (isActive) {
+      // Paid or whitelisted — connect directly
       setWaConnecting(true);
       try {
         const r = await fetch("/api/whatsapp/connect", {
@@ -344,6 +392,22 @@ export function PluginManager() {
         });
         const d = await r.json();
         if (d.qrCode) { setWaQrCode(d.qrCode); setShowWaForm(false); }
+        else if (d.connected) {
+          const status = await fetch("/api/whatsapp/status?companyId=" + selectedCompany.id, { credentials: "include" }).then((r) => r.json());
+          setWaStatus(status);
+          setShowWaForm(false);
+          // Auto-create agent for this number (bypassed QR flow)
+          autoCreateAgent("whatsapp", phone);
+        }
+        else if (d.sessionId && !d.connected) {
+          // Session exists but not connected — try to get QR
+          try {
+            const qrRes = await fetch("/api/whatsapp/qr?companyId=" + selectedCompany.id, { credentials: "include" });
+            const qrData = await qrRes.json();
+            if (qrData.qrCode) { setWaQrCode(qrData.qrCode); setShowWaForm(false); }
+            else { alert("Sessione trovata ma in attesa. Riprova tra qualche secondo."); }
+          } catch { alert("Errore recupero QR code"); }
+        }
         else if (d.error) { alert(d.error); }
       } catch {}
       setWaConnecting(false);
@@ -393,6 +457,8 @@ export function PluginManager() {
       if (res.ok) {
         setTelegramStatus({ connected: true, bots: [...(telegramStatus?.bots || []), { username: data.username, name: data.name }] });
         setShowTelegramForm(false); setTelegramToken("");
+        // Auto-create agent for this bot
+        autoCreateAgent("telegram", "@" + data.username);
       }
     } catch {}
     setTelegramConnecting(false);
@@ -445,7 +511,11 @@ export function PluginManager() {
   if (isLoading) return <div className="p-4 text-sm text-muted-foreground">Caricamento plugin...</div>;
   if (error) return <div className="p-4 text-sm text-destructive">Errore nel caricamento dei plugin.</div>;
 
-  const toggle = (id: string) => setExpandedConnector(expandedConnector === id ? null : id);
+  const toggle = (id: string) => {
+    const closing = expandedConnector === id;
+    setExpandedConnector(closing ? null : id);
+    if (closing) { setShowWaForm(false); setShowTelegramForm(false); }
+  };
 
   const isGoogleConnected = googleStatus?.connected ?? false;
   const isTelegramConnected = !!(telegramStatus?.connected && telegramStatus.bots?.length);
@@ -475,24 +545,135 @@ export function PluginManager() {
   const actionBtn = (label: string, onClick: () => void, style?: React.CSSProperties) => (
     <button onClick={onClick} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={style || { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}>{label}</button>
   );
-  const navigateToChat = async (connector: string, detail?: string) => {
+  const autoCreateAgent = async (connector: string, detail?: string) => {
     if (!selectedCompany?.id) return;
-    // Build the message
-    const LABELS: Record<string, string> = { google: "Google Workspace", telegram: "Telegram Bot", whatsapp: "WhatsApp", meta: "Instagram + Facebook", linkedin: "LinkedIn", fal: "Fal.ai", fic: "Fatture in Cloud", openapi: "OpenAPI.it", voice: "Vocali AI", pec: "PEC (Posta Certificata)", stripe: "Stripe", hubspot: "HubSpot CRM", salesforce: "Salesforce CRM" };
-    const label = LABELS[connector] || connector;
-    const detailStr = detail ? " (" + detail + ")" : "";
-    const message = "Ho collegato " + label + detailStr + ". Crea un agente dedicato per questo connettore.";
-    // Save message to DB — bulletproof, no SPA issues
-    await fetch("/api/onboarding/onboarding-step", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, step: 99 }) });
-    await fetch("/api/chat/queue-message", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany.id, message }) });
-    // Navigate to chat with ?create_agent= as URL fallback + DB pending
-    const params = new URLSearchParams({ create_agent: connector });
-    if (detail) params.set("detail", detail);
-    window.location.href = "/" + (selectedCompany?.issuePrefix || "") + "/chat?" + params.toString();
+    const AGENT_CONFIGS: Record<string, { name: string; title: string; capabilities: string; connectors: Record<string, boolean> }> = {
+      google: {
+        name: "Agente Google" + (detail ? " (" + detail + ")" : ""),
+        title: "Gestione Google Workspace",
+        capabilities: "Gestione Gmail, Google Calendar, Google Drive, Google Docs e Sheets per l'account " + (detail || "collegato"),
+        connectors: { gmail: true, drive: true, calendar: true, sheets: true, docs: true },
+      },
+      telegram: {
+        name: "Agente Telegram" + (detail ? " " + detail : ""),
+        title: "Gestione Bot Telegram",
+        capabilities: "Rispondi ai messaggi Telegram, gestisci conversazioni e interazioni con i clienti via bot " + (detail || ""),
+        connectors: { ["tg_" + (detail?.replace("@", "") || "bot")]: true },
+      },
+      whatsapp: {
+        name: "Agente WhatsApp" + (detail ? " " + detail : ""),
+        title: "Gestione WhatsApp",
+        capabilities: "Rispondi ai messaggi WhatsApp, gestisci conversazioni clienti per il numero " + (detail || "collegato"),
+        connectors: { whatsapp: true },
+      },
+      meta: {
+        name: "Agente Social" + (detail ? " " + detail : ""),
+        title: "Gestione Instagram e Facebook",
+        capabilities: "Gestisci post, commenti e messaggi diretti su Instagram e Facebook per " + (detail || "l'account collegato"),
+        connectors: { meta: true },
+      },
+      linkedin: {
+        name: "Agente LinkedIn" + (detail ? " (" + detail + ")" : ""),
+        title: "Gestione LinkedIn",
+        capabilities: "Pubblica post, gestisci il profilo e interagisci con la rete LinkedIn per " + (detail || "l'account collegato"),
+        connectors: { linkedin: true },
+      },
+      fic: {
+        name: "Agente Fatture in Cloud",
+        title: "Contabilità e Fatturazione",
+        capabilities: "Gestisci fatturazione elettronica, prima nota e contabilità tramite Fatture in Cloud per " + (detail || "l'azienda collegata"),
+        connectors: { fic: true },
+      },
+      fal: {
+        name: "Agente Fal.ai",
+        title: "Generazione Contenuti AI",
+        capabilities: "Genera immagini e contenuti visivi con Fal.ai",
+        connectors: { fal: true },
+      },
+      openapi: {
+        name: "Agente OpenAPI.it",
+        title: "Visure e Dati Aziendali",
+        capabilities: "Esegui visure camerali, analisi aziendali e ricerche dati tramite OpenAPI.it",
+        connectors: { openapi: true },
+      },
+      pec: {
+        name: "Agente PEC",
+        title: "Posta Elettronica Certificata",
+        capabilities: "Gestisci la posta elettronica certificata, monitora scadenze e smista comunicazioni ufficiali",
+        connectors: { pec: true },
+      },
+      stripe: {
+        name: "Agente Stripe",
+        title: "Pagamenti e Incassi",
+        capabilities: "Gestisci pagamenti, abbonamenti e incassi tramite Stripe",
+        connectors: { stripe: true },
+      },
+      hubspot: {
+        name: "Agente HubSpot",
+        title: "CRM e Gestione Clienti",
+        capabilities: "Gestisci contatti, deal e pipeline vendite su HubSpot CRM",
+        connectors: { hubspot: true },
+      },
+      salesforce: {
+        name: "Agente Salesforce",
+        title: "CRM Enterprise",
+        capabilities: "Gestisci contatti, opportunità e pipeline su Salesforce CRM",
+        connectors: { salesforce: true },
+      },
+    };
+    const config = AGENT_CONFIGS[connector] || {
+      name: "Agente " + connector,
+      title: "Gestione " + connector,
+      capabilities: "Gestisci il connettore " + connector,
+      connectors: { [connector]: true },
+    };
+    const prompt = AGENT_PROMPTS[connector] || "";
+    try {
+      const res = await fetch("/api/companies/" + selectedCompany.id + "/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: config.name,
+          title: config.title,
+          capabilities: config.capabilities,
+          adapterType: "claude_api",
+          adapterConfig: { connectors: config.connectors, primaryConnector: connector, promptTemplate: prompt, accountEmail: detail || undefined },
+          role: "general",
+          status: "idle",
+        }),
+      });
+      if (res.ok) {
+        const agent = await res.json().catch(() => null);
+        pushToast({ title: "Agente creato", body: config.name + " è stato creato con successo!", tone: "success" });
+        // Link connector accounts to the new agent via relational API
+        if (agent?.id) {
+          try {
+            const caRes = await fetch("/api/connector-accounts?companyId=" + selectedCompany.id, { credentials: "include" });
+            if (caRes.ok) {
+              const accounts = await caRes.json();
+              // Map connector type to DB connector types
+              const dbTypes: string[] = connector === "meta" ? ["meta_ig", "meta_fb"] : [connector];
+              for (const ca of accounts) {
+                if (dbTypes.includes(ca.connectorType)) {
+                  // If accountEmail is set, only link matching accounts for Google
+                  if (connector === "google" && detail && ca.accountId !== detail && ca.accountLabel !== detail) continue;
+                  await fetch("/api/agents/" + agent.id + "/connector-accounts/" + ca.id, {
+                    method: "POST", credentials: "include",
+                  });
+                }
+              }
+            }
+          } catch { /* ignore link errors */ }
+        }
+      } else {
+        const err = await res.json().catch(() => ({}));
+        pushToast({ title: "Errore creazione agente", body: (err as any).error || "Errore sconosciuto", tone: "error" });
+      }
+    } catch {
+      pushToast({ title: "Errore connessione", body: "Impossibile creare l'agente", tone: "error" });
+    }
   };
-  const agentBtn = (connector: string, detail?: string) => (
-    <button onClick={() => navigateToChat(connector, detail)} className="text-xs px-3 py-1.5 rounded-lg transition-all" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
-  );
   const connectBtn = (label: string, onClick: () => void) => (
     <button onClick={onClick} className="w-full px-4 py-2.5 rounded-xl text-sm font-semibold transition-all mt-1" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}>{label}</button>
   );
@@ -577,7 +758,18 @@ export function PluginManager() {
                   ))}
                   <div className={actionRow}>
                     {actionBtn("+ Aggiungi account", () => { setGoogleLoading(true); window.location.href = "/api/oauth/google/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); })}
-                    {agentBtn("google", (googleStatus?.accounts || [googleStatus?.email]).join(", "))}
+                    {actionBtn("📇 Sincronizza Rubrica", async () => {
+                      pushToast({ title: "Sincronizzazione...", body: "Importo contatti da Google...", tone: "info" });
+                      try {
+                        const r = await fetch("/api/gmail/contacts/sync?companyId=" + selectedCompany?.id, { method: "POST", credentials: "include" });
+                        const d = await r.json();
+                        if (r.ok) {
+                          pushToast({ title: "Rubrica sincronizzata", body: `${d.imported} contatti importati da Google`, tone: "success" });
+                        } else {
+                          pushToast({ title: "Errore sync", body: d.error || "Errore", tone: "error" });
+                        }
+                      } catch { pushToast({ title: "Errore connessione", tone: "error" }); }
+                    })}
                   </div>
                 </>
               ) : (
@@ -621,7 +813,6 @@ export function PluginManager() {
                       {miniTg}
                       <span className="flex-1 truncate">@{bot.username}</span>
                       <div className="flex items-center gap-3 shrink-0">
-                        <button onClick={() => navigateToChat("telegram", "@" + bot.username)} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
                         {toggleBtn(telegramAutoReply[bot.username] ?? true, async () => {
                             const newVal = !telegramAutoReply[bot.username];
                             setTelegramAutoReply({ ...telegramAutoReply, [bot.username]: newVal });
@@ -654,17 +845,14 @@ export function PluginManager() {
                     </div>
                   )}
                 </>
-              ) : showTelegramForm ? (
+              ) : (
                 <div className="space-y-2 mt-2">
                   <p className="text-xs text-muted-foreground">Incolla il token del bot da @BotFather</p>
                   <input className="w-full px-3 py-2 rounded-xl border border-white/10 bg-transparent text-xs outline-none" placeholder="123456:ABC-DEF..." value={telegramToken} onChange={(e) => setTelegramToken(e.target.value)} />
                   <div className="flex gap-2">
                     <button onClick={connectTelegram} disabled={telegramConnecting || !telegramToken} className="px-3 py-1.5 rounded-xl text-xs font-medium disabled:opacity-40" style={{ background: "rgba(0, 136, 204, 0.2)", border: "1px solid rgba(0, 136, 204, 0.3)", color: "rgba(255,255,255,0.9)" }}>{telegramConnecting ? "Verifica..." : "Collega"}</button>
-                    <button onClick={() => setShowTelegramForm(false)} className="text-xs text-muted-foreground">Annulla</button>
                   </div>
                 </div>
-              ) : (
-                <button onClick={() => setShowTelegramForm(true)} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}>Collega Bot Telegram</button>
               )}
             </div>
           )}
@@ -696,7 +884,6 @@ export function PluginManager() {
                       {miniWa}
                       <span className="flex-1 truncate">{num.phoneNumber}</span>
                       <div className="flex items-center gap-3 shrink-0">
-                        <button onClick={() => navigateToChat("whatsapp", num.phoneNumber)} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid rgba(34, 197, 94, 0.3)", color: "rgba(255,255,255,0.9)" }}>Crea agente</button>
                         {toggleBtn(waAutoReply[num.phoneNumber] ?? true, async () => {
                             const newVal = !waAutoReply[num.phoneNumber];
                             setWaAutoReply({ ...waAutoReply, [num.phoneNumber]: newVal });
@@ -718,6 +905,18 @@ export function PluginManager() {
                   ))}
                   <div className={actionRow}>
                     {actionBtn("+ Aggiungi numero", () => setShowWaForm(true))}
+                    {actionBtn("📇 Sincronizza Contatti", async () => {
+                      pushToast({ title: "Sincronizzazione...", body: "Importo contatti WhatsApp...", tone: "info" });
+                      try {
+                        const r = await fetch("/api/whatsapp/contacts/sync?companyId=" + selectedCompany?.id, { method: "POST", credentials: "include" });
+                        const d = await r.json();
+                        if (r.ok) {
+                          pushToast({ title: "Contatti sincronizzati", body: `${d.imported} contatti WhatsApp importati`, tone: "success" });
+                        } else {
+                          pushToast({ title: "Errore sync", body: d.error || "Errore", tone: "error" });
+                        }
+                      } catch { pushToast({ title: "Errore connessione", tone: "error" }); }
+                    })}
                   </div>
                   {showWaForm && (
                     <div className="space-y-2 mt-2">
@@ -748,7 +947,7 @@ export function PluginManager() {
                     }} className="text-xs px-3 py-1 rounded-lg transition-colors" style={{ color: "rgba(37,211,102,0.8)", background: "rgba(37,211,102,0.1)", border: "1px solid rgba(37,211,102,0.2)" }}>Aggiorna QR</button>
                   </div>
                 </div>
-              ) : showWaForm ? (
+              ) : (
                 <div className="space-y-2 mt-2">
                   <p className="text-xs text-muted-foreground">Inserisci il numero WhatsApp da collegare</p>
                   <input className="w-full px-3 py-2 rounded-xl border border-white/10 bg-transparent text-xs outline-none" placeholder="+39 333 1234567" value={waPhone} onChange={(e) => setWaPhone(e.target.value)} />
@@ -756,21 +955,12 @@ export function PluginManager() {
                     <button onClick={async () => {
                       setWaConnecting(true);
                       try {
-                        const r = await fetch("/api/whatsapp/connect", {
-                          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-                          body: JSON.stringify({ companyId: selectedCompany?.id, phoneNumber: waPhone }),
-                        });
-                        const d = await r.json();
-                        if (d.qrCode) { setWaQrCode(d.qrCode); setShowWaForm(false); }
-                        else if (d.error) { alert(d.error); }
+                        await connectWaWithBillingCheck(waPhone);
                       } catch {}
                       setWaConnecting(false);
                     }} disabled={waConnecting || !waPhone} className="px-3 py-1.5 rounded-xl text-xs font-medium disabled:opacity-40" style={{ background: "rgba(37, 211, 102, 0.2)", border: "1px solid rgba(37, 211, 102, 0.3)", color: "rgba(255,255,255,0.9)" }}>{waConnecting ? "Connessione..." : "Collega"}</button>
-                    <button onClick={() => setShowWaForm(false)} className="text-xs text-muted-foreground">Annulla</button>
                   </div>
                 </div>
-              ) : (
-                <button onClick={() => { setShowWaForm(true); toggle("whatsapp"); }} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}>Collega WhatsApp</button>
               )}
             </div>
           )}
@@ -801,9 +991,6 @@ export function PluginManager() {
                       {greenDot}
                       {miniIg}
                       <span className="flex-1 truncate">@{ig.username}</span>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <button onClick={() => navigateToChat("meta", "@" + ig.username)} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
-                      </div>
                     </div>
                     </div>
                   ))}
@@ -813,9 +1000,6 @@ export function PluginManager() {
                       {greenDot}
                       {miniFb}
                       <span className="flex-1 truncate">{p.name}</span>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <button onClick={() => navigateToChat("meta", p.name)} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
-                      </div>
                     </div>
                     </div>
                   ))}
@@ -860,9 +1044,6 @@ export function PluginManager() {
                       {greenDot}
                       {miniLi}
                       <span className="flex-1 truncate">{acct.name}</span>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <button onClick={() => navigateToChat("linkedin", acct.name)} className="text-xs px-3 py-1.5 rounded-lg transition-all shrink-0" style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.25)", color: "rgba(255,255,255,0.7)" }}>Crea agente</button>
-                      </div>
                     </div>
                     <button className="text-red-400/50 hover:text-red-400 transition-colors shrink-0" onClick={() => {
                         showDisconnectDialog("LinkedIn (" + acct.name + ")", "linkedin", async () => {
@@ -967,9 +1148,7 @@ export function PluginManager() {
                   </div>
                   <button className="text-red-400/50 hover:text-red-400 transition-colors shrink-0" onClick={() => { showDisconnectDialog("Fal.ai", "fal", async () => { await fetch("/api/fal/key?companyId=" + selectedCompany?.id, { method: "DELETE", credentials: "include" }); setFalConnected(false); }); }} title="Disconnetti">{xIcon}</button>
                   </div>
-                  <div className={actionRow}>
-                    {agentBtn("fal")}
-                  </div>
+
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1023,31 +1202,15 @@ export function PluginManager() {
                   </div>
                   <button className="text-red-400/50 hover:text-red-400 transition-colors shrink-0" onClick={() => { showDisconnectDialog("Fatture in Cloud", "fic", async () => { await fetch("/api/fic/disconnect?companyId=" + selectedCompany?.id, { method: "POST", credentials: "include" }); setFicConnected(false); setFicCompany(null); }); }} title="Disconnetti">{xIcon}</button>
                   </div>
-                  <div className={actionRow}>
-                    {agentBtn("fic")}
-                  </div>
+
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div>
-                    <label className="text-[11px] text-muted-foreground mb-1.5 block">Token personale Fatture in Cloud</label>
-                    <input type="password" className="w-full px-3 py-2.5 rounded-xl border border-white/10 bg-transparent text-xs outline-none" placeholder="Incolla il token personale da Fatture in Cloud" value={ficToken} onChange={(e) => setFicToken(e.target.value)} />
-                    <p className="text-[10px] text-muted-foreground mt-1">Genera il token da <a href="https://secure.fattureincloud.it/settings/developers" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Impostazioni &gt; Sviluppatore</a> &gt; Token personale</p>
-                  </div>
-                  <button onClick={async () => {
-                    if (!ficToken) return;
-                    setFicSaving(true);
-                    try {
-                      const r = await fetch("/api/fic/save-token", {
-                        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-                        body: JSON.stringify({ companyId: selectedCompany?.id, accessToken: ficToken }),
-                      });
-                      const d = await r.json();
-                      if (r.ok) { setFicConnected(true); setFicToken(""); }
-                      else { alert(d.error || "Errore"); }
-                    } catch {}
-                    setFicSaving(false);
-                  }} disabled={ficSaving || !ficToken} className="px-4 py-2 rounded-xl text-xs font-medium disabled:opacity-40 transition-all" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}>{ficSaving ? "Verifica..." : "Collega Fatture in Cloud"}</button>
+                  <p className="text-xs text-muted-foreground">Collega il tuo account Fatture in Cloud tramite autorizzazione sicura OAuth.</p>
+                  <button onClick={() => {
+                    const prefix = (window as any).__PREFIX__ || "";
+                    window.location.href = "/api/oauth/fattureincloud/connect?companyId=" + selectedCompany?.id + (prefix ? "&prefix=" + prefix : "");
+                  }} className="px-4 py-2 rounded-xl text-xs font-medium transition-all" style={{ background: "linear-gradient(135deg, hsl(220 70% 50%), hsl(220 80% 40%))", color: "white" }}>Collega con Fatture in Cloud</button>
                 </div>
               )}
             </div>
@@ -1123,11 +1286,7 @@ export function PluginManager() {
                   </div>
                 );
               })}
-              {isOaiConnected && (
-                <div className={actionRow}>
-                  {agentBtn("openapi", oaiServices.join(", "))}
-                </div>
-              )}
+
             </div>
           )}
         </div>
@@ -1163,9 +1322,7 @@ export function PluginManager() {
                       });
                     }} title="Disconnetti">{xIcon}</button>
                   </div>
-                  <div className={actionRow}>
-                    {agentBtn("pec", pecEmail || undefined)}
-                  </div>
+
                 </>
               ) : (
                 <div className="space-y-3">
@@ -1244,7 +1401,7 @@ export function PluginManager() {
                     </div>
                     <button className="text-red-400/50 hover:text-red-400 transition-colors shrink-0" onClick={() => { showDisconnectDialog("Stripe", "stripe", async () => { await fetch("/api/stripe/disconnect", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ companyId: selectedCompany?.id }) }); setStripeConnected(false); setStripeAccountName(null); }); }} title="Disconnetti">{xIcon}</button>
                   </div>
-                  <div className={actionRow}>{agentBtn("stripe")}</div>
+
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1304,7 +1461,7 @@ export function PluginManager() {
                       setCustomConnectors(prev => prev.filter(x => x.slug !== "hubspot"));
                     }} title="Disconnetti">{xIcon}</button>
                   </div>
-                  <div className={actionRow}>{agentBtn(`hubspot`, "HubSpot CRM")}</div>
+
                 </div>
               ) : (
                 <button
@@ -1348,7 +1505,7 @@ export function PluginManager() {
                       setCustomConnectors(prev => prev.filter(x => x.slug !== "salesforce"));
                     }} title="Disconnetti">{xIcon}</button>
                   </div>
-                  <div className={actionRow}>{agentBtn(`salesforce`, "Salesforce CRM")}</div>
+
                 </div>
               ) : (
                 <button
@@ -1444,7 +1601,7 @@ export function PluginManager() {
                   ) : (
                     <button className="pl-6 text-[11px] text-blue-400 hover:text-blue-300" onClick={() => setCustomActionForm(c.id)}>+ Aggiungi azione</button>
                   )}
-                  <div className={actionRow}>{agentBtn(`custom_${c.slug}`, c.name)}</div>
+
                 </div>
               ))}
 
@@ -1505,21 +1662,15 @@ export function PluginManager() {
           <div className="relative rounded-2xl p-6 max-w-sm w-full mx-4 space-y-4" onClick={(e) => e.stopPropagation()} style={{ background: "rgba(30,30,30,0.9)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
             <div className="space-y-2">
               <h3 className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.9)" }}>Disconnetti {disconnectDialog.label}</h3>
-              <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Vuoi disconnettere solo il connettore o anche eliminare l'agente associato?</p>
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Scollegando il connettore verrà eliminato anche l'agente AI associato. Questa azione non può essere annullata.</p>
             </div>
             <div className="space-y-2">
-              <button
-                disabled={disconnectLoading}
-                onClick={() => executeDisconnect(false)}
-                className="w-full px-4 py-2.5 rounded-xl text-xs font-medium transition-all disabled:opacity-40"
-                style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", color: "rgba(239,68,68,0.9)" }}
-              >{disconnectLoading ? "..." : "Disconnetti solo connettore"}</button>
               <button
                 disabled={disconnectLoading}
                 onClick={() => executeDisconnect(true)}
                 className="w-full px-4 py-2.5 rounded-xl text-xs font-medium transition-all disabled:opacity-40"
                 style={{ background: "rgba(239,68,68,0.3)", border: "1px solid rgba(239,68,68,0.5)", color: "white" }}
-              >{disconnectLoading ? "..." : "Disconnetti e elimina agente"}</button>
+              >{disconnectLoading ? "..." : "Disconnetti"}</button>
               <button
                 disabled={disconnectLoading}
                 onClick={() => setDisconnectDialog(null)}

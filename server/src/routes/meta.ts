@@ -11,15 +11,7 @@ const META_APP_SECRET = process.env.META_APP_SECRET || "";
 const REDIRECT_URI = (process.env.PAPERCLIP_AUTH_PUBLIC_BASE_URL || "https://impresa.goitalia.eu") + "/api/oauth/meta/callback";
 
 const SCOPES = [
-  "instagram_basic",
-  "instagram_content_publish",
-  "instagram_manage_messages",
-  "instagram_manage_comments",
-  "pages_show_list",
-  "pages_read_engagement",
-  "pages_manage_posts",
-  "pages_manage_metadata",
-  "public_profile",
+  "email",
 ].join(",");
 
 

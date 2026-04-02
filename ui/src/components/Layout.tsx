@@ -361,32 +361,32 @@ function OnboardingOverlay() {
   return <div className="fixed inset-0 z-[80]" style={{ background: "rgba(0,0,0,0.55)", left: "240px" }} />;
 }
 
+const ONBOARDING_CONFIGS: Record<number, { title: string; text: string; targetId: string; fallbackTop: number }> = {
+  0: {
+    title: "Configura API Claude",
+    text: "Inserisci la tua API key di Anthropic per attivare il CEO AI e utilizzare tutte le funzionalita del sistema. Se non sai come ottenerla, consulta la guida disponibile dopo aver cliccato su Ho capito. Senza API key, il sistema non e utilizzabile.",
+    targetId: "api-claude-nav",
+    fallbackTop: 340,
+  },
+  1: {
+    title: "Parla col tuo CEO AI",
+    text: "Il tuo CEO AI e pronto! Premi Ho capito per iniziare: il CEO ti fara alcune domande per capire la tua azienda e configurare tutto al meglio.",
+    targetId: "chat-ceo-nav",
+    fallbackTop: 235,
+  },
+  3: {
+    title: "Collega i Connettori",
+    text: "Collega i tuoi servizi (Google, WhatsApp, Telegram, ecc.). Una volta collegato un connettore, verrà creato automaticamente un agente AI specializzato per quel servizio.",
+    targetId: "connettori-nav",
+    fallbackTop: 432,
+  },
+};
+
 function OnboardingTooltip({ sidebarOpen }: { sidebarOpen: boolean }) {
   const { step, tooltipDismissed, advanceStep, dismissTooltip } = useOnboarding();
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
 
-  const configs: Record<number, { title: string; text: string; targetId: string; fallbackTop: number }> = {
-    0: {
-      title: "Configura API Claude",
-      text: "Inserisci la tua API key di Anthropic per attivare il CEO AI e utilizzare tutte le funzionalita del sistema. Se non sai come ottenerla, consulta la guida disponibile dopo aver cliccato su Ho capito. Senza API key, il sistema non e utilizzabile.",
-      targetId: "api-claude-nav",
-      fallbackTop: 340,
-    },
-    1: {
-      title: "Parla col tuo CEO AI",
-      text: "Il tuo CEO AI e pronto! Premi Ho capito per iniziare: il CEO ti fara alcune domande per capire la tua azienda e configurare tutto al meglio.",
-      targetId: "chat-ceo-nav",
-      fallbackTop: 235,
-    },
-    3: {
-      title: "Collega i Connettori",
-      text: "Collega i tuoi servizi (Google, WhatsApp, Telegram, ecc.). Una volta collegato un connettore, premi il bottone Crea Agente che trovi nella pagina del connettore per creare il tuo primo agente AI specializzato.",
-      targetId: "connettori-nav",
-      fallbackTop: 432,
-    },
-  };
-
-  const cfg = step !== null ? configs[step] : undefined;
+  const cfg = step !== null ? ONBOARDING_CONFIGS[step] : undefined;
 
   // Poll for target element position
   useEffect(() => {

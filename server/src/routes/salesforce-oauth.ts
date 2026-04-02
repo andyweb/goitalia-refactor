@@ -223,6 +223,83 @@ export function salesforceOAuthRoutes(db: Db) {
         await upsertConnectorAccount(db, stateData.companyId, "salesforce", "default", "Salesforce CRM");
       }
 
+      // --- Auto-create Salesforce agent if none exists ---
+      const existingAgent = await db.select({ id: agents.id }).from(agents)
+        .innerJoin(agentConnectorAccounts, eq(agentConnectorAccounts.agentId, agents.id))
+        .innerJoin(connectorAccounts, eq(connectorAccounts.id, agentConnectorAccounts.connectorAccountId))
+        .where(and(
+          eq(agents.companyId, stateData.companyId),
+          eq(connectorAccounts.connectorType, "salesforce"),
+        ))
+        .then(r => r[0]);
+
+      if (!existingAgent) {
+        const agentId = crypto.randomUUID();
+        const [newAgent] = await db.insert(agents).values({
+          id: agentId,
+          companyId: stateData.companyId,
+          name: "Salesforce CRM",
+          title: "Sales Operations Assistant",
+          role: "Sales Operations Assistant",
+          capabilities: "Gestisce il CRM Salesforce: contatti, account, opportunità e task. Esegue query SOQL/SOSL, monitora la pipeline, propone follow-up e segnala deal a rischio.",
+          adapterType: "claude_api",
+          adapterConfig: {
+            promptTemplate: `Sei il Salesforce CRM Agent di GoItalIA, integrato con l'istanza Salesforce della PMI.
+
+Il tuo ruolo è quello di un Sales Operations Assistant che conosce profondamente la logica di Salesforce: la distinzione tra Account e Contact, il ciclo di vita delle Opportunità attraverso gli Stage, e la gestione delle attività tramite Task.
+
+Parli il linguaggio di Salesforce in modo fluido, ma lo traduci in italiano semplice per l'operatore. Dici "cliente/azienda" per Account e "opportunità/trattativa" per Opportunity.
+
+Principio operativo:
+- Azioni di LETTURA (GET): esegui autonomamente senza conferma.
+- Azioni di CREAZIONE (POST): presenta un riepilogo prima di procedere.
+- Azioni di MODIFICA (PATCH): richiedi sempre conferma esplicita.
+- Elimina Contatto e Elimina Opportunità sono DISABILITATI.
+
+In Salesforce un Contact deve sempre avere un Account. Sequenza corretta:
+Account esiste? → NO: Crea Account prima
+Contatto esiste? → NO: Crea Contatto con AccountId
+Crea Opportunità con AccountId
+Crea Task collegato all'Opportunità (WhatId)
+
+Deduplicazione: cerca sempre per email prima di creare contatti, per nome prima di creare account.
+
+La CloseDate è obbligatoria per ogni Opportunità — chiedi sempre se non specificata.
+
+Suggerimenti proattivi:
+- Opportunità con Close Date scaduta: segnala.
+- Opportunità senza attività da 7+ giorni: proponi follow-up.
+- Dopo Closed Won: proponi aggiornamento Account Type a Customer e bridge verso Fatture in Cloud.
+- Dopo Closed Lost: proponi task reminder futuro.
+
+Usa Description del Task per registrare note dettagliate (Salesforce non ha Note separate nel connettore).
+Usa Ricerca Globale come primo passo per ricerche vaghe.
+
+Rispondi sempre in italiano.`,
+            connectors: { salesforce: true },
+            primaryConnector: "salesforce",
+          },
+          status: "idle",
+        }).returning();
+
+        // Link agent to salesforce connector_account
+        const connAccount = await db.select().from(connectorAccounts)
+          .where(and(
+            eq(connectorAccounts.companyId, stateData.companyId),
+            eq(connectorAccounts.connectorType, "salesforce"),
+          ))
+          .then(r => r[0]);
+
+        if (connAccount && newAgent) {
+          await db.insert(agentConnectorAccounts).values({
+            agentId: newAgent.id,
+            connectorAccountId: connAccount.id,
+          });
+        }
+
+        console.info("[salesforce-oauth] Auto-created agent:", newAgent?.name, "for company:", stateData.companyId);
+      }
+
       console.info("[salesforce-oauth] Connected:", sfName, "instance:", instanceUrl);
       const prefix = stateData.prefix;
       res.redirect(prefix ? "/" + prefix + "/plugins?salesforce_connected=true" : "/?salesforce_connected=true");

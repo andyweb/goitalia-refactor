@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import type { Db } from "@goitalia/db";
-import { companySecrets } from "@goitalia/db";
+import { companySecrets, agents, agentConnectorAccounts, connectorAccounts } from "@goitalia/db";
 import { eq, and, sql } from "drizzle-orm";
 import { encrypt, decrypt } from "../utils/crypto.js";
 import { upsertConnectorAccount, removeConnectorAccount } from "../utils/connector-sync.js";
@@ -84,6 +84,78 @@ export function falAiRoutes(db: Db) {
       await db.insert(companySecrets).values({ id: crypto.randomUUID(), companyId, name: "fal_api_key", provider: "encrypted", description: encrypted });
     }
     await upsertConnectorAccount(db, companyId, "fal", "default", "Fal.ai");
+
+    // --- Auto-create Creative Agent if none exists ---
+    try {
+    const existingAgent = await db.select({ id: agents.id }).from(agents)
+      .innerJoin(agentConnectorAccounts, eq(agentConnectorAccounts.agentId, agents.id))
+      .innerJoin(connectorAccounts, eq(connectorAccounts.id, agentConnectorAccounts.connectorAccountId))
+      .where(and(
+        eq(agents.companyId, companyId),
+        eq(connectorAccounts.connectorType, "fal"),
+      ))
+      .then(r => r[0]);
+
+    if (!existingAgent) {
+      const agentId = crypto.randomUUID();
+      const [newAgent] = await db.insert(agents).values({
+        id: agentId,
+        companyId,
+        name: "fal.ai",
+        title: "Direttore Creativo AI",
+        role: "Direttore Creativo AI",
+        capabilities: "Genera immagini e video professionali con Nano Banana 2, Veo 3.1, Kling v3 Pro e Seedance v1.5 Pro. Prompt engineering avanzato per food, hospitality, e-commerce, fashion e B2B.",
+        adapterType: "claude_api",
+        adapterConfig: {
+          promptTemplate: `Sei il Creative Agent di GoItalIA, un direttore creativo AI con accesso ai più avanzati modelli di generazione visiva al mondo.
+Il tuo scopo è produrre immagini e video di livello professionale per la PMI italiana.
+
+La PMI non ha competenze tecniche in generazione AI. Il tuo compito è:
+1. Comprendere l'obiettivo (cosa comunicare, a chi, su quale canale)
+2. Scegliere il modello giusto
+3. Costruire un prompt tecnico ottimale in modo autonomo
+4. Eseguire la generazione con i parametri corretti
+5. Presentare il risultato con un breve commento tecnico
+
+Modelli disponibili:
+- Nano Banana 2: immagini da testo o editing foto, fino a 4K
+- Veo 3.1 Fast: video da testo con audio nativo (Google), fino a 8s, 4K
+- Kling v3 Pro: video multi-shot fino a 15s, character consistency, voci personalizzabili
+- Seedance v1.5 Pro: video fluidi, camera_fixed per prodotti, aspect ratio 21:9
+
+Il prompt è sempre in inglese (i modelli lavorano meglio in inglese anche per soggetti italiani).
+Includi sempre: soggetto dettagliato, illuminazione professionale, qualità fotografica tecnica, composizione, stile e mood.
+
+Per i video usa sempre generate_audio: true salvo richiesta esplicita di video muto.
+Suggerisci sempre varianti (seed, stile o parametro diversi).
+Non generare contenuti con persone reali identificabili senza permesso esplicito.
+
+Rispondi sempre in italiano.`,
+          connectors: { fal: true },
+          primaryConnector: "fal",
+        },
+        status: "idle",
+      }).returning();
+
+      // Link agent to fal connector_account
+      const connAccount = await db.select().from(connectorAccounts)
+        .where(and(
+          eq(connectorAccounts.companyId, companyId),
+          eq(connectorAccounts.connectorType, "fal"),
+        ))
+        .then(r => r[0]);
+
+      if (connAccount && newAgent) {
+        await db.insert(agentConnectorAccounts).values({
+          agentId: newAgent.id,
+          connectorAccountId: connAccount.id,
+        });
+      }
+
+      console.info("[fal-ai] Auto-created agent:", newAgent?.name, "for company:", companyId);
+    }
+    } catch (agentErr) { console.error("[fal-ai] Agent creation error:", agentErr); }
+
     res.json({ connected: true });
   });
 
@@ -186,12 +258,30 @@ export function falAiRoutes(db: Db) {
         headers: { Authorization: "Key " + falKey },
       });
       if (!r.ok) {
-        res.json({ status: (r.status === 404 || r.status === 405 || r.status === 410) ? "FAILED" : "IN_QUEUE" });
+        console.error(`[fal] Status check failed: ${r.status} for ${modelKey}/${requestId}`);
+        // 404/410 = request gone, 5xx = fal.ai issue
+        if (r.status === 404 || r.status === 405 || r.status === 410) {
+          res.json({ status: "FAILED", error: `Request not found (${r.status})` });
+        } else if (r.status >= 500) {
+          res.json({ status: "IN_QUEUE", warning: `fal.ai server error: ${r.status}` });
+        } else {
+          res.json({ status: "IN_QUEUE" });
+        }
         return;
       }
       const text = await r.text();
-      try { res.json(JSON.parse(text)); } catch { res.json({ status: "IN_QUEUE" }); }
-    } catch { res.json({ status: "IN_QUEUE" }); }
+      try {
+        const parsed = JSON.parse(text);
+        console.log(`[fal] Status for ${requestId}: ${parsed.status}`);
+        res.json(parsed);
+      } catch {
+        console.error(`[fal] Invalid JSON from status:`, text.substring(0, 200));
+        res.json({ status: "IN_QUEUE" });
+      }
+    } catch (err) {
+      console.error(`[fal] Status fetch error:`, err);
+      res.json({ status: "IN_QUEUE" });
+    }
   });
 
   // GET /fal/result/:modelKey/:requestId - Get generation result

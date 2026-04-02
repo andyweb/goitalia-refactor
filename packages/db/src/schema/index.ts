@@ -64,3 +64,4 @@ export { companyProducts } from "./company_products.js";
 export { a2aConnections } from "./a2a_connections.js";
 export { a2aTasks, a2aMessages } from "./a2a_tasks.js";
 export { customConnectors } from "./custom_connectors.js";
+export { companyContacts } from "./company_contacts.js";

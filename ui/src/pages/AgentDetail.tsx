@@ -232,6 +232,7 @@ function scrollToContainerBottom(container: ScrollContainer, behavior: ScrollBeh
 type AgentDetailView = "dashboard" | "instructions" | "configuration" | "skills" | "runs" | "budget" | "contacts";
 
 function parseAgentDetailView(value: string | null): AgentDetailView {
+  if (value === "dashboard") return "dashboard";
   if (value === "instructions" || value === "prompts") return "instructions";
   if (value === "configure" || value === "configuration") return "configuration";
   if (value === "skills") return "skills";
@@ -811,7 +812,7 @@ export function AgentDetail() {
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
   if (!agent) return null;
   if (!urlRunId && !urlTab) {
-    return <Navigate to={`/agents/${canonicalAgentRef}/dashboard`} replace />;
+    return <Navigate to={`/agents/${canonicalAgentRef}/instructions`} replace />;
   }
   const isPendingApproval = agent.status === "pending_approval";
   const showConfigActionBar = (activeView === "configuration" || activeView === "instructions") && (configDirty || configSaving);
@@ -1042,7 +1043,7 @@ export function AgentDetail() {
 
       {activeView === "skills" && (
         (agent.adapterType as string) === "claude_api" ? (
-          <AgentConnectorsTab companyId={resolvedCompanyId ?? undefined} agentRole={agent.role} agentId={agent.id} primaryConnector={(agent.adapterConfig as any)?.primaryConnector} autoReply={(agent.adapterConfig as any)?.autoReply === true} />
+          <AgentConnectorsTab companyId={resolvedCompanyId ?? undefined} agentRole={agent.role} agentId={agent.id} primaryConnector={(agent.adapterConfig as any)?.primaryConnector} autoReply={(agent.adapterConfig as any)?.autoReply === true} accountEmail={(agent.adapterConfig as any)?.accountEmail} />
         ) : (
           <AgentSkillsTab
             agent={agent}
@@ -2484,7 +2485,7 @@ function PromptEditorSkeleton() {
 
 /* ---- Connectors Tab (for claude_api agents) ---- */
 
-function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, autoReply }: { companyId?: string; agentRole?: string; agentId?: string; primaryConnector?: string; autoReply?: boolean }) {
+function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, autoReply, accountEmail }: { companyId?: string; agentRole?: string; agentId?: string; primaryConnector?: string; autoReply?: boolean; accountEmail?: string }) {
   const [autoReplyDraft, setAutoReplyDraft] = useState(autoReply ?? false);
 
   const toggleAutoReply = async () => {
@@ -2743,18 +2744,28 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
 
         {expandedConn === "google" && googleStatus?.connected && (
           <div className="space-y-3 pt-2">
-            {(googleStatus.accounts || []).length > 1 && (
-              <div className="flex gap-2">
-                {(googleStatus.accounts || []).map((acct, idx) => (
-                  <button key={acct} onClick={(e) => { e.stopPropagation(); setSelectedGoogleAcct(idx); }} className={"px-3 py-1.5 rounded-lg text-xs font-medium transition-colors " + (selectedGoogleAcct === idx ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10")}>
-                    {acct}
-                  </button>
-                ))}
-              </div>
-            )}
-            {(googleStatus.accounts || []).length === 1 && (
-              <div className="text-xs text-muted-foreground">{(googleStatus.accounts || [])[0]}</div>
-            )}
+            {/* Filter accounts: if accountEmail is set, show only that account */}
+            {(() => {
+              const allAccounts = googleStatus.accounts || [];
+              const filteredAccounts = accountEmail ? allAccounts.filter(a => a === accountEmail) : allAccounts;
+              const displayAccounts = filteredAccounts.length > 0 ? filteredAccounts : allAccounts;
+              return (
+                <>
+                  {displayAccounts.length > 1 && (
+                    <div className="flex gap-2">
+                      {displayAccounts.map((acct, idx) => (
+                        <button key={acct} onClick={(e) => { e.stopPropagation(); setSelectedGoogleAcct(idx); }} className={"px-3 py-1.5 rounded-lg text-xs font-medium transition-colors " + (selectedGoogleAcct === idx ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10")}>
+                          {acct}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {displayAccounts.length === 1 && (
+                    <div className="text-xs text-muted-foreground">{displayAccounts[0]}</div>
+                  )}
+                </>
+              );
+            })()}
             <div className="space-y-1.5">
               {[
                 { key: "gmail", name: "Gmail", desc: "Email" },
@@ -2763,7 +2774,7 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
                 { key: "sheets", name: "Sheets", desc: "Fogli di calcolo" },
                 { key: "docs", name: "Docs", desc: "Documenti" },
               ].map((svc) => {
-                const connKey = (googleStatus.accounts || []).length > 1 ? svc.key + "_" + selectedGoogleAcct : svc.key;
+                const connKey = (!accountEmail && (googleStatus.accounts || []).length > 1) ? svc.key + "_" + selectedGoogleAcct : svc.key;
                 return (
                   <div key={connKey} className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                     <div className="flex items-center gap-2">

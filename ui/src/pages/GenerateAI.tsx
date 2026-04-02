@@ -239,10 +239,10 @@ export function GenerateAI() {
 
   // Generation state
   const [generatingImage, setGeneratingImage] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]").some((j: any) => (j.status === "pending" || j.status === "polling") && j.type === "image" && j.createdAt && Date.now() - j.createdAt < 600000); } catch { return false; }
+    try { return JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]").some((j: any) => (j.status === "pending" || j.status === "polling") && j.type === "image" && j.createdAt && Date.now() - j.createdAt < 180000); } catch { return false; }
   });
   const [generatingVideo, setGeneratingVideo] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]").some((j: any) => (j.status === "pending" || j.status === "polling") && j.type === "video" && j.createdAt && Date.now() - j.createdAt < 600000); } catch { return false; }
+    try { return JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]").some((j: any) => (j.status === "pending" || j.status === "polling") && j.type === "video" && j.createdAt && Date.now() - j.createdAt < 180000); } catch { return false; }
   });
   const [imageProgress, setImageProgress] = useState("");
   const [videoProgress, setVideoProgress] = useState("");
@@ -251,7 +251,7 @@ export function GenerateAI() {
     try { return JSON.parse(localStorage.getItem("goitalia_gen_results") || "[]"); } catch { return []; }
   });
   const [activeJobs, setActiveJobs] = useState<ActiveJob[]>(() => {
-    try { const jobs = JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]").filter((j: any) => j.status !== "done" && j.createdAt && Date.now() - j.createdAt < 600000); localStorage.setItem("goitalia_gen_jobs", JSON.stringify(jobs)); return jobs; } catch { localStorage.removeItem("goitalia_gen_jobs"); return []; }
+    try { const jobs = JSON.parse(localStorage.getItem("goitalia_gen_jobs") || "[]").filter((j: any) => j.status !== "done" && j.createdAt && Date.now() - j.createdAt < 180000); localStorage.setItem("goitalia_gen_jobs", JSON.stringify(jobs)); return jobs; } catch { localStorage.removeItem("goitalia_gen_jobs"); return []; }
   });
   const [publishingResult, setPublishingResult] = useState<ResultItem | null>(null);
   const [publishText, setPublishText] = useState("");
@@ -294,7 +294,7 @@ export function GenerateAI() {
     if (!selectedCompany?.id || activeJobs.length === 0) return;
     activeJobs.forEach((job) => {
       if ((job.status === "pending" || job.status === "polling")) {
-        if (job.createdAt && Date.now() - job.createdAt > 600000) {
+        if (job.createdAt && Date.now() - job.createdAt > 180000) {
           // Job older than 10 min - mark as failed
           setActiveJobs((prev) => prev.filter((j: any) => j.id !== job.id));
           if (job.type === "image") setGeneratingImage(false);

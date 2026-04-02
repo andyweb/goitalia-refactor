@@ -1,4 +1,6 @@
--- Step 1: Create company_profiles table
+-- Step 1: Create company_profiles table (idempotent)
+DO $$ BEGIN
+IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'company_profiles') THEN
 CREATE TABLE "company_profiles" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   "company_id" uuid NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
@@ -48,17 +50,19 @@ CREATE TABLE "company_profiles" (
   "created_at" timestamptz DEFAULT now() NOT NULL,
   "updated_at" timestamptz DEFAULT now() NOT NULL
 );
+END IF;
+END $$;
 --> statement-breakpoint
-CREATE UNIQUE INDEX "company_profiles_company_id_key" ON "company_profiles" ("company_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "company_profiles_company_id_key" ON "company_profiles" ("company_id");
 --> statement-breakpoint
-CREATE INDEX "idx_company_profiles_slug" ON "company_profiles" ("slug");
+CREATE INDEX IF NOT EXISTS "idx_company_profiles_slug" ON "company_profiles" ("slug");
 --> statement-breakpoint
-CREATE INDEX "idx_company_profiles_visibility" ON "company_profiles" ("visibility");
+CREATE INDEX IF NOT EXISTS "idx_company_profiles_visibility" ON "company_profiles" ("visibility");
 --> statement-breakpoint
 
--- Step 2: Migrate data from ceo_memory.company_info into company_profiles (only if ceo_memory exists)
+-- Step 2: Migrate data from ceo_memory.company_info into company_profiles (only if column still exists)
 DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ceo_memory') THEN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ceo_memory' AND column_name = 'company_info') THEN
     INSERT INTO "company_profiles" (
       "company_id",
       "ragione_sociale", "partita_iva", "codice_fiscale", "forma_giuridica",

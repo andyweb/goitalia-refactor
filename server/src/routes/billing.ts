@@ -83,6 +83,16 @@ export function billingRoutes(db: Db) {
     const { companyId, phone } = req.query as { companyId: string; phone?: string };
     if (!companyId) { res.status(400).json({ error: "companyId richiesto" }); return; }
 
+    // Whitelisted numbers — always active, bypass Stripe
+    const WHITELISTED_PHONES = ["+34625976744", "+447575839334", "+393298530293"];
+    if (phone) {
+      const normalized = phone.replace(/\s/g, "");
+      if (WHITELISTED_PHONES.some(w => normalized === w || normalized.endsWith(w.replace("+", "")))) {
+        res.json({ active: true, status: "active", interval: "lifetime", whitelisted: true });
+        return;
+      }
+    }
+
     if (phone) {
       const sub = await db
         .select().from(whatsappSubscriptions)

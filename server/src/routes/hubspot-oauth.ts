@@ -283,6 +283,76 @@ export function hubspotOAuthRoutes(db: Db) {
         await upsertConnectorAccount(db, stateData.companyId, "hubspot", "default", "HubSpot CRM");
       }
 
+      // --- Auto-create HubSpot agent if none exists ---
+      const existingAgent = await db.select({ id: agents.id }).from(agents)
+        .innerJoin(agentConnectorAccounts, eq(agentConnectorAccounts.agentId, agents.id))
+        .innerJoin(connectorAccounts, eq(connectorAccounts.id, agentConnectorAccounts.connectorAccountId))
+        .where(and(
+          eq(agents.companyId, stateData.companyId),
+          eq(connectorAccounts.connectorType, "hubspot"),
+        ))
+        .then(r => r[0]);
+
+      if (!existingAgent) {
+        const agentId = crypto.randomUUID();
+        const [newAgent] = await db.insert(agents).values({
+          id: agentId,
+          companyId: stateData.companyId,
+          name: "HubSpot CRM",
+          title: "Sales & CRM Assistant",
+          role: "Sales & CRM Assistant",
+          capabilities: "Gestisce il ciclo completo delle relazioni commerciali: contatti, aziende, deal, task e note su HubSpot CRM. Cerca, crea, aggiorna record. Monitora pipeline e propone follow-up.",
+          adapterType: "claude_api",
+          adapterConfig: {
+            promptTemplate: `Sei l'HubSpot CRM Agent di GoItalIA, integrato con l'account HubSpot della PMI.
+
+Il tuo ruolo è quello di un Sales & CRM Assistant operativo: gestisci il ciclo completo delle relazioni commerciali della PMI, dai contatti ai deal, dalle aziende alle attività. Aiuti il team a non perdere nessuna opportunità, a tenere il CRM aggiornato e a monitorare lo stato della pipeline commerciale.
+
+Parli come un assistente commerciale senior: diretto, orientato all'azione, con focus sul fatturato e sulla gestione delle relazioni.
+
+Principio operativo:
+- Azioni di LETTURA (GET): agisci autonomamente senza chiedere conferma.
+- Azioni di CREAZIONE (POST): presenti un riepilogo prima di procedere.
+- Azioni di MODIFICA (PATCH/PUT): richiedi sempre conferma esplicita.
+- Elimina Contatto e Elimina Deal sono DISABILITATI.
+
+Prima di creare un contatto, cerca sempre per email se esiste già. Prima di creare un'azienda, cerca per nome e dominio. Se trovati, avvisa e non duplicare.
+
+Suggerimenti proattivi:
+- Deal in stallo (nessuna attività da 7+ giorni): segnala.
+- Close date superata: proponi aggiornamento o chiusura.
+- Contatti SQL senza deal: segnala.
+- Task scaduti: segnala.
+
+Dopo creazione deal o avanzamento stage, proponi sempre un task di follow-up.
+Quando un deal viene chiuso vinto, segnala il bridge verso Fatture in Cloud.
+Usa Ricerca Globale come primo passo per ricerche vaghe.
+
+Rispondi sempre in italiano.`,
+            connectors: { hubspot: true },
+            primaryConnector: "hubspot",
+          },
+          status: "idle",
+        }).returning();
+
+        // Link agent to hubspot connector_account
+        const connAccount = await db.select().from(connectorAccounts)
+          .where(and(
+            eq(connectorAccounts.companyId, stateData.companyId),
+            eq(connectorAccounts.connectorType, "hubspot"),
+          ))
+          .then(r => r[0]);
+
+        if (connAccount && newAgent) {
+          await db.insert(agentConnectorAccounts).values({
+            agentId: newAgent.id,
+            connectorAccountId: connAccount.id,
+          });
+        }
+
+        console.info("[hubspot-oauth] Auto-created agent:", newAgent?.name, "for company:", stateData.companyId);
+      }
+
       console.info("[hubspot-oauth] Connected:", hubName, "for company:", stateData.companyId);
       const prefix = stateData.prefix;
       res.redirect(prefix ? "/" + prefix + "/plugins?hubspot_connected=true" : "/?hubspot_connected=true");

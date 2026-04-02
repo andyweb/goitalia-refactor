@@ -184,7 +184,8 @@ export function pecRoutes(db: Db) {
       await client.connect();
       await client.logout();
     } catch (err) {
-      res.status(400).json({ error: "Connessione IMAP fallita. Verifica email, password e provider." });
+      console.error("[pec] IMAP connection failed:", creds.imapHost, creds.imapPort, creds.email, (err as Error).message);
+      res.status(400).json({ error: `Connessione IMAP fallita: ${(err as Error).message || "Verifica email, password e provider."}` });
       return;
     }
 

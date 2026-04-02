@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Db } from "@goitalia/db";
+import multer from "multer";
 import { getStripeApiKey } from "./stripe-connector.js";
 import { getProjectFilesContent } from "./project-files.js";
 import { companySecrets, agents, companyMemberships, companies, issues, connectorAccounts, agentConnectorAccounts, routines, routineTriggers, routineRuns, companyProfiles, companyProducts, customConnectors } from "@goitalia/db";
@@ -8,6 +9,47 @@ import { eq, and, ne, inArray, desc, sql, asc } from "drizzle-orm";
 import { decrypt, encrypt } from "../utils/crypto.js";
 import { randomUUID } from "node:crypto";
 import { executeA2aTool } from "../services/a2a-tools.js";
+import { callLLM, type LLMProvider } from "../utils/llm-provider.js";
+
+// Temp file store for chat attachments (auto-cleanup after 30 min)
+const chatFileStore = new Map<string, { name: string; mimeType: string; buffer: Buffer; companyId: string; createdAt: number }>();
+const CHAT_FILE_TTL = 30 * 60 * 1000; // 30 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, file] of chatFileStore) {
+    if (now - file.createdAt > CHAT_FILE_TTL) chatFileStore.delete(id);
+  }
+}, 60_000);
+const chatUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } }); // 25MB
+
+// ── In-memory task tracking for background CEO tasks ──
+interface RunningTask {
+  status: "running" | "done" | "error";
+  progress: string[];       // progress labels streamed to UI
+  textChunks: string[];     // text chunks as they arrive
+  finalText: string;
+  startedAt: number;
+  completedAt?: number;
+}
+const activeTasks = new Map<string, RunningTask>();
+
+/** Get or create task state for a company */
+function getOrCreateTask(companyId: string): RunningTask {
+  let task = activeTasks.get(companyId);
+  if (!task || task.status !== "running") {
+    task = { status: "running", progress: [], textChunks: [], finalText: "", startedAt: Date.now() };
+    activeTasks.set(companyId, task);
+  }
+  return task;
+}
+
+/** Clean up completed tasks after 5 minutes */
+function cleanupTask(companyId: string) {
+  setTimeout(() => {
+    const task = activeTasks.get(companyId);
+    if (task && task.status !== "running") activeTasks.delete(companyId);
+  }, 5 * 60_000);
+}
 
 // Tool definitions (same as adapter)
 export const TOOLS = [
@@ -95,6 +137,36 @@ export const TOOLS = [
     },
   },
   {
+    name: "orchestra_piano",
+    description: "Orchestrazione multi-agente avanzata. Usa questo tool quando un task richiede PIÙ agenti in sequenza o parallelo. Decomponi il task in step, specifica dipendenze tra step, e il sistema li eseguirà nel giusto ordine (step senza dipendenze partono in parallelo). Esempio: 'crea fattura + generala con FiC, poi inviala via PEC' = 2 step con dipendenza.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        obiettivo: { type: "string", description: "Descrizione dell'obiettivo complessivo del piano" },
+        steps: {
+          type: "array",
+          description: "Lista ordinata degli step del piano",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string", description: "ID univoco dello step (es: step_1, step_2)" },
+              agente_id: { type: "string", description: "ID dell'agente che esegue lo step" },
+              istruzioni: { type: "string", description: "Istruzioni dettagliate per l'agente" },
+              contesto: { type: "string", description: "Contesto iniziale (info utente, dati aziendali). I risultati degli step da cui dipende verranno aggiunti automaticamente." },
+              dipende_da: {
+                type: "array",
+                items: { type: "string" },
+                description: "Lista di step ID da cui questo step dipende. Lo step partirà solo quando tutti i prerequisiti sono completati. Step senza dipendenze partono subito (in parallelo).",
+              },
+            },
+            required: ["id", "agente_id", "istruzioni"],
+          },
+        },
+      },
+      required: ["obiettivo", "steps"],
+    },
+  },
+  {
     name: "salva_info_azienda",
     description: "Salva o aggiorna le informazioni dell'azienda del cliente in memoria. Usa TUTTI i campi disponibili quando hai i dati da cerca_piva_onboarding.",
     input_schema: {
@@ -165,7 +237,65 @@ export const TOOLS = [
       required: [] as string[],
     },
   },
-
+  // Gmail tools
+  {
+    name: "lista_email",
+    description: "Leggi le email dalla casella Gmail. Restituisce le email recenti con mittente, oggetto, data e anteprima.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        max_results: { type: "number", description: "Numero massimo di email da recuperare (default 10, max 20)" },
+        cartella: { type: "string", description: "Cartella: INBOX (default), SENT, STARRED, ARCHIVE" },
+      },
+      required: [] as string[],
+    },
+  },
+  {
+    name: "leggi_email",
+    description: "Leggi il contenuto completo di una singola email dato il suo ID.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        message_id: { type: "string", description: "ID del messaggio email (ottenuto da lista_email)" },
+      },
+      required: ["message_id"],
+    },
+  },
+  {
+    name: "invia_email",
+    description: "Invia una email tramite Gmail. PRIMA di inviare, chiama lista_account_email per verificare gli account disponibili. Se ci sono più account, CHIEDI all'utente da quale indirizzo vuole inviare. Supporta destinatario, oggetto, corpo, CC/CCN, mittente e immagine.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        destinatario: { type: "string", description: "Indirizzo email del destinatario" },
+        oggetto: { type: "string", description: "Oggetto dell'email" },
+        corpo: { type: "string", description: "Corpo del messaggio (testo o HTML)" },
+        mittente: { type: "string", description: "Indirizzo email del mittente (se ci sono più account Google collegati). Se omesso usa il primo account." },
+        cc: { type: "string", description: "Indirizzo CC (opzionale)" },
+        ccn: { type: "string", description: "Indirizzo CCN/BCC (opzionale)" },
+        image_url: { type: "string", description: "URL dell'immagine da allegare inline (opzionale, da genera_immagine)" },
+        allegato_id: { type: "string", description: "ID del file allegato dall'utente nella chat (opzionale). L'utente lo comunicherà nel messaggio." },
+      },
+      required: ["destinatario", "oggetto", "corpo"],
+    },
+  },
+  {
+    name: "lista_account_email",
+    description: "Elenca tutti gli account Gmail/Google collegati. Usalo PRIMA di invia_email per sapere da quali indirizzi è possibile inviare.",
+    input_schema: { type: "object" as const, properties: {}, required: [] as string[] },
+  },
+  {
+    name: "invia_whatsapp",
+    description: "Invia un messaggio WhatsApp ad un numero di telefono. Il numero deve essere in formato internazionale (es. +393331234567). Usa questo tool quando l'utente chiede di mandare un messaggio WhatsApp.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        destinatario: { type: "string", description: "Numero di telefono del destinatario in formato internazionale (es. +393331234567 o 393331234567)" },
+        messaggio: { type: "string", description: "Testo del messaggio da inviare" },
+      },
+      required: ["destinatario", "messaggio"],
+    },
+  },
 
 
   {
@@ -716,12 +846,18 @@ export const TOOL_CONNECTOR: Record<string, string | null> = {
   elimina_agente: null,
   crea_agente: null,
   esegui_task_agente: null,
+  orchestra_piano: "Orchestrazione multi-agente...",
   salva_info_azienda: null,
   cerca_piva_onboarding: null,
   salva_nota: null,
   leggi_memoria: null,
   // Project files
   leggi_file_progetto: null,
+  // Gmail
+  lista_email: "gmail",
+  leggi_email: "gmail",
+  invia_email: "gmail",
+  lista_account_email: "gmail",
   // Google Drive
   cerca_file_drive: "drive",
   leggi_file_drive: "drive",
@@ -754,6 +890,7 @@ export const TOOL_CONNECTOR: Record<string, string | null> = {
   stripe_crea_link_pagamento: "stripe",
   stripe_verifica_abbonamento: "stripe",
   riassunto_conversazioni_wa: "whatsapp",
+  invia_whatsapp: "whatsapp",
   genera_immagine: "fal",
   pubblica_social: "meta", // delegato all'agente con connettore Meta attivo
   // Catalogo prodotti
@@ -821,6 +958,20 @@ Quando un nuovo cliente arriva (nessuna info aziendale in memoria):
 Se cerca_piva_onboarding fallisce (PIVA non trovata o errore):
 - Chiedi i dati manualmente: ragione sociale, indirizzo sede, settore/attività, PEC, telefono, email
 - Salva con salva_info_azienda
+
+## REGOLE INVIO EMAIL
+OGNI VOLTA che devi inviare un'email, DEVI:
+1. Chiamare lista_account_email per ottenere gli account disponibili
+2. Se ci sono 2+ account, CHIEDERE SEMPRE al cliente: "Da quale account vuoi inviare?" con la lista numerata degli account
+3. Aspettare la risposta del cliente PRIMA di chiamare invia_email
+4. NON riutilizzare la scelta precedente — CHIEDI OGNI VOLTA
+5. Quando chiami invia_email, passa il parametro "mittente" con l'email scelta dal cliente
+
+## FILE ALLEGATI DALLA CHAT
+Quando il messaggio del cliente contiene "📎 File allegato:" seguito dal nome del file e "(allegato_id: ...)", significa che il cliente ha caricato un file dalla chat.
+- Usa QUELL'allegato_id quando chiami invia_email passandolo nel parametro "allegato_id"
+- NON dire che non puoi ricevere file — il file è GIÀ stato caricato sul server
+- Conferma che hai ricevuto il file e procedi normalmente
 
 ## CREAZIONE AGENTI — IL FLUSSO GUIDATO
 
@@ -895,10 +1046,28 @@ Se l'utente chiede qualcosa che richiede un connettore attivo ma nessun agente l
 Se il compito richiede un connettore che l'azienda non ha collegato:
 - Dì: "Per fare questo serve collegare [connettore]. Vai su Connettori nella sidebar per attivarlo."
 
-### Multi-agente
-Per operazioni che coinvolgono più connettori, coordina più agenti in sequenza:
-- Esempio: "Fai fattura a Rossi e mandagliela via PEC" → delega a AG. Fatture per creare la fattura, poi a AG. PEC per inviarla
-- Passa il risultato del primo agente come contesto al secondo
+### Multi-agente — Orchestra Piano (PREFERITO per operazioni complesse)
+Per operazioni che coinvolgono PIÙ connettori o agenti, usa **orchestra_piano** invece di chiamare esegui_task_agente più volte:
+- orchestra_piano decompone il task in step con dipendenze
+- Step senza dipendenze partono IN PARALLELO (più veloce!)
+- I risultati degli step completati vengono passati automaticamente come contesto agli step successivi
+
+**Quando usare orchestra_piano vs esegui_task_agente:**
+- 1 solo agente coinvolto → esegui_task_agente
+- 2+ agenti coinvolti → orchestra_piano
+
+**Esempio piano:**
+Utente chiede: "Fai fattura a Rossi e mandagliela via PEC"
+→ orchestra_piano con obiettivo "Fattura a Rossi + invio PEC":
+  - step_1: AG. Fatture → "Crea fattura per Rossi con dati X" (nessuna dipendenza)
+  - step_2: AG. PEC → "Invia la fattura a rossi@pec.it" (dipende_da: ["step_1"])
+
+**Esempio piano parallelo:**
+Utente chiede: "Cerca informazioni su Rossi srl da OpenAPI e controlla le fatture aperte"
+→ orchestra_piano:
+  - step_1: AG. OpenAPI → "Cerca visura Rossi srl" (nessuna dipendenza)
+  - step_2: AG. Fatture → "Lista fatture non pagate" (nessuna dipendenza)
+  → step_1 e step_2 partono IN PARALLELO, molto più veloce!
 
 ### Contesto nella delegazione
 SEMPRE passa contesto rilevante quando deleghi:
@@ -1241,6 +1410,7 @@ const CEO_TOOLS = new Set([
   "crea_agente",
   "elimina_agente",
   "esegui_task_agente",
+  "orchestra_piano",
   // Task management
   "crea_task",
   "stato_task",
@@ -1283,6 +1453,7 @@ const CEO_ONLY_TOOLS = new Set([
   "crea_agente",
   "elimina_agente",
   "esegui_task_agente",
+  "orchestra_piano",
   "crea_task",
   "stato_task",
   "commenta_task",
@@ -1418,17 +1589,18 @@ async function getOaiToken(db: Db, companyId: string, service: string): Promise<
 // Lock to prevent parallel token refreshes for the same company
 const googleRefreshLocks = new Map<string, Promise<string | null>>();
 
-async function getGoogleTokenForChat(db: Db, companyId: string): Promise<string | null> {
+async function getGoogleTokenForChat(db: Db, companyId: string, email?: string): Promise<string | null> {
   // If a refresh is already in progress for this company, wait for it
-  const existing = googleRefreshLocks.get(companyId);
+  const lockKey = companyId + (email || "");
+  const existing = googleRefreshLocks.get(lockKey);
   if (existing) return existing;
 
-  const promise = _getGoogleTokenForChatImpl(db, companyId);
-  googleRefreshLocks.set(companyId, promise);
-  try { return await promise; } finally { googleRefreshLocks.delete(companyId); }
+  const promise = _getGoogleTokenForChatImpl(db, companyId, email);
+  googleRefreshLocks.set(lockKey, promise);
+  try { return await promise; } finally { googleRefreshLocks.delete(lockKey); }
 }
 
-async function _getGoogleTokenForChatImpl(db: Db, companyId: string): Promise<string | null> {
+async function _getGoogleTokenForChatImpl(db: Db, companyId: string, email?: string): Promise<string | null> {
   const secret = await db.select().from(companySecrets)
     .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "google_oauth_tokens")))
     .then((r) => r[0]);
@@ -1436,8 +1608,16 @@ async function _getGoogleTokenForChatImpl(db: Db, companyId: string): Promise<st
   try {
     const decrypted = JSON.parse(decrypt(secret.description));
     const accounts = Array.isArray(decrypted) ? decrypted : [decrypted];
-    const tokenData = accounts[0];
+    
+    // Select account: by email if specified, otherwise first
+    let tokenData = accounts[0];
+    if (email && accounts.length > 1) {
+      const match = accounts.find((a: any) => a.email?.toLowerCase() === email.toLowerCase());
+      if (match) tokenData = match;
+    }
     if (!tokenData) return null;
+    
+    const idx = accounts.indexOf(tokenData);
     if (tokenData.expires_at && tokenData.expires_at < Date.now() && tokenData.refresh_token) {
       const res = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
@@ -1448,12 +1628,25 @@ async function _getGoogleTokenForChatImpl(db: Db, companyId: string): Promise<st
         const t = await res.json() as { access_token: string; expires_in: number };
         tokenData.access_token = t.access_token;
         tokenData.expires_at = Date.now() + t.expires_in * 1000;
-        accounts[0] = tokenData;
+        accounts[idx] = tokenData;
         await db.update(companySecrets).set({ description: encrypt(JSON.stringify(accounts)), updatedAt: new Date() }).where(eq(companySecrets.id, secret.id));
       }
     }
     return tokenData.access_token || null;
   } catch { return null; }
+}
+
+/** List all connected Google accounts with their emails */
+async function getGoogleAccountsForCompany(db: Db, companyId: string): Promise<string[]> {
+  const secret = await db.select().from(companySecrets)
+    .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "google_oauth_tokens")))
+    .then((r) => r[0]);
+  if (!secret?.description) return [];
+  try {
+    const decrypted = JSON.parse(decrypt(secret.description));
+    const accounts = Array.isArray(decrypted) ? decrypted : [decrypted];
+    return accounts.map((a: any) => a.email).filter(Boolean);
+  } catch { return []; }
 }
 
 async function getFicTokenForChat(db: Db, companyId: string): Promise<{ access_token: string; fic_company_id: number } | null> {
@@ -1533,6 +1726,7 @@ async function executeAgentTask(
   apiKey: string,
   contesto?: string,
   onProgress?: (message: string, toolName?: string) => void,
+  llmProvider: LLMProvider = "claude",
 ): Promise<string> {
   // 1. Load the target agent
   const agent = await db.select().from(agents)
@@ -1542,16 +1736,18 @@ async function executeAgentTask(
   if (!agent) return "Errore: agente non trovato con ID " + targetAgentId;
 
   const adapterConfig = agent.adapterConfig as Record<string, unknown> | null;
-  const agentModel = (typeof adapterConfig?.model === "string" && adapterConfig.model) || "claude-haiku-4-5-20251001";
+  const defaultModel = llmProvider === "openrouter" ? "nvidia/nemotron-3-nano-30b-a3b" : "claude-haiku-4-5-20251001";
+  const agentModel = (typeof adapterConfig?.model === "string" && adapterConfig.model) || defaultModel;
   const legacyConnectors = (adapterConfig?.connectors as Record<string, boolean>) || {};
   const connectors = await getAgentConnectorsFromDb(db, targetAgentId, legacyConnectors);
   const promptTemplate = typeof adapterConfig?.promptTemplate === "string" ? adapterConfig.promptTemplate : "";
   const capabilities = agent.capabilities ?? "";
 
   // 2. Build agent system prompt
-  const basePrompt = promptTemplate || `Sei ${agent.name}, ${agent.title ?? agent.role} presso l'azienda del cliente.\nCompetenze: ${capabilities}\nEsegui il compito assegnato usando i tool a disposizione. Rispondi in italiano, in modo conciso e operativo.`;
+  const AGENT_EXECUTION_RULE = `\n\n## REGOLA FONDAMENTALE\nSei stato incaricato dal CEO. Il compito è GIÀ APPROVATO dal titolare. ESEGUI IMMEDIATAMENTE usando i tool disponibili. NON chiedere conferma, NON chiedere approvazione, NON verificare i dettagli. AGISCI subito e riporta il risultato.`;
+  const basePrompt = promptTemplate || `Sei ${agent.name}, ${agent.title ?? agent.role} presso l'azienda del cliente.\nCompetenze: ${capabilities}\nRispondi in italiano, in modo conciso e operativo.`;
   const customInstructions = typeof adapterConfig?.customInstructions === "string" ? adapterConfig.customInstructions : "";
-  const systemPrompt = customInstructions.trim() ? basePrompt + "\n\n## ISTRUZIONI AGGIUNTIVE\n" + customInstructions : basePrompt;
+  const systemPrompt = basePrompt + (customInstructions.trim() ? "\n\n## ISTRUZIONI AGGIUNTIVE\n" + customInstructions : "") + AGENT_EXECUTION_RULE;
 
   // 3. Get agent's tools based on connectors
   const agentTools = filterToolsForAgent(agent.role || "general", connectors);
@@ -1562,9 +1758,10 @@ async function executeAgentTask(
 
   // 4. Execute multi-turn tool loop (stop-reason based, safety cap 10)
   const MAX_AGENT_TURNS = 10;
+  const executionPrefix = "[ORDINE CEO — ESEGUI SENZA CONFERMA]\n";
   const userMessage = contesto
-    ? `## CONTESTO\n${contesto}\n\n## COMPITO\n${istruzioni}`
-    : istruzioni;
+    ? `${executionPrefix}## CONTESTO\n${contesto}\n\n## COMPITO\n${istruzioni}`
+    : `${executionPrefix}${istruzioni}`;
   const messages: Array<{ role: string; content: unknown }> = [
     { role: "user", content: userMessage },
   ];
@@ -1572,32 +1769,34 @@ async function executeAgentTask(
   let finalResult = "";
 
   for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
+    // Retry logic for transient API errors (529 overloaded, 5xx)
+    let llmResult: Awaited<ReturnType<typeof callLLM>> | null = null;
+    const MAX_RETRIES = 3;
+    for (let retry = 0; retry <= MAX_RETRIES; retry++) {
+      llmResult = await callLLM({
+        provider: llmProvider,
+        apiKey,
         model: agentModel,
-        max_tokens: 4096,
-        system: systemPrompt,
+        systemPrompt,
         messages,
         tools: agentTools,
-      }),
-    });
+      });
 
-    if (!claudeRes.ok) {
-      const errText = await claudeRes.text();
-      console.error("[agent-task] Claude error for", agent.name, ":", claudeRes.status, errText);
-      return "Errore: l'agente " + agent.name + " non ha potuto completare il task (errore Claude API).";
+      if (llmResult.ok || (llmResult.status < 500 && llmResult.status !== 429)) break;
+
+      const retryDelay = Math.min(3000 * Math.pow(2, retry), 15000);
+      console.warn(`[agent-task] LLM API ${llmResult.status} for ${agent.name} — retry ${retry + 1}/${MAX_RETRIES} in ${retryDelay}ms`);
+      if (retry < MAX_RETRIES) {
+        await new Promise(r => setTimeout(r, retryDelay));
+      }
     }
 
-    const data = await claudeRes.json() as {
-      content?: Array<{ type: string; id?: string; name?: string; input?: unknown; text?: string }>;
-      stop_reason?: string;
-    };
+    if (!llmResult || !llmResult.ok) {
+      console.error("[agent-task] LLM error for", agent.name, ":", llmResult?.status, llmResult?.errorText?.substring(0, 200));
+      return "Errore: l'agente " + agent.name + " non ha potuto completare il task (errore API).";
+    }
+
+    const data = llmResult.data!;
 
     const content = data.content || [];
     const textBlocks = content.filter((c) => c.type === "text");
@@ -1655,6 +1854,7 @@ export async function executeChatTool(
   agentId: string,
   apiKey?: string,
   onProgress?: (message: string, toolName?: string) => void,
+  llmProvider: LLMProvider = "claude",
 ): Promise<string> {
   try {
     // Dynamic connector tools ({slug}_{action}) — HubSpot, Salesforce, custom
@@ -1740,10 +1940,17 @@ export async function executeChatTool(
           title: agents.title,
           role: agents.role,
           status: agents.status,
+          adapterConfig: agents.adapterConfig,
         }).from(agents).where(eq(agents.companyId, companyId));
-        return rows.map((a) =>
-          `- ${a.name || "?"} (${a.title || a.role || "?"}) — stato: ${a.status || "?"} — id: ${a.id}`
-        ).join("\n") || "Nessun agente trovato.";
+        const lines: string[] = [];
+        for (const a of rows) {
+          const config = (a.adapterConfig || {}) as Record<string, unknown>;
+          const connMap = await getAgentConnectorsFromDb(db, a.id, config.connectors as Record<string, boolean> | undefined);
+          const activeConns = Object.entries(connMap).filter(([, v]) => v).map(([k]) => k);
+          const connStr = activeConns.length > 0 ? ` — connettori: [${activeConns.join(", ")}]` : "";
+          lines.push(`- ${a.name || "?"} (${a.title || a.role || "?"}) — stato: ${a.status || "?"}${connStr} — id: ${a.id}`);
+        }
+        return lines.join("\n") || "Nessun agente trovato.";
       }
 
       case "crea_task": {
@@ -2406,9 +2613,115 @@ export async function executeChatTool(
         const context = toolInput.contesto as string | undefined;
         if (!targetId || !instructions) return "Errore: agente_id e istruzioni sono obbligatori.";
         console.log("[direttore] Delegating task to agent:", targetId, "->", instructions.substring(0, 100));
-        const result = await executeAgentTask(db, companyId, targetId, instructions, apiKey, context, onProgress);
+        const result = await executeAgentTask(db, companyId, targetId, instructions, apiKey, context, onProgress, llmProvider as LLMProvider);
         console.log("[direttore] Agent result:", result.substring(0, 200));
         return result;
+      }
+
+      case "orchestra_piano": {
+        if (!apiKey) return "Errore: API key non disponibile per orchestrazione.";
+        const obiettivo = toolInput.obiettivo as string;
+        const steps = toolInput.steps as Array<{
+          id: string;
+          agente_id: string;
+          istruzioni: string;
+          contesto?: string;
+          dipende_da?: string[];
+        }>;
+        if (!steps || steps.length === 0) return "Errore: il piano deve avere almeno uno step.";
+        if (steps.length > 10) return "Errore: massimo 10 step per piano.";
+
+        console.log(`[orchestra] Starting plan: "${obiettivo}" with ${steps.length} steps`);
+        if (onProgress) onProgress(`🎯 Piano: ${obiettivo} (${steps.length} step)`, "orchestra_piano");
+
+        const results = new Map<string, string>();
+        const errors = new Map<string, string>();
+        const pending = new Set(steps.map(s => s.id));
+        const MAX_ITERATIONS = 30; // safety cap
+        let iteration = 0;
+
+        while (pending.size > 0 && iteration < MAX_ITERATIONS) {
+          iteration++;
+
+          // Find steps ready to execute (all dependencies completed)
+          const ready = steps.filter(s =>
+            pending.has(s.id) &&
+            (s.dipende_da || []).every(dep => results.has(dep) || errors.has(dep))
+          );
+
+          if (ready.length === 0) {
+            // Deadlock or all remaining have unresolvable deps
+            const deadlocked = Array.from(pending).join(", ");
+            console.error(`[orchestra] Deadlock detected. Pending: ${deadlocked}`);
+            break;
+          }
+
+          // Execute ready steps in parallel
+          if (onProgress) {
+            const names = ready.map(s => s.id).join(", ");
+            onProgress(`⚡ Esecuzione parallela: ${names}`, "orchestra_piano");
+          }
+
+          await Promise.all(ready.map(async (step) => {
+            try {
+              // Build enriched context: original context + results from dependencies
+              let enrichedContext = step.contesto || "";
+              if (step.dipende_da && step.dipende_da.length > 0) {
+                const depResults = step.dipende_da
+                  .filter(dep => results.has(dep))
+                  .map(dep => `[Risultato ${dep}]: ${results.get(dep)!.substring(0, 2000)}`)
+                  .join("\n\n");
+                if (depResults) {
+                  enrichedContext += (enrichedContext ? "\n\n" : "") +
+                    "## Risultati step precedenti\n" + depResults;
+                }
+                // Check if any dependency failed
+                const failedDeps = step.dipende_da.filter(dep => errors.has(dep));
+                if (failedDeps.length > 0) {
+                  const failMsg = failedDeps.map(d => `${d}: ${errors.get(d)}`).join("; ");
+                  errors.set(step.id, `Skipped: dipendenza fallita (${failMsg})`);
+                  pending.delete(step.id);
+                  console.log(`[orchestra] Skipping ${step.id} due to failed deps: ${failedDeps.join(", ")}`);
+                  return;
+                }
+              }
+
+              console.log(`[orchestra] Executing step ${step.id} -> agent ${step.agente_id}`);
+              if (onProgress) onProgress(`🔄 ${step.id}: in esecuzione...`, "orchestra_piano");
+
+              const stepResult = await executeAgentTask(
+                db, companyId, step.agente_id, step.istruzioni,
+                apiKey, enrichedContext || undefined, onProgress, llmProvider as LLMProvider
+              );
+
+              results.set(step.id, stepResult);
+              pending.delete(step.id);
+              console.log(`[orchestra] Step ${step.id} completed: ${stepResult.substring(0, 100)}`);
+              if (onProgress) onProgress(`✅ ${step.id}: completato`, "orchestra_piano");
+            } catch (err: unknown) {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              errors.set(step.id, errMsg);
+              pending.delete(step.id);
+              console.error(`[orchestra] Step ${step.id} failed:`, errMsg);
+              if (onProgress) onProgress(`❌ ${step.id}: errore`, "orchestra_piano");
+            }
+          }));
+        }
+
+        // Build summary report
+        let report = `## Risultato Piano: ${obiettivo}\n\n`;
+        for (const step of steps) {
+          if (results.has(step.id)) {
+            report += `### ✅ ${step.id}\n${results.get(step.id)}\n\n`;
+          } else if (errors.has(step.id)) {
+            report += `### ❌ ${step.id}\nErrore: ${errors.get(step.id)}\n\n`;
+          } else {
+            report += `### ⏳ ${step.id}\nNon eseguito (dipendenze non risolte)\n\n`;
+          }
+        }
+
+        console.log(`[orchestra] Plan completed. Success: ${results.size}/${steps.length}`);
+        return report;
       }
 
       case "lista_pec": {
@@ -2463,6 +2776,150 @@ export async function executeChatTool(
         const projectId = toolInput.project_id as string;
         if (!projectId) return "project_id obbligatorio.";
         return await getProjectFilesContent(db, projectId);
+      }
+
+      case "lista_email": {
+        const googleToken = await getGoogleTokenForChat(db, companyId);
+        if (!googleToken) return "Gmail non connesso. Collega Google da Connettori.";
+        const maxR = Math.min((toolInput.max_results as number) || 10, 20);
+        const label = (toolInput.cartella as string)?.toUpperCase() || "INBOX";
+        const labelParam = label === "STARRED" ? "&q=is:starred" : label === "ARCHIVE" ? "&q=-in:inbox+-in:trash+-in:spam+in:anywhere" : label === "SENT" ? "&labelIds=SENT" : "&labelIds=INBOX";
+        const listR = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxR}${labelParam}`, {
+          headers: { Authorization: "Bearer " + googleToken },
+        });
+        if (!listR.ok) return "Errore lettura Gmail: " + listR.status;
+        const listData = await listR.json() as { messages?: Array<{ id: string }> };
+        if (!listData.messages?.length) return "Nessuna email trovata.";
+        const emails: string[] = [];
+        for (const msg of listData.messages.slice(0, maxR)) {
+          const mR = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`, {
+            headers: { Authorization: "Bearer " + googleToken },
+          });
+          if (!mR.ok) continue;
+          const mData = await mR.json() as { id: string; snippet?: string; payload?: { headers?: Array<{ name: string; value: string }> } };
+          const h = (name: string) => mData.payload?.headers?.find((hh: any) => hh.name.toLowerCase() === name.toLowerCase())?.value || "";
+          emails.push(`ID: ${mData.id} | Da: ${h("From")} | Oggetto: ${h("Subject")} | Data: ${h("Date")?.substring(0, 22) || ""}\n  Anteprima: ${(mData.snippet || "").substring(0, 120)}`);
+        }
+        return emails.join("\n\n") || "Nessuna email trovata.";
+      }
+
+      case "leggi_email": {
+        const googleToken = await getGoogleTokenForChat(db, companyId);
+        if (!googleToken) return "Gmail non connesso.";
+        const messageId = toolInput.message_id as string;
+        if (!messageId) return "message_id obbligatorio.";
+        const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=full`, {
+          headers: { Authorization: "Bearer " + googleToken },
+        });
+        if (!r.ok) return "Email non trovata: " + r.status;
+        const data = await r.json() as { payload?: { headers?: Array<{ name: string; value: string }>; body?: { data?: string }; parts?: Array<{ mimeType: string; body?: { data?: string } }> } };
+        const h = (name: string) => data.payload?.headers?.find((hh: any) => hh.name.toLowerCase() === name.toLowerCase())?.value || "";
+        let body = "";
+        if (data.payload?.body?.data) {
+          body = Buffer.from(data.payload.body.data, "base64url").toString("utf-8");
+        } else if (data.payload?.parts) {
+          const textPart = data.payload.parts.find((p: any) => p.mimeType === "text/plain");
+          if (textPart?.body?.data) body = Buffer.from(textPart.body.data, "base64url").toString("utf-8");
+        }
+        return `Da: ${h("From")}\nA: ${h("To")}\nData: ${h("Date")}\nOggetto: ${h("Subject")}\n\n${body.substring(0, 4000)}`;
+      }
+
+      case "lista_account_email": {
+        const accounts = await getGoogleAccountsForCompany(db, companyId);
+        if (accounts.length === 0) return "Nessun account Google collegato. Vai su Connettori per collegarne uno.";
+        return `Account Gmail disponibili (${accounts.length}):\n` + accounts.map((e, i) => `${i + 1}. ${e}`).join("\n");
+      }
+
+      case "invia_email": {
+        const senderEmail = toolInput.mittente as string | undefined;
+        const googleToken = await getGoogleTokenForChat(db, companyId, senderEmail);
+        if (!googleToken) return "Gmail non connesso. Collega Google da Connettori.";
+        const to = toolInput.destinatario as string;
+        const subject = toolInput.oggetto as string;
+        const bodyText = toolInput.corpo as string;
+        const cc = toolInput.cc as string | undefined;
+        const bcc = toolInput.ccn as string | undefined;
+        const imageUrl = toolInput.image_url as string | undefined;
+        const allegatoId = toolInput.allegato_id as string | undefined;
+        if (!to || !subject || !bodyText) return "destinatario, oggetto e corpo sono obbligatori.";
+
+        // Retrieve attachment from temp store if provided
+        const attachment = allegatoId ? chatFileStore.get(allegatoId) : undefined;
+        if (allegatoId && !attachment) return "Errore: allegato non trovato o scaduto. Ricarica il file.";
+
+        // RFC 2047 encode subject
+        const encodedSubject = "=?UTF-8?B?" + Buffer.from(subject, "utf-8").toString("base64") + "?=";
+
+        const isHtml = /<[a-z][\s\S]*>/i.test(bodyText);
+        const needsHtml = imageUrl || isHtml;
+
+        // Build headers
+        let headers = `To: ${to}\n`;
+        if (senderEmail) headers += `From: ${senderEmail}\n`;
+        headers += `Subject: ${encodedSubject}\nMIME-Version: 1.0\n`;
+        if (cc) headers += `Cc: ${cc}\n`;
+        if (bcc) headers += `Bcc: ${bcc}\n`;
+
+        let rawMsg: string;
+
+        if (attachment) {
+          // MIME multipart/mixed (body + attachment)
+          const mixedBoundary = "mixed_" + Date.now();
+          const altBoundary = "alt_" + Date.now();
+          rawMsg = headers + `Content-Type: multipart/mixed; boundary="${mixedBoundary}"\n\n`;
+
+          // Body part
+          if (needsHtml) {
+            let htmlBody: string;
+            if (isHtml) {
+              htmlBody = imageUrl ? bodyText + `\n<br><br>\n<img src="${imageUrl}" alt="Immagine" style="max-width:100%;border-radius:12px;" />` : bodyText;
+            } else {
+              htmlBody = `<html><body><div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">${bodyText.replace(/\n/g, "<br>")}<br><br><img src="${imageUrl}" alt="Immagine" style="max-width:100%;border-radius:12px;" /></div></body></html>`;
+            }
+            const plainText = bodyText.replace(/<[^>]*>/g, "").substring(0, 2000);
+            rawMsg += `--${mixedBoundary}\nContent-Type: multipart/alternative; boundary="${altBoundary}"\n\n`;
+            rawMsg += `--${altBoundary}\nContent-Type: text/plain; charset=utf-8\n\n${plainText}\n\n`;
+            rawMsg += `--${altBoundary}\nContent-Type: text/html; charset=utf-8\n\n${htmlBody}\n`;
+            rawMsg += `--${altBoundary}--\n`;
+          } else {
+            rawMsg += `--${mixedBoundary}\nContent-Type: text/plain; charset=utf-8\n\n${bodyText}\n\n`;
+          }
+
+          // Attachment part
+          const b64File = attachment.buffer.toString("base64");
+          const encodedFileName = "=?UTF-8?B?" + Buffer.from(attachment.name, "utf-8").toString("base64") + "?=";
+          rawMsg += `--${mixedBoundary}\nContent-Type: ${attachment.mimeType}; name="${encodedFileName}"\nContent-Disposition: attachment; filename="${encodedFileName}"\nContent-Transfer-Encoding: base64\n\n${b64File}\n`;
+          rawMsg += `--${mixedBoundary}--`;
+        } else if (needsHtml) {
+          // HTML email without attachment
+          const altBoundary = "alt_" + Date.now();
+          let htmlBody: string;
+          if (isHtml) {
+            htmlBody = imageUrl ? bodyText + `\n<br><br>\n<img src="${imageUrl}" alt="Immagine" style="max-width:100%;border-radius:12px;" />` : bodyText;
+          } else {
+            htmlBody = `<html><body><div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">${bodyText.replace(/\n/g, "<br>")}<br><br><img src="${imageUrl}" alt="Immagine" style="max-width:100%;border-radius:12px;" /></div></body></html>`;
+          }
+          const plainText = bodyText.replace(/<[^>]*>/g, "").substring(0, 2000);
+          rawMsg = headers + `Content-Type: multipart/alternative; boundary="${altBoundary}"\n\n`;
+          rawMsg += `--${altBoundary}\nContent-Type: text/plain; charset=utf-8\n\n${plainText}\n\n`;
+          rawMsg += `--${altBoundary}\nContent-Type: text/html; charset=utf-8\n\n${htmlBody}\n`;
+          rawMsg += `--${altBoundary}--`;
+        } else {
+          // Plain text only
+          rawMsg = headers + `Content-Type: text/plain; charset=utf-8\n\n${bodyText}`;
+        }
+        const encoded = Buffer.from(rawMsg).toString("base64url");
+        const sendR = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + googleToken, "Content-Type": "application/json" },
+          body: JSON.stringify({ raw: encoded }),
+        });
+        if (!sendR.ok) {
+          const err = await sendR.text();
+          console.error("Gmail send error:", sendR.status, err);
+          return "Errore invio email: " + sendR.status;
+        }
+        return `Email inviata con successo a ${to}. Oggetto: "${subject}"${imageUrl ? " (con immagine)" : ""}`;
       }
 
       case "cerca_file_drive": {
@@ -2670,6 +3127,44 @@ export async function executeChatTool(
         }
 
         return `📊 RIASSUNTO CONVERSAZIONI WA — ultime ${hours}h\nTotale: ${Object.keys(convos).length} conversazioni, ${rows.length} messaggi\n` + parts.join("\n---") + "\n\nAnalizza queste conversazioni e riporta al titolare: punti chiave, richieste importanti, cose da sapere, e eventuali follow-up necessari.";
+      }
+
+      case "invia_whatsapp": {
+        const to = (toolInput.destinatario as string || "").replace(/[^0-9+]/g, "").replace(/^\+/, "");
+        const text = toolInput.messaggio as string;
+        if (!to || !text) return "destinatario e messaggio sono obbligatori.";
+
+        const waSecret = await db.select().from(companySecrets)
+          .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
+          .then(r => r[0]);
+        if (!waSecret?.description) return "WhatsApp non connesso. Collega WhatsApp da Connettori.";
+
+        try {
+          const dec = JSON.parse(decrypt(waSecret.description));
+          const sessions = Array.isArray(dec) ? dec : [dec];
+          const session = sessions[0];
+          if (!session?.apiKey) return "Nessuna sessione WhatsApp attiva.";
+
+          const WASENDER_API = "https://www.wasenderapi.com/api";
+          const r = await fetch(WASENDER_API + "/send-message", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.apiKey },
+            body: JSON.stringify({ to, text }),
+          });
+          if (!r.ok) {
+            const err = await r.text();
+            console.error("[chat] WA send error:", r.status, err);
+            return "Errore invio WhatsApp: " + r.status;
+          }
+          // Log to DB
+          try {
+            await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction) VALUES (${companyId}, ${to + "@s.whatsapp.net"}, ${"CEO"}, ${text}, ${"outgoing"})`);
+          } catch {}
+          return `✅ Messaggio WhatsApp inviato a ${to}.`;
+        } catch (err) {
+          console.error("[chat] WA send error:", err);
+          return "Errore invio WhatsApp.";
+        }
       }
 
       case "genera_immagine": {
@@ -3154,6 +3649,87 @@ export function chatRoutes(db: Db) {
     }
   });
 
+  // ── LLM Model Configuration endpoints ──
+  router.get("/llm/config", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const companyId = req.query.companyId as string;
+    if (!companyId) { res.status(400).json({ error: "companyId richiesto" }); return; }
+
+    const secrets = await db.select().from(companySecrets)
+      .where(and(eq(companySecrets.companyId, companyId), inArray(companySecrets.name, ["claude_api_key", "openrouter_api_key", "llm_config"])));
+
+    const hasClaudeKey = secrets.some(s => s.name === "claude_api_key" && s.description);
+    const hasOpenRouterKey = secrets.some(s => s.name === "openrouter_api_key" && s.description);
+    
+    let provider = "claude";
+    let model = "";
+    const cfgSecret = secrets.find(s => s.name === "llm_config");
+    if (cfgSecret?.description) {
+      try {
+        const cfg = JSON.parse(decrypt(cfgSecret.description));
+        provider = cfg.provider || "claude";
+        model = cfg.model || "";
+      } catch {}
+    }
+
+    res.json({ provider, model, hasClaudeKey, hasOpenRouterKey });
+  });
+
+  router.post("/llm/config", async (req, res) => {
+    const actor = req.actor as { type?: string; userId?: string } | undefined;
+    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
+    const { companyId, provider, model, openrouterApiKey } = req.body as {
+      companyId: string; provider: string; model: string; openrouterApiKey?: string;
+    };
+    if (!companyId) { res.status(400).json({ error: "companyId richiesto" }); return; }
+
+    // Save LLM config
+    const configValue = encrypt(JSON.stringify({ provider, model }));
+    const existing = await db.select().from(companySecrets)
+      .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "llm_config")))
+      .then(r => r[0]);
+    if (existing) {
+      await db.update(companySecrets).set({ description: configValue, updatedAt: new Date() }).where(eq(companySecrets.id, existing.id));
+    } else {
+      await db.insert(companySecrets).values({ id: randomUUID(), companyId, name: "llm_config", provider: "encrypted", description: configValue });
+    }
+
+    // Save OpenRouter API key if provided
+    if (openrouterApiKey) {
+      const encKey = encrypt(openrouterApiKey);
+      const existingKey = await db.select().from(companySecrets)
+        .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "openrouter_api_key")))
+        .then(r => r[0]);
+      if (existingKey) {
+        await db.update(companySecrets).set({ description: encKey, updatedAt: new Date() }).where(eq(companySecrets.id, existingKey.id));
+      } else {
+        await db.insert(companySecrets).values({ id: randomUUID(), companyId, name: "openrouter_api_key", provider: "encrypted", description: encKey });
+      }
+    }
+
+    console.info(`[llm] Config updated for ${companyId}: provider=${provider}, model=${model}`);
+    res.json({ saved: true, provider, model });
+  });
+
+  // ── Chat file upload (temp storage for email attachments) ──
+  router.post("/chat/upload", chatUpload.single("file"), async (req, res) => {
+    try {
+      const actor = req.actor as { type?: string; userId?: string } | undefined;
+      if (!actor || actor.type !== "board") { res.status(401).json({ error: "Auth required" }); return; }
+      const file = (req as any).file as { originalname: string; mimetype: string; buffer: Buffer } | undefined;
+      const companyId = req.body?.companyId as string;
+      if (!file || !companyId) { res.status(400).json({ error: "file and companyId required" }); return; }
+      const fileId = randomUUID();
+      chatFileStore.set(fileId, { name: file.originalname, mimeType: file.mimetype, buffer: file.buffer, companyId, createdAt: Date.now() });
+      console.log(`[chat] File uploaded: ${file.originalname} (${(file.buffer.length / 1024).toFixed(1)}KB) -> ${fileId}`);
+      res.json({ fileId, name: file.originalname, size: file.buffer.length });
+    } catch (err) {
+      console.error("[chat/upload] error:", err);
+      res.status(500).json({ error: "Upload failed" });
+    }
+  });
+
   router.post("/chat", async (req, res) => {
     try {
       const actor = req.actor as { type?: string; userId?: string; companyIds?: string[] } | undefined;
@@ -3189,23 +3765,24 @@ export function chatRoutes(db: Db) {
         return;
       }
 
-      const secret = await db.select().from(companySecrets)
+      // ── Always use Claude (OpenRouter support available but disabled) ──
+      const claudeSecret = await db.select().from(companySecrets)
         .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "claude_api_key")))
         .then((rows) => rows[0]);
 
-      if (!secret?.description) {
+      const llmProvider: "claude" | "openrouter" = "claude";
+
+      if (!claudeSecret?.description) {
         res.status(400).json({ error: "API key Claude non configurata. Vai su Impostazioni per inserirla." });
         return;
       }
 
       let apiKey: string;
       try {
-        apiKey = decrypt(secret.description);
+        apiKey = decrypt(claudeSecret.description);
         console.info("[chat] decrypt OK");
       } catch (decErr) {
         console.error("[chat] decrypt FAILED:", decErr);
-        console.error("[chat] BETTER_AUTH_SECRET set:", !!process.env.BETTER_AUTH_SECRET);
-        console.error("[chat] secret.description starts:", secret.description.substring(0, 20));
         res.status(500).json({ error: "Errore decrittazione API key" });
         return;
       }
@@ -3466,38 +4043,68 @@ export function chatRoutes(db: Db) {
       res.setHeader("X-Accel-Buffering", "no");
       res.flushHeaders();
 
+      // Track client connection — task continues even if client disconnects
+      let clientConnected = true;
+      req.on("close", () => { clientConnected = false; });
+
+      // Register running task for background tracking
+      const bgTask = getOrCreateTask(companyId);
+
+      // Safe SSE send — also stores data in bgTask for reconnection
+      const sseSend = (data: string) => {
+        // Always store in background task for reconnection
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === "content_block_delta" && parsed.delta?.text) {
+            bgTask.textChunks.push(parsed.delta.text);
+            bgTask.finalText += parsed.delta.text;
+          } else if (parsed.type === "agent_progress") {
+            bgTask.progress.push(parsed.label || "");
+          }
+        } catch { /* [DONE] or non-JSON — ignore */ }
+
+        if (!clientConnected) return;
+        try {
+          res.write("data: " + data + "\n\n");
+          (res as any).flush?.();
+        } catch { clientConnected = false; }
+      };
+
       // Load custom tools once before the loop
       const customTools = await getCustomToolsForCompany(db, companyId);
       const allTools = [...filterToolsForAgent(agentRole, agentConnectors), ...customTools];
 
       for (let turn = 0; turn < MAX_TURNS; turn++) {
-        const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01",
-          },
-          body: JSON.stringify({
+        // Retry logic for transient API errors (529 overloaded, 5xx)
+        let llmResult: Awaited<ReturnType<typeof callLLM>> | null = null;
+        const MAX_RETRIES = 3;
+        for (let retry = 0; retry <= MAX_RETRIES; retry++) {
+          llmResult = await callLLM({
+            provider: llmProvider as LLMProvider,
+            apiKey,
             model: agentModel,
-            max_tokens: 4096,
-            system: systemPrompt,
+            systemPrompt,
             messages,
             tools: allTools,
-          }),
-        });
+          });
 
-        if (!claudeRes.ok) {
-          const errText = await claudeRes.text();
-          console.error("Claude API error:", claudeRes.status, errText);
-          res.write("data: " + JSON.stringify({ type: "content_block_delta", delta: { text: "Errore comunicazione Claude AI" } }) + "\n\n");
+          if (llmResult.ok || (llmResult.status < 500 && llmResult.status !== 429)) break;
+
+          const retryDelay = Math.min(3000 * Math.pow(2, retry), 15000);
+          console.warn(`[chat] LLM API ${llmResult.status} — retry ${retry + 1}/${MAX_RETRIES} in ${retryDelay}ms`);
+          if (retry < MAX_RETRIES) {
+            sseSend(JSON.stringify({ type: "agent_progress", connector: "system", label: `API sovraccarica — riprovo tra ${retryDelay / 1000}s...` }));
+            await new Promise(r => setTimeout(r, retryDelay));
+          }
+        }
+
+        if (!llmResult || !llmResult.ok) {
+          console.error("LLM API error:", llmResult?.status, llmResult?.errorText?.substring(0, 200));
+          sseSend(JSON.stringify({ type: "content_block_delta", delta: { text: "Errore comunicazione AI. Riprova tra qualche minuto." } }));
           break;
         }
 
-        const data = await claudeRes.json() as {
-          content?: Array<{ type: string; id?: string; name?: string; input?: unknown; text?: string }>;
-          stop_reason?: string;
-        };
+        const data = llmResult.data!;
 
         const content = data.content || [];
         const textBlocks = content.filter((c) => c.type === "text");
@@ -3507,7 +4114,7 @@ export function chatRoutes(db: Db) {
         for (const block of textBlocks) {
           if (block.text) {
             finalText += block.text;
-            res.write("data: " + JSON.stringify({ type: "content_block_delta", delta: { text: block.text } }) + "\n\n");
+            sseSend(JSON.stringify({ type: "content_block_delta", delta: { text: block.text } }));
           }
         }
 
@@ -3518,16 +4125,13 @@ export function chatRoutes(db: Db) {
 
         // Stream tool activity as agent_progress events (rendered specially in frontend)
         for (const block of toolUseBlocks) {
-          if (block.name === "esegui_task_agente") {
-            // Delegating — extract agent name from input if possible
-            const agentId = (block.input as Record<string, unknown>)?.agente_id as string;
-            res.write("data: " + JSON.stringify({ type: "agent_progress", connector: "delegate", label: "Delegando compito all'agente..." }) + "\n\n");
+          if (block.name === "esegui_task_agente" || block.name === "orchestra_piano") {
+            sseSend(JSON.stringify({ type: "agent_progress", connector: "delegate", label: block.name === "orchestra_piano" ? "Orchestrazione multi-agente in corso..." : "Delegando compito all'agente..." }));
           } else {
             const label = TOOL_PROGRESS_LABELS[block.name || ""] || `Eseguendo ${block.name}...`;
             const connector = TOOL_CONNECTOR[block.name || ""] || "system";
-            res.write("data: " + JSON.stringify({ type: "agent_progress", connector, label }) + "\n\n");
+            sseSend(JSON.stringify({ type: "agent_progress", connector, label }));
           }
-          (res as any).flush?.();
         }
 
         // Add assistant message
@@ -3536,8 +4140,7 @@ export function chatRoutes(db: Db) {
         // Execute tools — pass SSE progress callback for agent delegation
         const sseProgress = (msg: string, toolName?: string) => {
           const connector = toolName ? (TOOL_CONNECTOR[toolName] || "system") : "system";
-          res.write("data: " + JSON.stringify({ type: "agent_progress", connector, label: msg }) + "\n\n");
-          (res as any).flush?.();
+          sseSend(JSON.stringify({ type: "agent_progress", connector, label: msg }));
         };
         const toolResults: Array<{ type: "tool_result"; tool_use_id: string; content: string }> = [];
         for (const block of toolUseBlocks) {
@@ -3549,6 +4152,7 @@ export function chatRoutes(db: Db) {
             resolvedAgentId,
             apiKey,
             sseProgress,
+            llmProvider as LLMProvider,
           );
           toolResults.push({ type: "tool_result", tool_use_id: block.id || "", content: result });
         }
@@ -3556,22 +4160,56 @@ export function chatRoutes(db: Db) {
         messages.push({ role: "user", content: toolResults });
       }
 
-      // Save assistant response to DB
+      // ALWAYS save assistant response to DB — even if client disconnected
       if (actor?.userId && finalText) {
         await saveChatMessage(companyId, actor.userId, "assistant", finalText);
       }
 
-      res.write("data: [DONE]\n\n");
-      res.end();
+      // Mark background task as completed
+      bgTask.status = "done";
+      bgTask.completedAt = Date.now();
+      cleanupTask(companyId);
+
+      // Close SSE connection if client is still connected
+      if (clientConnected) {
+        sseSend("[DONE]");
+        try { res.end(); } catch {}
+      }
     } catch (error) {
       console.error("Chat error:", error);
-      if (!res.headersSent) {
-        res.status(500).json({ error: "Errore nella chat" });
+      // Mark background task as error
+      const catchCompanyId = (req.body as any)?.companyId;
+      if (catchCompanyId) {
+        const errTask = activeTasks.get(catchCompanyId);
+        if (errTask) { errTask.status = "error"; errTask.completedAt = Date.now(); cleanupTask(catchCompanyId); }
+      }
+      // ALWAYS try to save partial result even on error
+      if (res.headersSent) {
+        try { res.end(); } catch {}
       } else {
-        res.write("data: " + JSON.stringify({ type: "content_block_delta", delta: { text: "Errore interno" } }) + "\n\n");
-        res.end();
+        res.status(500).json({ error: "Errore nella chat" });
       }
     }
+  });
+
+  // ── Task status endpoint — UI polls this when returning to chat ──
+  router.get("/chat/task-status", async (req, res) => {
+    const companyId = req.query.companyId as string;
+    if (!companyId) return res.json({ running: false });
+
+    const task = activeTasks.get(companyId);
+    if (!task) return res.json({ running: false });
+
+    // Return current state with all accumulated data
+    res.json({
+      running: task.status === "running",
+      status: task.status,
+      progress: task.progress,
+      textChunks: task.textChunks,
+      finalText: task.finalText,
+      startedAt: task.startedAt,
+      completedAt: task.completedAt,
+    });
   });
 
   return router;

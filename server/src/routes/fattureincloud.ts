@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Db } from "@goitalia/db";
-import { companySecrets } from "@goitalia/db";
+import { companySecrets, agents, agentConnectorAccounts, connectorAccounts } from "@goitalia/db";
 import { eq, and, sql } from "drizzle-orm";
 import crypto from "node:crypto";
 import { encrypt, decrypt } from "../utils/crypto.js";
@@ -59,45 +59,6 @@ export function fattureincloudRoutes(db: Db) {
     res.json({ connected: !!token, companyName: token?.company_name });
   });
 
-  // POST /fic/save-token - Save token directly (no OAuth)
-  router.post("/fic/save-token", async (req, res) => {
-    const actor = req.actor as { type?: string; userId?: string } | undefined;
-    if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
-    const { companyId, accessToken } = req.body as { companyId: string; accessToken: string };
-    if (!companyId || !accessToken) { res.status(400).json({ error: "Token richiesto" }); return; }
-
-    // Test token - get companies
-    try {
-      const r = await fetch("https://api-v2.fattureincloud.it/user/companies", {
-        headers: { Authorization: "Bearer " + accessToken },
-      });
-      if (!r.ok) { res.status(400).json({ error: "Token non valido" }); return; }
-      const data = await r.json() as any;
-      const companies = data.data?.companies || [];
-      const ficCompany = companies[0];
-      if (!ficCompany) { res.status(400).json({ error: "Nessuna azienda trovata" }); return; }
-
-      const ficData = {
-        access_token: accessToken,
-        refresh_token: "",
-        expiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000, // 1 year for manual tokens
-        fic_company_id: ficCompany.id,
-        company_name: ficCompany.name,
-      };
-
-      const encrypted = encrypt(JSON.stringify(ficData));
-      const existing = await db.select().from(companySecrets)
-        .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "fattureincloud_tokens")))
-        .then((rows) => rows[0]);
-      if (existing) {
-        await db.update(companySecrets).set({ description: encrypted, updatedAt: new Date() }).where(eq(companySecrets.id, existing.id));
-      } else {
-        await db.insert(companySecrets).values({ id: crypto.randomUUID(), companyId, name: "fattureincloud_tokens", provider: "encrypted", description: encrypted });
-      }
-      await upsertConnectorAccount(db, companyId, "fic", String(ficCompany.id), ficCompany.name);
-      res.json({ connected: true, companyName: ficCompany.name });
-    } catch { res.status(400).json({ error: "Errore verifica token" }); }
-  });
 
   // GET /fic/connect?companyId=xxx&prefix=xxx - Start OAuth
   router.get("/oauth/fattureincloud/connect", async (req, res) => {
@@ -188,6 +149,72 @@ export function fattureincloudRoutes(db: Db) {
       }
 
       await upsertConnectorAccount(db, stateData.companyId, "fic", String(ficCompanyId), companyName);
+
+      // --- Auto-create Fatture in Cloud agent if none exists ---
+      try {
+        const existingAgent = await db.select({ id: agents.id }).from(agents)
+          .innerJoin(agentConnectorAccounts, eq(agentConnectorAccounts.agentId, agents.id))
+          .innerJoin(connectorAccounts, eq(connectorAccounts.id, agentConnectorAccounts.connectorAccountId))
+          .where(and(
+            eq(agents.companyId, stateData.companyId),
+            eq(connectorAccounts.connectorType, "fic"),
+          ))
+          .then(r => r[0]);
+
+        if (!existingAgent) {
+          const agentId = crypto.randomUUID();
+          const [newAgent] = await db.insert(agents).values({
+            id: agentId,
+            companyId: stateData.companyId,
+            name: "Fatture in Cloud",
+            title: "Responsabile Amministrativo",
+            role: "Responsabile Amministrativo",
+            capabilities: "Gestisce fatturazione elettronica, preventivi, note di credito, invio SDI, scadenzario pagamenti, solleciti, reportistica e export per il commercialista.",
+            adapterType: "claude_api",
+            adapterConfig: {
+              promptTemplate: `Sei il Fatture in Cloud Agent di GoItalIA, integrato con l'account Fatture in Cloud della PMI tramite API ufficiale.
+
+Gestisci l'intero ciclo di vita della fatturazione della PMI italiana: dalla creazione di preventivi e bozze fattura, all'invio elettronico via SDI, al monitoraggio dei pagamenti, alla gestione dello scadenzario fiscale e alla reportistica per il commercialista.
+
+Operi in un contesto ad altissima sensibilità fiscale e legale. Il tuo approccio è quello di un responsabile amministrativo senior con piena conoscenza della normativa fiscale italiana.
+
+Regola assoluta: non invii mai una fattura elettronica via SDI in modo autonomo. L'invio SDI è irreversibile e ha valore fiscale immediato. Ogni trasmissione richiede conferma esplicita dell'operatore.
+
+Gerarchia azioni:
+- AUTONOME: lettura dati, analisi, alert, calcolo scadenze, bozze
+- CON CONFERMA: creazione preventivo, bozza fattura, nota di credito, sollecito, export commercialista
+- DOPPIA CONFERMA (IRREVERSIBILE): invio SDI fattura, invio SDI nota di credito
+
+Controlli pre-invio: P.IVA, CF, Codice SDI, numero progressivo, aliquota IVA, natura esenzione, imponibile, totale documento.
+
+Monitori scadenze fiscali (IVA mensile/trimestrale, F24, dichiarazioni) e avvisi con anticipo.
+Gestisci solleciti pagamento in sequenza crescente (cordiale → formale → pre-legale).
+Calcoli interessi di mora D.Lgs. 231/2002 per fatture B2B scadute.
+
+Non formulare mai pareri fiscali — rimanda sempre al commercialista.
+Rispondi sempre in italiano.`,
+              connectors: { fic: true },
+              primaryConnector: "fic",
+            },
+            status: "idle",
+          }).returning();
+
+          const connAccount = await db.select().from(connectorAccounts)
+            .where(and(
+              eq(connectorAccounts.companyId, stateData.companyId),
+              eq(connectorAccounts.connectorType, "fic"),
+            ))
+            .then(r => r[0]);
+
+          if (connAccount && newAgent) {
+            await db.insert(agentConnectorAccounts).values({
+              agentId: newAgent.id,
+              connectorAccountId: connAccount.id,
+            });
+          }
+          console.info("[fic-oauth] Auto-created agent:", newAgent?.name, "for company:", stateData.companyId);
+        }
+      } catch (agentErr) { console.error("[fic-oauth] Agent creation error:", agentErr); }
 
       const prefix = stateData.prefix || "";
       res.redirect(prefix ? "/" + prefix + "/plugins?fic_connected=true" : "/?fic_connected=true");

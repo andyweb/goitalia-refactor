@@ -54,6 +54,7 @@ import { AnalisiAziende } from "./pages/AnalisiAziende";
 import { ProjectsPmi } from "./pages/ProjectsPmi";
 import { NewAgent } from "./pages/NewAgent";
 import { ScheduledActivities } from "./pages/ScheduledActivities";
+import ModelsPage from "./pages/ModelsPage";
 import { AuthPage } from "./pages/Auth";
 import { BoardClaimPage } from "./pages/BoardClaim";
 import { InviteLandingPage } from "./pages/InviteLanding";
@@ -147,6 +148,7 @@ function boardRoutes() {
       <Route path="social" element={<SocialPage />} />
       <Route path="a2a" element={<A2ANetwork />} />
       <Route path="api-claude" element={<ClaudeKeyPage />} />
+      <Route path="models" element={<ModelsPage />} />
       <Route path="onboarding" element={<OnboardingRoutePage />} />
       <Route path="companies" element={<Companies />} />
       <Route path="company/settings" element={<CompanySettings />} />
@@ -372,6 +374,7 @@ export function App() {
           <Route path="social" element={<UnprefixedBoardRedirect />} />
           <Route path="a2a" element={<UnprefixedBoardRedirect />} />
           <Route path="api-claude" element={<UnprefixedBoardRedirect />} />
+          <Route path="models" element={<UnprefixedBoardRedirect />} />
           <Route path="settings" element={<LegacySettingsRedirect />} />
           <Route path="settings/*" element={<LegacySettingsRedirect />} />
           <Route path="agents" element={<UnprefixedBoardRedirect />} />
