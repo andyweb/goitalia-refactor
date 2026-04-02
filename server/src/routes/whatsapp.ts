@@ -880,11 +880,19 @@ export function whatsappWebhookRouter(db: Db) {
 
     if (event?.event === "messages.received" && event?.data?.messages) {
       const msg = event.data.messages;
-      const remoteJid = msg.key?.remoteJid || "";
+      let remoteJid = msg.key?.remoteJid || "";
       const fromName = msg.pushName || msg.key?.cleanedSenderPn || "";
       const waMessageId = msg.key?.id || null;
       // Extract real phone number for rubrica lookup (WaSender may use LID format in remoteJid)
       const senderPhone = msg.key?.cleanedSenderPn || msg.senderPn || msg.cleanedSenderPn || (remoteJid.includes("@lid") ? "" : remoteJid);
+      // Resolve phone JID → LID JID so all messages group under the same contact
+      if (remoteJid.endsWith("@s.whatsapp.net")) {
+        try {
+          const phone = remoteJid.replace("@s.whatsapp.net", "");
+          const lidRow = await db.execute(sql`SELECT lid FROM whatsapp_lid_map WHERE phone = ${phone} AND company_id = ${companyId} LIMIT 1`) as any[];
+          if (lidRow?.[0]?.lid) { remoteJid = lidRow[0].lid + "@lid"; }
+        } catch {}
+      }
       console.log(`[wa-webhook-debug] remoteJid=${remoteJid} senderPhone=${senderPhone} pushName=${msg.pushName} cleanedSenderPn=${msg.key?.cleanedSenderPn || msg.cleanedSenderPn} senderPn=${msg.senderPn} participant=${msg.key?.participant} msgKeys=${JSON.stringify(Object.keys(msg.key || {}))} topKeys=${JSON.stringify(Object.keys(msg).filter(k => k !== 'message'))}`);
 
       // Save LID -> phone mapping if both are available
@@ -1021,23 +1029,15 @@ export function whatsappWebhookRouter(db: Db) {
         try {
           if (isFromMe) {
             // Avoid duplicates for outgoing messages (may already be saved from dashboard send)
-            // Also check LID JID: dashboard may save as LID while webhook arrives with phone JID
-            let lidJid: string | null = null;
-            if (remoteJid.endsWith("@s.whatsapp.net")) {
-              const phone = remoteJid.replace("@s.whatsapp.net", "");
-              const lidRow = await db.execute(sql`SELECT lid FROM whatsapp_lid_map WHERE phone = ${phone} AND company_id = ${companyId} LIMIT 1`) as any[];
-              if (lidRow?.[0]?.lid) lidJid = lidRow[0].lid + "@lid";
-            }
+            // remoteJid is already resolved to LID if applicable (done at top of webhook handler)
             const existing = await db.execute(sql`
               SELECT id FROM whatsapp_messages 
-              WHERE company_id = ${companyId} AND (remote_jid = ${remoteJid} ${lidJid ? sql`OR remote_jid = ${lidJid}` : sql``}) AND direction = ${"outgoing"} AND message_text = ${text}
+              WHERE company_id = ${companyId} AND remote_jid = ${remoteJid} AND direction = ${"outgoing"} AND message_text = ${text}
               AND created_at > NOW() - INTERVAL '60 seconds' LIMIT 1
             `) as any[];
             if (!existing || existing.length === 0) {
-              // If there's a LID mapping, save with the LID JID so messages group correctly
-              const saveJid = lidJid || remoteJid;
-              await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction, message_type, media_url, wa_message_id) VALUES (${companyId}, ${saveJid}, ${saveName}, ${text}, ${direction}, ${messageType}, ${mediaUrl || null}, ${waMessageId})`);
-              console.log(`[wa-webhook] saved phone-sent message to ${saveJid}: ${text.substring(0, 50)}`);
+              await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction, message_type, media_url, wa_message_id) VALUES (${companyId}, ${remoteJid}, ${saveName}, ${text}, ${direction}, ${messageType}, ${mediaUrl || null}, ${waMessageId})`);
+              console.log(`[wa-webhook] saved phone-sent message to ${remoteJid}: ${text.substring(0, 50)}`);
             }
           } else {
             await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction, message_type, media_url, wa_message_id) VALUES (${companyId}, ${remoteJid}, ${saveName}, ${text}, ${direction}, ${messageType}, ${mediaUrl || null}, ${waMessageId})`);
@@ -1165,10 +1165,18 @@ export function whatsappWebhookRouter(db: Db) {
       const msg = event.data.messages;
       const fromMe = msg.key?.fromMe === true;
       if (fromMe) {
-        const remoteJid = msg.key?.remoteJid || "";
+        let remoteJid = msg.key?.remoteJid || "";
         if (!remoteJid || remoteJid.endsWith("@g.us") || remoteJid === "status@broadcast") {
           // Skip group/status messages
         } else {
+          // Resolve phone JID → LID JID so outgoing messages group with the correct contact
+          if (remoteJid.endsWith("@s.whatsapp.net")) {
+            try {
+              const phone = remoteJid.replace("@s.whatsapp.net", "");
+              const lidRow = await db.execute(sql`SELECT lid FROM whatsapp_lid_map WHERE phone = ${phone} AND company_id = ${companyId} LIMIT 1`) as any[];
+              if (lidRow?.[0]?.lid) { remoteJid = lidRow[0].lid + "@lid"; }
+            } catch {}
+          }
           let text = msg.messageBody || msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
           let messageType = "text";
           let mediaUrl = "";
