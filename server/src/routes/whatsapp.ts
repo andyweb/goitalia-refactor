@@ -393,7 +393,19 @@ export function whatsappRoutes(db: Db) {
     const { companyId, remoteJid, caption } = req.body as { companyId: string; remoteJid?: string; caption?: string };
     const file = (req as any).file;
     if (!companyId || !remoteJid || !file) { res.status(400).json({ error: "Parametri mancanti" }); return; }
-    const recipient = remoteJid.replace("@s.whatsapp.net", "").replace("@g.us", "");
+    let recipient = remoteJid.replace("@s.whatsapp.net", "").replace("@g.us", "");
+
+    // Resolve LID to real phone number (same as /send)
+    if (remoteJid.endsWith("@lid")) {
+      const resolved = await resolveLidToPhone(db, companyId, remoteJid);
+      if (resolved) {
+        recipient = resolved;
+        console.log(`[wa-send-media] resolved LID ${remoteJid} -> ${recipient}`);
+      } else {
+        recipient = recipient.replace(/@lid$/, "");
+        console.warn(`[wa-send-media] could not resolve LID ${remoteJid}, trying raw ID: ${recipient}`);
+      }
+    }
 
     const secret = await db.select().from(companySecrets)
       .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
