@@ -12,6 +12,51 @@ import { whatsappContacts } from "@goitalia/db";
 const WASENDER_API = "https://www.wasenderapi.com/api";
 function getWasenderPat() { return process.env.WASENDER_PAT || ""; }
 
+/** Resolve a @lid JID to a real phone number using the lid map or message history */
+async function resolveLidToPhone(db: Db, companyId: string, lid: string): Promise<string | null> {
+  const lidId = lid.replace(/@lid$/, "");
+  // 1. Check dedicated mapping table
+  try {
+    const rows = await db.execute(sql`SELECT phone FROM whatsapp_lid_map WHERE lid = ${lidId} AND company_id = ${companyId} LIMIT 1`) as any[];
+    if (rows[0]?.phone) {
+      console.log(`[wa-lid] resolved ${lidId} -> ${rows[0].phone} (from lid_map)`);
+      return rows[0].phone;
+    }
+  } catch {}
+  // 2. Fallback: search message history for incoming msgs from this LID with a known senderPn
+  try {
+    const rows = await db.execute(sql`
+      SELECT DISTINCT wm2.remote_jid FROM whatsapp_messages wm1
+      JOIN whatsapp_messages wm2 ON wm1.company_id = wm2.company_id AND wm1.from_name = wm2.from_name AND wm2.direction = 'incoming'
+      WHERE wm1.company_id = ${companyId} AND wm1.remote_jid = ${lid} AND wm1.direction = 'incoming'
+      AND wm2.remote_jid LIKE '%@s.whatsapp.net'
+      LIMIT 1
+    `) as any[];
+    if (rows[0]?.remote_jid) {
+      const phone = rows[0].remote_jid.replace("@s.whatsapp.net", "");
+      console.log(`[wa-lid] resolved ${lidId} -> ${phone} (from message history)`);
+      return phone;
+    }
+  } catch {}
+  console.warn(`[wa-lid] could not resolve LID ${lidId} for company ${companyId}`);
+  return null;
+}
+
+/** Save a LID -> phone mapping for future resolution */
+async function saveLidMapping(db: Db, companyId: string, lid: string, phone: string) {
+  const lidId = lid.replace(/@lid$/, "").replace(/@s\.whatsapp\.net$/, "");
+  const phoneClean = phone.replace(/@s\.whatsapp\.net$/, "").replace(/^\+/, "");
+  if (!lidId || !phoneClean || lidId === phoneClean) return;
+  try {
+    await db.execute(sql`
+      INSERT INTO whatsapp_lid_map (lid, phone, company_id, updated_at)
+      VALUES (${lidId}, ${phoneClean}, ${companyId}, NOW())
+      ON CONFLICT (lid, company_id) DO UPDATE SET phone = ${phoneClean}, updated_at = NOW()
+    `);
+    console.log(`[wa-lid] saved mapping: ${lidId} -> ${phoneClean}`);
+  } catch (err) { console.error("[wa-lid] save error:", err); }
+}
+
 export function whatsappRoutes(db: Db) {
   const router = Router();
 
@@ -294,8 +339,22 @@ export function whatsappRoutes(db: Db) {
     if (!actor?.userId) { res.status(401).json({ error: "Non autenticato" }); return; }
     const { companyId, to, text, remoteJid } = req.body as { companyId: string; to?: string; text: string; remoteJid?: string };
     const rawJid = to || remoteJid || "";
-    const recipient = rawJid.replace("@s.whatsapp.net", "").replace("@g.us", "").replace(/@lid$/, "");
+    let recipient = rawJid.replace("@s.whatsapp.net", "").replace("@g.us", "");
     if (!companyId || !recipient || !text) { res.status(400).json({ error: "Parametri mancanti" }); return; }
+
+    // If the recipient is a LID (@lid), resolve to real phone number
+    const isLid = rawJid.endsWith("@lid") || /^\d+$/.test(recipient.replace(/@lid$/, ""));
+    if (rawJid.endsWith("@lid")) {
+      const resolved = await resolveLidToPhone(db, companyId, rawJid);
+      if (resolved) {
+        recipient = resolved;
+        console.log(`[wa-send] resolved LID ${rawJid} -> ${recipient}`);
+      } else {
+        // Strip @lid suffix as last resort
+        recipient = recipient.replace(/@lid$/, "");
+        console.warn(`[wa-send] could not resolve LID ${rawJid}, trying raw ID: ${recipient}`);
+      }
+    }
 
     const secret = await db.select().from(companySecrets)
       .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_sessions")))
@@ -312,13 +371,18 @@ export function whatsappRoutes(db: Db) {
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + data.apiKey },
         body: JSON.stringify({ to: recipient, text }),
       });
-      if (!r.ok) { res.status(502).json({ error: "Errore invio" }); return; }
+      if (!r.ok) {
+        const errBody = await r.text().catch(() => "");
+        console.error(`[wa-send] WaSender error: status=${r.status} body=${errBody.substring(0, 500)} recipient=${recipient} rawJid=${rawJid}`);
+        res.status(502).json({ error: rawJid.endsWith("@lid") ? "Impossibile inviare: contatto con privacy avanzata (LID non risolvibile)" : "Errore invio: " + r.status });
+        return;
+      }
       // Save with the original remote_jid so it matches the thread
       try {
         await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction) VALUES (${companyId}, ${rawJid}, ${"Bot"}, ${text}, ${"outgoing"})`);
       } catch {}
       res.json({ sent: true });
-    } catch { res.status(500).json({ error: "Errore invio" }); }
+    } catch (err) { console.error("[wa-send] error:", err); res.status(500).json({ error: "Errore invio" }); }
   });
 
   // POST /whatsapp/send-media - Send image/file via WhatsApp
@@ -808,6 +872,14 @@ export function whatsappWebhookRouter(db: Db) {
       // Extract real phone number for rubrica lookup (WaSender may use LID format in remoteJid)
       const senderPhone = msg.key?.cleanedSenderPn || msg.senderPn || msg.cleanedSenderPn || (remoteJid.includes("@lid") ? "" : remoteJid);
       console.log(`[wa-webhook-debug] remoteJid=${remoteJid} senderPhone=${senderPhone} pushName=${msg.pushName} cleanedSenderPn=${msg.key?.cleanedSenderPn || msg.cleanedSenderPn} senderPn=${msg.senderPn} participant=${msg.key?.participant} msgKeys=${JSON.stringify(Object.keys(msg.key || {}))} topKeys=${JSON.stringify(Object.keys(msg).filter(k => k !== 'message'))}`);
+
+      // Save LID -> phone mapping if both are available
+      if (remoteJid.endsWith("@lid") && senderPhone && !senderPhone.includes("@lid")) {
+        const cleanPhone = senderPhone.replace(/@s\.whatsapp\.net$/, "").replace(/^\+/, "");
+        if (cleanPhone && cleanPhone.length >= 5) {
+          saveLidMapping(db, companyId, remoteJid, cleanPhone).catch(() => {});
+        }
+      }
       let text = msg.messageBody || msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
       let messageType = "text";
       let mediaUrl = "";
@@ -1031,10 +1103,17 @@ export function whatsappWebhookRouter(db: Db) {
                         const sessions = JSON.parse(decrypt(waSecret.description));
                         const session = Array.isArray(sessions) ? sessions[0] : sessions;
                         if (session?.apiKey) {
+                          // Resolve LID for auto-reply too
+                          let autoReplyRecipient = remoteJid.replace("@s.whatsapp.net", "").replace("@g.us", "");
+                          if (remoteJid.endsWith("@lid")) {
+                            const resolvedPhone = await resolveLidToPhone(db, companyId, remoteJid);
+                            if (resolvedPhone) autoReplyRecipient = resolvedPhone;
+                            else autoReplyRecipient = autoReplyRecipient.replace(/@lid$/, "");
+                          }
                           await fetch(WASENDER_API + "/send-message", {
                             method: "POST",
                             headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.apiKey },
-                            body: JSON.stringify({ to: remoteJid.replace("@s.whatsapp.net", "").replace("@g.us", ""), text: reply }),
+                            body: JSON.stringify({ to: autoReplyRecipient, text: reply }),
                           });
                           try {
                             await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction) VALUES (${companyId}, ${remoteJid}, ${agent.name || "Bot"}, ${reply}, ${"outgoing"})`);
