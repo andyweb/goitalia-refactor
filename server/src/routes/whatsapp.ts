@@ -1021,14 +1021,23 @@ export function whatsappWebhookRouter(db: Db) {
         try {
           if (isFromMe) {
             // Avoid duplicates for outgoing messages (may already be saved from dashboard send)
+            // Also check LID JID: dashboard may save as LID while webhook arrives with phone JID
+            let lidJid: string | null = null;
+            if (remoteJid.endsWith("@s.whatsapp.net")) {
+              const phone = remoteJid.replace("@s.whatsapp.net", "");
+              const lidRow = await db.execute(sql`SELECT lid FROM whatsapp_lid_map WHERE phone = ${phone} AND company_id = ${companyId} LIMIT 1`) as any[];
+              if (lidRow?.[0]?.lid) lidJid = lidRow[0].lid + "@lid";
+            }
             const existing = await db.execute(sql`
               SELECT id FROM whatsapp_messages 
-              WHERE company_id = ${companyId} AND remote_jid = ${remoteJid} AND direction = ${"outgoing"} AND message_text = ${text}
-              AND created_at > NOW() - INTERVAL '30 seconds' LIMIT 1
+              WHERE company_id = ${companyId} AND (remote_jid = ${remoteJid} ${lidJid ? sql`OR remote_jid = ${lidJid}` : sql``}) AND direction = ${"outgoing"} AND message_text = ${text}
+              AND created_at > NOW() - INTERVAL '60 seconds' LIMIT 1
             `) as any[];
             if (!existing || existing.length === 0) {
-              await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction, message_type, media_url, wa_message_id) VALUES (${companyId}, ${remoteJid}, ${saveName}, ${text}, ${direction}, ${messageType}, ${mediaUrl || null}, ${waMessageId})`);
-              console.log(`[wa-webhook] saved phone-sent message to ${remoteJid}: ${text.substring(0, 50)}`);
+              // If there's a LID mapping, save with the LID JID so messages group correctly
+              const saveJid = lidJid || remoteJid;
+              await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction, message_type, media_url, wa_message_id) VALUES (${companyId}, ${saveJid}, ${saveName}, ${text}, ${direction}, ${messageType}, ${mediaUrl || null}, ${waMessageId})`);
+              console.log(`[wa-webhook] saved phone-sent message to ${saveJid}: ${text.substring(0, 50)}`);
             }
           } else {
             await db.execute(sql`INSERT INTO whatsapp_messages (company_id, remote_jid, from_name, message_text, direction, message_type, media_url, wa_message_id) VALUES (${companyId}, ${remoteJid}, ${saveName}, ${text}, ${direction}, ${messageType}, ${mediaUrl || null}, ${waMessageId})`);
