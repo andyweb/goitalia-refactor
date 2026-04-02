@@ -329,8 +329,9 @@ export function whatsappRoutes(db: Db) {
     if (!companyId) { res.json({ messages: [] }); return; }
     try {
       const rows = await db.execute(sql`SELECT id, remote_jid, from_name, message_text, direction, message_type, media_url, created_at FROM whatsapp_messages WHERE company_id = ${companyId} ORDER BY created_at DESC LIMIT 200`);
-      res.json({ messages: rows || [] });
-    } catch { res.json({ messages: [] }); }
+      const contacts = await db.execute(sql`SELECT phone_number, name FROM whatsapp_contacts WHERE company_id = ${companyId} AND name IS NOT NULL AND name != ''`);
+      res.json({ messages: rows || [], contacts: contacts || [] });
+    } catch { res.json({ messages: [], contacts: [] }); }
   });
 
   // POST /whatsapp/send

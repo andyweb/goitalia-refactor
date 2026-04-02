@@ -41,6 +41,7 @@ export function WhatsAppPage() {
   const [selectedBot, setSelectedBot] = useState(-1); // -1 = all
   const bottomRef = useRef<HTMLDivElement>(null);
   const [readMarkers, setReadMarkers] = useState<Record<string, string>>({});
+  const [contactNames, setContactNames] = useState<Record<string, string>>({});
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -132,7 +133,17 @@ export function WhatsAppPage() {
     try {
       const res = await fetch("/api/whatsapp/messages?companyId=" + selectedCompany.id + "&limit=200" + (selectedBot >= 0 ? "&bot=" + selectedBot : ""), { credentials: "include" });
       const data = await res.json();
-      if (!res.ok) { setError(data.error); } else { setMessages((data.messages || []).reverse()); }
+      if (!res.ok) { setError(data.error); } else {
+        setMessages((data.messages || []).reverse());
+        // Build phone→name map from contacts
+        if (data.contacts) {
+          const map: Record<string, string> = {};
+          for (const c of data.contacts) {
+            if (c.phone_number && c.name) map[c.phone_number.replace(/[^0-9]/g, "")] = c.name;
+          }
+          setContactNames(map);
+        }
+      }
     } catch { if (messages.length === 0) setError("Errore connessione"); }
     setLoading(false);
   };
@@ -216,7 +227,13 @@ export function WhatsAppPage() {
       }
       threads.push({
         remoteJid,
-        name: incoming[0]?.from_name || "Utente",
+        name: (() => {
+          // Priority: 1) saved contact name, 2) WhatsApp profile name, 3) fallback
+          const jidPhone = remoteJid.replace(/@.*$/, "");
+          if (contactNames[jidPhone]) return contactNames[jidPhone];
+          // Check LID contacts by matching through messages
+          return incoming[0]?.from_name || "Utente";
+        })(),
         username: incoming[0]?.from_username || "",
         lastMessage: last.message_text.slice(0, 60),
         lastTime: last.created_at,
