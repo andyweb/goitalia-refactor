@@ -12,6 +12,13 @@ const REDIRECT_URI = (process.env.PAPERCLIP_AUTH_PUBLIC_BASE_URL || "https://imp
 
 const SCOPES = [
   "email",
+  "pages_show_list",
+  "pages_read_engagement",
+  "pages_read_user_content",
+  "pages_manage_posts",
+  "instagram_basic",
+  "instagram_content_publish",
+  "instagram_manage_insights",
 ].join(",");
 
 
