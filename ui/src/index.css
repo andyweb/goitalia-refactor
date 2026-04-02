@@ -151,6 +151,13 @@
   label {
     touch-action: manipulation;
   }
+  button,
+  [role="button"],
+  a,
+  summary,
+  [onclick] {
+    cursor: pointer;
+  }
 }
 
 @media (pointer: coarse) {
