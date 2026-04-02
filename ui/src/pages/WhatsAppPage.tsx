@@ -135,11 +135,19 @@ export function WhatsAppPage() {
       const data = await res.json();
       if (!res.ok) { setError(data.error); } else {
         setMessages((data.messages || []).reverse());
-        // Build phone→name map from contacts
+        // Build phone→name map from contacts + lid→phone map
         if (data.contacts) {
           const map: Record<string, string> = {};
+          // Map phone numbers to names
           for (const c of data.contacts) {
             if (c.phone_number && c.name) map[c.phone_number.replace(/[^0-9]/g, "")] = c.name;
+          }
+          // Map LIDs to names via lid→phone→name
+          if (data.lidMap) {
+            for (const l of data.lidMap) {
+              const phoneName = map[String(l.phone)];
+              if (phoneName) map[String(l.lid)] = phoneName;
+            }
           }
           setContactNames(map);
         }
