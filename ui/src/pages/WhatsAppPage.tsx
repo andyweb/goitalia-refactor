@@ -239,7 +239,17 @@ export function WhatsAppPage() {
         body: JSON.stringify({ companyId: selectedCompany.id, messageText: msg.message_text, fromName: msg.from_name, remoteJid: msg.remote_jid, mediaUrl: msg.media_url, messageType: msg.message_type }),
       });
       const data = await res.json();
-      if (res.ok) { setReplyText(data.reply); inputRef.current?.focus(); }
+      if (res.ok) {
+        setReplyText(data.reply);
+        inputRef.current?.focus();
+        // Auto-resize for generated reply
+        requestAnimationFrame(() => {
+          if (inputRef.current) {
+            inputRef.current.style.height = "auto";
+            inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 160) + "px";
+          }
+        });
+      }
     } catch {}
     setGenerating(null);
   };
@@ -253,6 +263,7 @@ export function WhatsAppPage() {
         body: JSON.stringify({ companyId: selectedCompany.id, remoteJid: selectedChat, text: replyText }),
       });
       setReplyText("");
+      if (inputRef.current) inputRef.current.style.height = "44px";
       // Small delay to let the backend save the message
       await new Promise(r => setTimeout(r, 500));
       fetchMessages();
@@ -396,12 +407,17 @@ export function WhatsAppPage() {
               ) : (
                 <textarea
                   ref={inputRef}
-                  className="flex-1 resize-none rounded-xl px-4 py-3 text-sm outline-none"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "hsl(0 0% 98%)", maxHeight: "120px" }}
+                  className="flex-1 resize-none rounded-xl px-4 py-3 text-sm outline-none overflow-y-auto"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "hsl(0 0% 98%)", maxHeight: "160px", minHeight: "44px" }}
                   placeholder="Scrivi un messaggio..."
                   rows={1}
                   value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
+                  onChange={(e) => {
+                    setReplyText(e.target.value);
+                    // Auto-resize
+                    e.target.style.height = "auto";
+                    e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
+                  }}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
                 />
               )}
