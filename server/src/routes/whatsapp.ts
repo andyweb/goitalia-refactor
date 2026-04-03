@@ -1058,7 +1058,22 @@ export function whatsappWebhookRouter(db: Db) {
           if (agentLink) {
             const agent = await db.select().from(agents).where(eq(agents.id, agentLink.agentId)).then(r => r[0]);
             if (agent) {
-              const agentAutoReply = (agent.adapterConfig as any)?.autoReply === true;
+              // Read auto-reply setting from whatsapp_settings (UI toggle)
+              let waSettingsAutoReply = false;
+              try {
+                const waSettingsRow = await db.select().from(companySecrets)
+                  .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "whatsapp_settings")))
+                  .then(r => r[0]);
+                if (waSettingsRow?.description) {
+                  const waSettings = JSON.parse(waSettingsRow.description);
+                  const numbers = waSettings.numbers || {};
+                  // Check if any number has autoReply enabled (per-number setting)
+                  const phoneNumbers = Object.keys(numbers);
+                  if (phoneNumbers.length > 0) {
+                    waSettingsAutoReply = phoneNumbers.some(pn => numbers[pn]?.autoReply === true);
+                  }
+                }
+              } catch {}
 
               // Lookup rubrica contatto per override autoMode e contesto
               // Use senderPhone (real number) for lookup, fallback to remoteJid
@@ -1066,11 +1081,11 @@ export function whatsappWebhookRouter(db: Db) {
               const contactInfo = lookupNumber ? await getContactContext(db, agent.id, lookupNumber) : null;
 
               // Determina se rispondere in automatico
-              let shouldAutoReply = agentAutoReply;
+              let shouldAutoReply = waSettingsAutoReply;
               if (contactInfo) {
                 if (contactInfo.autoMode === "auto") shouldAutoReply = true;
                 else if (contactInfo.autoMode === "manual") shouldAutoReply = false;
-                // "inherit" → segue il default dell'agente
+                // "inherit" → segue il default delle settings
               }
 
               if (shouldAutoReply) {

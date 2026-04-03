@@ -588,7 +588,25 @@ export function telegramWebhookRouter(db: Db) {
       if (!agentLink) return;
 
       const agent = await db.select().from(agents).where(eq(agents.id, agentLink.agentId)).then(r => r[0]);
-      if (!agent || (agent.adapterConfig as any)?.autoReply !== true) return;
+      if (!agent) return;
+
+      // Read auto-reply setting from telegram_settings (UI toggle)
+      let tgSettingsAutoReply = false;
+      try {
+        const tgSettingsRow = await db.select().from(companySecrets)
+          .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "telegram_settings")))
+          .then(r => r[0]);
+        if (tgSettingsRow?.description) {
+          const tgSettings = JSON.parse(tgSettingsRow.description);
+          // Check per-bot setting first, then global
+          if (tgSettings.bots?.[botUsername]?.autoReply === true) {
+            tgSettingsAutoReply = true;
+          } else if (typeof tgSettings.autoReply === "boolean") {
+            tgSettingsAutoReply = tgSettings.autoReply;
+          }
+        }
+      } catch {}
+      if (!tgSettingsAutoReply) return;
 
       // Get Claude API key
       const keyRow = await db.select().from(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.name, "claude_api_key"))).then((r) => r[0]);
