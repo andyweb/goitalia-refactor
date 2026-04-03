@@ -668,6 +668,8 @@ export function PluginManager() {
       if (res.ok) {
         const agent = await res.json().catch(() => null);
         pushToast({ title: "Agente creato", body: config.name + " è stato creato con successo!", tone: "success" });
+        // Invalidate agents list so sidebar updates immediately
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(selectedCompany.id) });
         // Link connector accounts to the new agent via relational API
         if (agent?.id) {
           try {
