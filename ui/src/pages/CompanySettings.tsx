@@ -396,8 +396,8 @@ export function CompanySettings() {
               <div className="relative shrink-0">
                 <CompanyPatternIcon companyName={companyName || selectedCompany.name} logoUrl={logoUrl || null} brandColor={brandColor || null} className="rounded-[14px]" />
                 {logoUrl && (
-                  <button onClick={handleClearLogo} disabled={clearLogoMutation.isPending} className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors shadow-md">
-                    <X className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+                  <button onClick={handleClearLogo} disabled={clearLogoMutation.isPending} className="absolute -top-2 -right-2 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors shadow-md p-0 aspect-square overflow-hidden" style={{ width: 24, height: 24, minWidth: 24, minHeight: 24 }}>
+                    <X className="text-white" style={{ width: 14, height: 14 }} strokeWidth={2.5} />
                   </button>
                 )}
               </div>
