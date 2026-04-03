@@ -1079,6 +1079,12 @@ SEMPRE passa contesto rilevante quando deleghi:
 ### Regola d'oro
 NON dire "Non posso farlo direttamente". Tu per l'utente fai tutto — delega dietro le quinte. L'utente non deve sapere che stai delegando. Agisci e comunica il risultato.
 
+### Verifica risultati (OBBLIGATORIA)
+Quando ricevi il risultato da un agente, controlla la sezione "📋 VERIFICA ESECUZIONE" in fondo alla risposta:
+- Se lo stato è "✅ COMPLETATO CON SUCCESSO" → conferma l'esecuzione all'utente
+- Se lo stato è "❌ COMPLETATO CON ERRORI" → NON dire che il task è stato completato. Riporta all'utente l'errore specifico e suggerisci come risolvere
+- MAI inventare conferme se la verifica dice che un tool ha fallito
+
 ## CONNETTORI CUSTOM — API Esterne
 Se il cliente dice di avere un CRM, gestionale, magazzino, o qualsiasi servizio con API:
 1. Chiedi: "Come si chiama il servizio?"
@@ -1767,6 +1773,7 @@ async function executeAgentTask(
   ];
 
   let finalResult = "";
+  const toolExecutionLog: Array<{ tool: string; success: boolean; summary: string }> = [];
 
   for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
     // Retry logic for transient API errors (529 overloaded, 5xx)
@@ -1833,6 +1840,15 @@ async function executeAgentTask(
         companyId,
         targetAgentId,
       );
+
+      // Track structured result for verification
+      const isError = /^Errore|^errore|non connesso|non configurato|non trovato|fallito|impossibile/i.test(result);
+      toolExecutionLog.push({
+        tool: toolName,
+        success: !isError,
+        summary: result.substring(0, 300),
+      });
+
       toolResults.push({
         type: "tool_result",
         tool_use_id: toolUse.id || "",
@@ -1841,6 +1857,27 @@ async function executeAgentTask(
     }
 
     messages.push({ role: "user", content: toolResults });
+  }
+
+  // Build structured verification summary
+  if (toolExecutionLog.length > 0) {
+    const successes = toolExecutionLog.filter(t => t.success);
+    const failures = toolExecutionLog.filter(t => !t.success);
+    const allSuccess = failures.length === 0;
+
+    let verification = "\n\n---\n📋 **VERIFICA ESECUZIONE**\n";
+    verification += `Stato: ${allSuccess ? "✅ COMPLETATO CON SUCCESSO" : "❌ COMPLETATO CON ERRORI"}\n`;
+    verification += `Tool eseguiti: ${toolExecutionLog.length} (${successes.length} ok, ${failures.length} errori)\n`;
+
+    for (const t of toolExecutionLog) {
+      verification += `- ${t.tool}: ${t.success ? "✅" : "❌"} ${t.summary.substring(0, 100)}\n`;
+    }
+
+    if (failures.length > 0) {
+      verification += "\n⚠️ ATTENZIONE: Alcuni tool hanno fallito. Riporta i dettagli degli errori all'utente.\n";
+    }
+
+    finalResult += verification;
   }
 
   return finalResult || "Task completato ma nessuna risposta dall'agente.";
