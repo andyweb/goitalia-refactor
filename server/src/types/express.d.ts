@@ -12,6 +12,8 @@ declare global {
         isInstanceAdmin?: boolean;
         keyId?: string;
         runId?: string;
+        email?: string;
+        name?: string;
         source?: "local_implicit" | "session" | "agent_key" | "agent_jwt" | "none";
       };
     }

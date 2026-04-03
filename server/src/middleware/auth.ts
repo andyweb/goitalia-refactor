@@ -81,6 +81,8 @@ export function actorMiddleware(db: Db, opts: ActorMiddlewareOptions): RequestHa
             isInstanceAdmin: Boolean(roleRow),
             runId: runIdHeader ?? undefined,
             source: "session",
+            email: session.user.email ?? undefined,
+            name: session.user.name ?? undefined,
           };
           next();
           return;
