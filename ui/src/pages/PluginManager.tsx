@@ -251,7 +251,7 @@ export function PluginManager() {
       .catch(() => {});
     fetch("/api/whatsapp/settings?companyId=" + selectedCompany.id, { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => { const m: Record<string, boolean> = {}; for (const [k, v] of Object.entries(d.numbers || {})) { m[k] = (v as any).autoReply !== false; } setWaAutoReply(m); })
+      .then((d) => { const m: Record<string, boolean> = {}; for (const [k, v] of Object.entries(d.numbers || {})) { m[k] = (v as any).autoReply === true; } setWaAutoReply(m); })
       .catch(() => {});
     fetch("/api/oauth/linkedin/status?companyId=" + selectedCompany.id, { credentials: "include" })
       .then((r) => r.json())
@@ -950,9 +950,11 @@ export function PluginManager() {
                           setWaConnecting(false);
                         }} disabled={waConnecting} className="text-[10px] px-2 py-0.5 rounded-md" style={{ background: "rgba(37,211,102,0.15)", border: "1px solid rgba(37,211,102,0.3)", color: "rgba(37,211,102,0.9)" }}>{waConnecting ? "..." : "Riconnetti"}</button>
                       )}
-                      <div className="flex items-center gap-3 shrink-0">
-                        {toggleBtn(waAutoReply[num.phoneNumber] ?? true, async () => {
-                            const newVal = !waAutoReply[num.phoneNumber];
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">Risposta automatica AI</span>
+                        {toggleBtn(waAutoReply[num.phoneNumber] ?? false, async () => {
+                            const current = waAutoReply[num.phoneNumber] ?? false;
+                            const newVal = !current;
                             setWaAutoReply({ ...waAutoReply, [num.phoneNumber]: newVal });
                             await fetch("/api/whatsapp/settings", {
                               method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
