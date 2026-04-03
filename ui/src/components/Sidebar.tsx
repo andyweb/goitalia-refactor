@@ -221,11 +221,13 @@ export function Sidebar() {
 
   const agentsByConnector = useMemo(() => {
     const groups: Record<string, Agent[]> = {};
+    // Map connector types that share a sidebar group
+    const connectorGroupMap: Record<string, string> = { linkedin: "meta" };
     for (const agent of (sidebarAgents ?? []) as Agent[]) {
       if (agent.status === "terminated") continue;
       if (agent.role === "ceo") { (groups["ceo"] ??= []).push(agent); continue; }
-      const conn = detectConnector(agent);
-      if (conn) { (groups[conn] ??= []).push(agent); }
+      let conn = detectConnector(agent);
+      if (conn) { conn = connectorGroupMap[conn] || conn; (groups[conn] ??= []).push(agent); }
       else { (groups["other"] ??= []).push(agent); }
     }
     return groups;
