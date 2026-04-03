@@ -19,6 +19,7 @@ const SCOPES = [
   "instagram_basic",
   "instagram_content_publish",
   "instagram_manage_insights",
+  "business_management",
 ].join(",");
 
 
@@ -74,20 +75,47 @@ export function metaRoutes(db: Db) {
       console.log("[Meta OAuth] User:", me.name, me.id);
 
       // Get pages
-      const pagesRes = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${longToken.access_token}`);
+      const pagesRes = await fetch(`https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token&access_token=${longToken.access_token}`);
       const pagesData = await pagesRes.json() as { data?: Array<{ id: string; name: string; access_token: string }>; error?: any };
-      console.log("[Meta OAuth] Pages response:", JSON.stringify(pagesData));
-      const pages = pagesData.data || [];
+      console.warn("[Meta OAuth] Pages me/accounts:", JSON.stringify(pagesData));
+      let pages = pagesData.data || [];
+
+      // Fallback: try Business Manager owned pages if me/accounts is empty
       if (pages.length === 0) {
-        console.warn("[Meta OAuth] WARNING: No pages found. User may not have selected pages during authorization or may not manage any pages.");
+        console.warn("[Meta OAuth] No pages from me/accounts, trying Business Manager fallback...");
+        try {
+          const bizRes = await fetch(`https://graph.facebook.com/v21.0/me/businesses?access_token=${longToken.access_token}`);
+          const bizData = await bizRes.json() as { data?: Array<{ id: string; name: string }> };
+          console.warn("[Meta OAuth] Businesses:", JSON.stringify(bizData));
+          for (const biz of (bizData.data || [])) {
+            const bpRes = await fetch(`https://graph.facebook.com/v21.0/${biz.id}/owned_pages?fields=id,name,access_token&access_token=${longToken.access_token}`);
+            const bpData = await bpRes.json() as { data?: Array<{ id: string; name: string; access_token: string }> };
+            console.warn(`[Meta OAuth] Business "${biz.name}" owned pages:`, JSON.stringify(bpData));
+            if (bpData.data?.length) {
+              pages = [...pages, ...bpData.data];
+            }
+            // Also try client_pages
+            const cpRes = await fetch(`https://graph.facebook.com/v21.0/${biz.id}/client_pages?fields=id,name,access_token&access_token=${longToken.access_token}`);
+            const cpData = await cpRes.json() as { data?: Array<{ id: string; name: string; access_token: string }> };
+            if (cpData.data?.length) {
+              console.warn(`[Meta OAuth] Business "${biz.name}" client pages:`, JSON.stringify(cpData));
+              pages = [...pages, ...cpData.data];
+            }
+          }
+        } catch (bizErr) { console.warn("[Meta OAuth] Business fallback error:", bizErr); }
+      }
+
+      if (pages.length === 0) {
+        console.warn("[Meta OAuth] WARNING: No pages found after all fallbacks.");
       }
 
       // Get Instagram accounts linked to pages
       const igAccounts: Array<{ id: string; username: string; pageId: string; pageName: string }> = [];
       for (const page of pages) {
-        const igRes = await fetch(`https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account{id,username}&access_token=${page.access_token}`);
+        const pageToken = page.access_token || longToken.access_token;
+        const igRes = await fetch(`https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account{id,username}&access_token=${pageToken}`);
         const igData = await igRes.json() as { instagram_business_account?: { id: string; username: string } };
-        console.log(`[Meta OAuth] Page "${page.name}" (${page.id}) IG:`, igData.instagram_business_account ? igData.instagram_business_account.username : "none");
+        console.warn(`[Meta OAuth] Page "${page.name}" (${page.id}) IG:`, igData.instagram_business_account ? igData.instagram_business_account.username : "none");
         if (igData.instagram_business_account) {
           igAccounts.push({
             id: igData.instagram_business_account.id,
@@ -98,7 +126,22 @@ export function metaRoutes(db: Db) {
         }
       }
 
-      console.log(`[Meta OAuth] Final: ${pages.length} pages, ${igAccounts.length} IG accounts`);
+      // Fallback: try direct Instagram accounts via user's businesses
+      if (igAccounts.length === 0) {
+        console.warn("[Meta OAuth] No IG from pages, trying user IG accounts endpoint...");
+        try {
+          const igUserRes = await fetch(`https://graph.facebook.com/v21.0/${me.id}/instagram_accounts?fields=id,username&access_token=${longToken.access_token}`);
+          const igUserData = await igUserRes.json() as { data?: Array<{ id: string; username: string }>; error?: any };
+          console.warn("[Meta OAuth] User IG accounts:", JSON.stringify(igUserData));
+          for (const ig of (igUserData.data || [])) {
+            if (ig.username && !igAccounts.find(a => a.id === ig.id)) {
+              igAccounts.push({ id: ig.id, username: ig.username, pageId: "", pageName: "" });
+            }
+          }
+        } catch { /* ignore */ }
+      }
+
+      console.warn(`[Meta OAuth] Final: ${pages.length} pages, ${igAccounts.length} IG accounts`);
 
       // Save everything
       const metaData = {

@@ -352,11 +352,23 @@ export function PluginManager() {
       autoCreateAgent("google", email as string);
       return;
     }
-    // Meta (Instagram + Facebook)
+    // Meta (Instagram + Facebook) — create one agent per account
     if (params.get("meta_connected") && metaStatus?.connected) {
-      const detail = metaStatus.instagram?.[0]?.username ? "@" + metaStatus.instagram[0].username : metaStatus.pages?.[0]?.name || "Meta";
       window.history.replaceState({}, "", window.location.pathname);
-      autoCreateAgent("meta", detail);
+      (async () => {
+        const igAccounts = metaStatus.instagram || [];
+        const fbPages = metaStatus.pages || [];
+        for (const ig of igAccounts) {
+          await autoCreateAgent("meta", "@" + ig.username);
+        }
+        for (const page of fbPages) {
+          await autoCreateAgent("meta", page.name);
+        }
+        // fallback: if no accounts at all, create one generic
+        if (igAccounts.length === 0 && fbPages.length === 0) {
+          await autoCreateAgent("meta", "Meta");
+        }
+      })();
       return;
     }
     // LinkedIn
@@ -639,11 +651,11 @@ export function PluginManager() {
       if (agentsRes.ok) {
         const agents = await agentsRes.json();
         const existing = agents.find((a: any) =>
-          a.adapterConfig?.primaryConnector === connector ||
+          a.adapterConfig?.primaryConnector === connector && a.name === config.name ||
           (connector === "whatsapp" && a.name?.toLowerCase().includes("whatsapp")) ||
           (connector === "telegram" && a.name?.toLowerCase().includes("telegram")) ||
-          (connector === "linkedin" && a.name?.toLowerCase().includes("linkedin")) ||
-          (connector === "meta" && (a.name?.toLowerCase().includes("social") || a.name?.toLowerCase().includes("instagram") || a.name?.toLowerCase().includes("meta")))
+          (connector === "linkedin" && a.name === config.name) ||
+          (connector === "meta" && a.name === config.name)
         );
         if (existing) {
           console.log("[autoCreateAgent] Agent already exists for", connector, "- skipping");
