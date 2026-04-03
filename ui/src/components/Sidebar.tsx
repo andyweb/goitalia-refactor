@@ -112,10 +112,9 @@ export function Sidebar() {
         .then((r) => r.json())
         .then((d) => setPendingCount(Array.isArray(d) ? d.length : 0))
         .catch(() => {});
-      Promise.all([
-        fetch("/api/oauth/meta/status?companyId=" + selectedCompanyId, { credentials: "include" }).then((r) => r.json()).catch(() => ({ connected: false })),
-        fetch("/api/oauth/linkedin/status?companyId=" + selectedCompanyId, { credentials: "include" }).then((r) => r.json()).catch(() => ({ connected: false })),
-      ]).then(([meta, li]) => { if (meta.connected || li.connected || isInit) setHasSocial(meta.connected || li.connected); });
+      fetch("/api/oauth/meta/status?companyId=" + selectedCompanyId, { credentials: "include" })
+        .then((r) => r.json()).catch(() => ({ connected: false }))
+        .then((meta) => { if (meta.connected || isInit) setHasSocial(meta.connected); });
     };
     checkConnectors();
     const connectorInterval = setInterval(checkConnectors, 10000);
