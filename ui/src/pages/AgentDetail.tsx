@@ -2862,28 +2862,25 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
           </div>
         </div>
           <div className="space-y-1.5 pt-2">
-            <div className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <div className="flex items-center gap-2">
-                <span className={"w-2 h-2 rounded-full shrink-0 " + (agentConnectors.whatsapp === true ? "bg-green-500" : "bg-white/20")} />
-                <div className="text-xs font-medium">{accountEmail || whatsappStatus?.numbers?.[0]?.phoneNumber || "WhatsApp"}</div>
-                <div className="text-[10px] text-muted-foreground">Messaggi e vocali</div>
-              </div>
-              {nativeToggle(agentConnectors.whatsapp === true, () => toggleConnector("whatsapp"))}
-            </div>
             {whatsappStatus?.numbers?.map((num: any) => (
               <div key={num.phoneNumber} className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">Risposta automatica AI</span>
+                  <span className={"w-2 h-2 rounded-full shrink-0 " + ((waAutoReply[num.phoneNumber] ?? false) ? "bg-green-500" : "bg-white/20")} />
+                  <div className="text-xs font-medium">{num.phoneNumber}</div>
+                  <div className="text-[10px] text-muted-foreground">Messaggi e vocali</div>
                 </div>
-                {nativeToggle(waAutoReply[num.phoneNumber] ?? false, async () => {
-                  const current = waAutoReply[num.phoneNumber] ?? false;
-                  const newVal = !current;
-                  setWaAutoReply({ ...waAutoReply, [num.phoneNumber]: newVal });
-                  await fetch("/api/whatsapp/settings", {
-                    method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-                    body: JSON.stringify({ companyId, autoReply: newVal, phoneNumber: num.phoneNumber }),
-                  });
-                })}
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">Risposta automatica AI</span>
+                  {nativeToggle(waAutoReply[num.phoneNumber] ?? false, async () => {
+                    const current = waAutoReply[num.phoneNumber] ?? false;
+                    const newVal = !current;
+                    setWaAutoReply({ ...waAutoReply, [num.phoneNumber]: newVal });
+                    await fetch("/api/whatsapp/settings", {
+                      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+                      body: JSON.stringify({ companyId, autoReply: newVal, phoneNumber: num.phoneNumber }),
+                    });
+                  })}
+                </div>
               </div>
             ))}
           </div>
