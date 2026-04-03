@@ -267,7 +267,7 @@ export function PluginManager() {
       .catch(() => setWaStatus({ connected: false }));
     fetch("/api/telegram/settings?companyId=" + selectedCompany.id, { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => { const bots = d.bots || {}; const map: Record<string, boolean> = {}; for (const [k, v] of Object.entries(bots)) { map[k] = (v as any).autoReply !== false; } setTelegramAutoReply(map); })
+      .then((d) => { const bots = d.bots || {}; const map: Record<string, boolean> = {}; for (const [k, v] of Object.entries(bots)) { map[k] = (v as any).autoReply === true; } setTelegramAutoReply(map); })
       .catch(() => {});
   }, [selectedCompany?.id]);
 
@@ -850,9 +850,11 @@ export function PluginManager() {
                       {greenDot}
                       {miniTg}
                       <span className="flex-1 truncate">@{bot.username}</span>
-                      <div className="flex items-center gap-3 shrink-0">
-                        {toggleBtn(telegramAutoReply[bot.username] ?? true, async () => {
-                            const newVal = !telegramAutoReply[bot.username];
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">Risposta automatica AI</span>
+                        {toggleBtn(telegramAutoReply[bot.username] ?? false, async () => {
+                            const current = telegramAutoReply[bot.username] ?? false;
+                            const newVal = !current;
                             setTelegramAutoReply({ ...telegramAutoReply, [bot.username]: newVal });
                             await fetch("/api/telegram/settings", {
                               method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
