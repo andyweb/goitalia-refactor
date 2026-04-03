@@ -218,18 +218,15 @@ export function AuthPage() {
             </button>
           </div>
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            {mode === "register" && (
-              <>
+          {mode === "register" && accountType === "azienda" ? (
+              /* Azienda: SPID only */
+              <div className="space-y-5">
                 {/* Account type toggle */}
                 <div className="flex gap-1 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
                   <button
                     type="button"
                     className="flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5"
-                    style={accountType === "privato" ? {
-                      background: "linear-gradient(135deg, hsl(200 60% 40% / 0.25), hsl(200 60% 40% / 0.15))",
-                      color: "white",
-                    } : { color: "hsl(215 20% 55%)" }}
+                    style={{ color: "hsl(215 20% 55%)" }}
                     onClick={() => { setAccountType("privato"); setError(null); }}
                   >
                     👤 Privato
@@ -237,18 +234,85 @@ export function AuthPage() {
                   <button
                     type="button"
                     className="flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5"
-                    style={accountType === "azienda" ? {
+                    style={{
                       background: "linear-gradient(135deg, hsl(158 64% 42% / 0.25), hsl(158 64% 42% / 0.15))",
                       color: "white",
-                    } : { color: "hsl(215 20% 55%)" }}
-                    onClick={() => { setAccountType("azienda"); setError(null); }}
+                    }}
+                    onClick={() => {}}
                   >
                     🏢 Azienda
                   </button>
                 </div>
+                <div className="text-center py-4">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4" style={{ background: "rgba(0, 102, 204, 0.1)", border: "1px solid rgba(0, 102, 204, 0.2)" }}>
+                    <svg width="32" height="32" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="20" cy="20" r="18" fill="#004C99" stroke="#0066CC" strokeWidth="2"/>
+                      <text x="20" y="26" textAnchor="middle" fill="white" fontSize="16" fontWeight="bold" fontFamily="Arial">S</text>
+                    </svg>
+                  </div>
+                  <h3 className="text-base font-semibold text-white mb-2">Registrazione Azienda con SPID</h3>
+                  <p className="text-xs leading-relaxed" style={{ color: "hsl(215 20% 55%)" }}>
+                    La registrazione per le aziende avviene tramite autenticazione SPID per garantire la massima sicurezza e verificare l'identità del titolare.
+                  </p>
+                </div>
 
-                {accountType === "privato" ? (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full flex items-center justify-center gap-2.5 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all opacity-60 cursor-not-allowed"
+                  style={{
+                    background: "linear-gradient(135deg, rgba(0, 102, 204, 0.15), rgba(0, 102, 204, 0.08))",
+                    border: "1px solid rgba(0, 102, 204, 0.25)",
+                    color: "rgba(255,255,255,0.6)",
+                  }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="20" cy="20" r="18" fill="#004C99" stroke="#0066CC" strokeWidth="2"/>
+                    <text x="20" y="26" textAnchor="middle" fill="white" fontSize="16" fontWeight="bold" fontFamily="Arial">S</text>
+                  </svg>
+                  Registrati con SPID
+                </button>
+
+                <div className="rounded-xl px-4 py-3 text-center" style={{ background: "rgba(251, 191, 36, 0.06)", border: "1px solid rgba(251, 191, 36, 0.15)" }}>
+                  <p className="text-xs font-medium" style={{ color: "hsl(45 90% 60%)" }}>
+                    🚧 A breve disponibile
+                  </p>
+                  <p className="text-[11px] mt-1" style={{ color: "hsl(215 20% 50%)" }}>
+                    Stiamo completando l'integrazione con il sistema SPID. Riceverai una notifica quando sarà attivo.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              /* Login + Privato registration form */
+              <form className="space-y-4" onSubmit={handleSubmit}>
+                {mode === "register" && (
                   <>
+                    {/* Account type toggle */}
+                    <div className="flex gap-1 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <button
+                        type="button"
+                        className="flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5"
+                        style={accountType === "privato" ? {
+                          background: "linear-gradient(135deg, hsl(200 60% 40% / 0.25), hsl(200 60% 40% / 0.15))",
+                          color: "white",
+                        } : { color: "hsl(215 20% 55%)" }}
+                        onClick={() => { setAccountType("privato"); setError(null); }}
+                      >
+                        👤 Privato
+                      </button>
+                      <button
+                        type="button"
+                        className="flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5"
+                        style={accountType === "azienda" ? {
+                          background: "linear-gradient(135deg, hsl(158 64% 42% / 0.25), hsl(158 64% 42% / 0.15))",
+                          color: "white",
+                        } : { color: "hsl(215 20% 55%)" }}
+                        onClick={() => { setAccountType("azienda"); setError(null); }}
+                      >
+                        🏢 Azienda
+                      </button>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Cognome *</label>
@@ -274,124 +338,83 @@ export function AuthPage() {
                       </div>
                     </div>
                   </>
-                ) : (
+                )}
+                <div>
+                  <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Email *</label>
+                  <input
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
+                    style={inputStyle}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="la-tua@email.it"
+                    autoComplete="email"
+                    autoFocus
+                  />
+                </div>
+                {mode === "register" && (
                   <div>
-                    <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Ragione sociale *</label>
+                    <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Codice Fiscale</label>
                     <input
-                      className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
+                      className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors uppercase"
                       style={inputStyle}
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                      placeholder="es. Rossi & Partners S.r.l."
-                      autoComplete="organization"
+                      value={codiceFiscale}
+                      onChange={(e) => setCodiceFiscale(e.target.value.toUpperCase())}
+                      placeholder="RSSMRA85M01H501Z"
+                      maxLength={16}
                     />
                   </div>
                 )}
-              </>
-            )}
-            <div>
-              <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Email *</label>
-              <input
-                className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
-                style={inputStyle}
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="la-tua@email.it"
-                autoComplete="email"
-                autoFocus
-              />
-            </div>
-            {mode === "register" && accountType === "privato" && (
-              <div>
-                <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Codice Fiscale</label>
-                <input
-                  className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors uppercase"
-                  style={inputStyle}
-                  value={codiceFiscale}
-                  onChange={(e) => setCodiceFiscale(e.target.value.toUpperCase())}
-                  placeholder="RSSMRA85M01H501Z"
-                  maxLength={16}
-                />
-              </div>
-            )}
-            <div>
-              <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Password *</label>
-              <input
-                className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
-                style={inputStyle}
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={mode === "register" ? "Minimo 8 caratteri" : "La tua password"}
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
-              />
-            </div>
-            {mode === "register" && (
-              <div>
-                <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Conferma password *</label>
-                <input
-                  className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
-                  style={inputStyle}
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Ripeti la password"
-                  autoComplete="new-password"
-                />
-              </div>
-            )}
-
-            {error && (
-              <div className="rounded-xl px-3 py-2 text-xs" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "hsl(0 65% 65%)" }}>
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isPending}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{
-                background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))",
-                boxShadow: "0 4px 20px hsl(158 64% 42% / 0.3)",
-              }}
-            >
-              {isPending
-                ? "Caricamento..."
-                : mode === "login"
-                  ? "Accedi"
-                  : accountType === "privato" ? "Registrati" : "Crea la tua impresa AI"}
-            </button>
-
-            {mode === "register" && accountType === "azienda" && (
-              <>
-                <div className="flex items-center gap-3 my-1">
-                  <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
-                  <span className="text-[10px] uppercase tracking-widest" style={{ color: "hsl(215 20% 45%)" }}>oppure</span>
-                  <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
+                <div>
+                  <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Password *</label>
+                  <input
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
+                    style={inputStyle}
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={mode === "register" ? "Minimo 8 caratteri" : "La tua password"}
+                    autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  />
                 </div>
+                {mode === "register" && (
+                  <div>
+                    <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Conferma password *</label>
+                    <input
+                      className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
+                      style={inputStyle}
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Ripeti la password"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                )}
+
+                {error && (
+                  <div className="rounded-xl px-3 py-2 text-xs" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "hsl(0 65% 65%)" }}>
+                    {error}
+                  </div>
+                )}
+
                 <button
-                  type="button"
-                  disabled
-                  className="w-full flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium transition-all opacity-50 cursor-not-allowed relative group"
+                  type="submit"
+                  disabled={isPending}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{
-                    background: "rgba(0, 102, 204, 0.08)",
-                    border: "1px solid rgba(0, 102, 204, 0.2)",
-                    color: "rgba(255,255,255,0.5)",
+                    background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))",
+                    boxShadow: "0 4px 20px hsl(158 64% 42% / 0.3)",
                   }}
-                  title="Disponibile a breve"
                 >
-                  <svg width="20" height="20" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="20" cy="20" r="18" fill="#004C99" stroke="#0066CC" strokeWidth="2"/>
-                    <text x="20" y="26" textAnchor="middle" fill="white" fontSize="16" fontWeight="bold" fontFamily="Arial">S</text>
-                  </svg>
-                  Entra con SPID
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full ml-1" style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.35)" }}>coming soon</span>
+                  {isPending
+                    ? "Caricamento..."
+                    : mode === "login"
+                      ? "Accedi"
+                      : "Registrati"}
                 </button>
-              </>
+              </form>
             )}
-          </form>
         </div>
       </div>
     </div>
