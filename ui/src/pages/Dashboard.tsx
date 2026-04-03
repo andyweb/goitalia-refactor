@@ -101,7 +101,7 @@ export function Dashboard() {
             {profile.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {profile.email}</span>}
           </div>
         </div>
-        <Link to="company/settings" className="text-xs px-3 py-1.5 rounded-lg no-underline transition-all" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}>
+        <Link to="/company/settings" className="text-xs px-3 py-1.5 rounded-lg no-underline transition-all" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}>
           Profilo <ChevronRight className="w-3 h-3 inline" />
         </Link>
       </div>
@@ -198,7 +198,7 @@ export function Dashboard() {
           <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Catalogo ({productsList.length})</h2>
-              <Link to="company/settings#catalogo" className="text-[10px] text-muted-foreground hover:text-white no-underline flex items-center gap-0.5">
+              <Link to="/company/settings#catalogo" className="text-[10px] text-muted-foreground hover:text-white no-underline flex items-center gap-0.5">
                 Gestisci <ArrowRight className="w-3 h-3" />
               </Link>
             </div>
