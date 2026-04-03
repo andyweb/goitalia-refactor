@@ -374,20 +374,7 @@ export function Sidebar() {
       WebkitBackdropFilter: "blur(40px) saturate(150%)",
       borderRight: "1px solid rgba(255, 255, 255, 0.1)",
     }}>
-      {/* Search */}
-      <div className="px-3 pt-3 pb-1 shrink-0">
-        <button
-          onClick={openSearch}
-          className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-[13px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-          style={{
-            background: "hsl(0 0% 100% / 0.04)",
-            border: "1px solid hsl(0 0% 100% / 0.06)",
-          }}
-        >
-          <Search className="h-3.5 w-3.5" />
-          <span>Cerca</span>
-        </button>
-      </div>
+
 
       {/* Main nav */}
       <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide flex flex-col gap-1 px-2 py-2">
