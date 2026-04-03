@@ -56,6 +56,8 @@ export function PluginManager() {
   const [errorDetailsPlugin, setErrorDetailsPlugin] = useState<PluginRecord | null>(null);
   const [googleStatus, setGoogleStatus] = useState<{ connected: boolean; email?: string; accounts?: string[] } | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [connectingId, setConnectingId] = useState<string | null>(null);
+  const spinner = <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>;
   const [telegramStatus, setTelegramStatus] = useState<{ connected: boolean; bots?: Array<{ username: string; name: string }> } | null>(null);
   const [telegramToken, setTelegramToken] = useState("");
   const [telegramConnecting, setTelegramConnecting] = useState(false);
@@ -798,14 +800,14 @@ export function PluginManager() {
                 </>
               ) : (
                 <button
-                  className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2"
+                  className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2 flex items-center justify-center gap-2"
                   style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}
                   onClick={() => {
-                    setGoogleLoading(true);
+                    setGoogleLoading(true); setConnectingId("google");
                     window.location.href = "/api/oauth/google/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || "");
                   }}
-                  disabled={googleLoading}
-                >{googleLoading ? "Connessione..." : "Collega Google"}</button>
+                  disabled={googleLoading || connectingId === "google"}
+                >{connectingId === "google" ? <>{spinner} Connessione...</> : "Collega Google"}</button>
               )}
             </div>
           )}
@@ -1088,7 +1090,7 @@ export function PluginManager() {
                   </div>
                 </>
               ) : (
-                <button onClick={() => { window.location.href = "/api/oauth/meta/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); }} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}>Collega Instagram + Facebook</button>
+                <button onClick={() => { setConnectingId("meta"); window.location.href = "/api/oauth/meta/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); }} disabled={connectingId === "meta"} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2 flex items-center justify-center gap-2 disabled:opacity-60" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}>{connectingId === "meta" ? <>{spinner} Connessione...</> : "Collega Instagram + Facebook"}</button>
               )}
             </div>
           )}
@@ -1130,11 +1132,11 @@ export function PluginManager() {
                     </div>
                   ))}
                   <div className={actionRow}>
-                    {actionBtn("+ Aggiungi account", () => { window.location.href = "/api/oauth/linkedin/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); })}
+                    {actionBtn(connectingId === "linkedin_add" ? "⏳ Connessione..." : "+ Aggiungi account", () => { setConnectingId("linkedin_add"); window.location.href = "/api/oauth/linkedin/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); })}
                   </div>
                 </>
               ) : (
-                <button onClick={() => { window.location.href = "/api/oauth/linkedin/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); }} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}>Collega LinkedIn</button>
+                <button onClick={() => { setConnectingId("linkedin"); window.location.href = "/api/oauth/linkedin/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); }} disabled={connectingId === "linkedin"} className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2 flex items-center justify-center gap-2 disabled:opacity-60" style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}>{connectingId === "linkedin" ? <>{spinner} Connessione...</> : "Collega LinkedIn"}</button>
               )}
             </div>
           )}
@@ -1283,9 +1285,10 @@ export function PluginManager() {
                 <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">Collega il tuo account Fatture in Cloud tramite autorizzazione sicura OAuth.</p>
                   <button onClick={() => {
+                    setConnectingId("fic");
                     const prefix = (window as any).__PREFIX__ || "";
                     window.location.href = "/api/oauth/fattureincloud/connect?companyId=" + selectedCompany?.id + (prefix ? "&prefix=" + prefix : "");
-                  }} className="px-4 py-2 rounded-xl text-xs font-medium transition-all" style={{ background: "linear-gradient(135deg, hsl(220 70% 50%), hsl(220 80% 40%))", color: "white" }}>Collega con Fatture in Cloud</button>
+                  }} disabled={connectingId === "fic"} className="px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 disabled:opacity-60" style={{ background: "linear-gradient(135deg, hsl(220 70% 50%), hsl(220 80% 40%))", color: "white" }}>{connectingId === "fic" ? <>{spinner} Connessione...</> : "Collega con Fatture in Cloud"}</button>
                 </div>
               )}
             </div>
@@ -1540,10 +1543,11 @@ export function PluginManager() {
                 </div>
               ) : (
                 <button
-                  className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2"
+                  className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2 flex items-center justify-center gap-2 disabled:opacity-60"
                   style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}
-                  onClick={() => { window.location.href = "/api/oauth/hubspot/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); }}
-                >Collega HubSpot</button>
+                  onClick={() => { setConnectingId("hubspot"); window.location.href = "/api/oauth/hubspot/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); }}
+                  disabled={connectingId === "hubspot"}
+                >{connectingId === "hubspot" ? <>{spinner} Connessione...</> : "Collega HubSpot"}</button>
               )}
             </div>
           )}
@@ -1584,10 +1588,11 @@ export function PluginManager() {
                 </div>
               ) : (
                 <button
-                  className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2"
+                  className="w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all mt-2 flex items-center justify-center gap-2 disabled:opacity-60"
                   style={{ background: "linear-gradient(135deg, hsl(158 64% 42%), hsl(160 70% 36%))", color: "white" }}
-                  onClick={() => { window.location.href = "/api/oauth/salesforce/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); }}
-                >Collega Salesforce</button>
+                  onClick={() => { setConnectingId("salesforce"); window.location.href = "/api/oauth/salesforce/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); }}
+                  disabled={connectingId === "salesforce"}
+                >{connectingId === "salesforce" ? <>{spinner} Connessione...</> : "Collega Salesforce"}</button>
               )}
             </div>
           )}
