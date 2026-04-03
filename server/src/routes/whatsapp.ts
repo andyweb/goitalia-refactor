@@ -1080,13 +1080,11 @@ export function whatsappWebhookRouter(db: Db) {
               const lookupNumber = senderPhone || remoteJid;
               const contactInfo = lookupNumber ? await getContactContext(db, agent.id, lookupNumber) : null;
 
-              // Determina se rispondere in automatico
-              let shouldAutoReply = waSettingsAutoReply;
-              if (contactInfo) {
-                if (contactInfo.autoMode === "auto") shouldAutoReply = true;
-                else if (contactInfo.autoMode === "manual") shouldAutoReply = false;
-                // "inherit" → segue il default delle settings
-              }
+              // Determina se rispondere in automatico:
+              // ENTRAMBE le condizioni devono essere vere:
+              // 1. Toggle connettore "Risposta automatica AI" = ON (whatsapp_settings)
+              // 2. Il contatto in rubrica ha autoMode = "auto"
+              const shouldAutoReply = waSettingsAutoReply && contactInfo?.autoMode === "auto";
 
               if (shouldAutoReply) {
                 const claudeSecret = await db.select().from(companySecrets)
