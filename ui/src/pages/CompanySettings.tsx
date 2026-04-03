@@ -9,7 +9,7 @@ import { assetsApi } from "../api/assets";
 import { queryKeys } from "../lib/queryKeys";
 import { authApi } from "../api/auth";
 import { Button } from "@/components/ui/button";
-import { Settings, Check, Download, Upload, LogOut, Mail, Plus, Trash2, Package, Clock, Building2, FileUp } from "lucide-react";
+import { Settings, Check, Download, Upload, LogOut, Mail, Plus, Trash2, Package, Clock, Building2, FileUp, X } from "lucide-react";
 import { companyProductsApi, type CompanyProduct } from "../api/company-products";
 import { CompanyPatternIcon } from "../components/CompanyPatternIcon";
 import {
@@ -397,7 +397,7 @@ export function CompanySettings() {
                 <CompanyPatternIcon companyName={companyName || selectedCompany.name} logoUrl={logoUrl || null} brandColor={brandColor || null} className="rounded-[14px]" />
                 {logoUrl && (
                   <button onClick={handleClearLogo} disabled={clearLogoMutation.isPending} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500/80 hover:bg-red-500 flex items-center justify-center transition-colors">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    <X className="w-3 h-3 text-white" strokeWidth={3} />
                   </button>
                 )}
               </div>
