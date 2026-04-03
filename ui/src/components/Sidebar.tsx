@@ -382,11 +382,13 @@ export function Sidebar() {
         {(["emanuele@unvrslabs.dev", "andreaspurio20@gmail.com"].includes(session?.user?.email ?? "") || ["nAVU4wn2Chz3WJdcvl6JmoDbBfXJsX5y", "RRJucp2b1t5frH8ezTJKCNWuT1on8n71"].includes(session?.user?.id ?? "")) && (
           <SidebarNavItem to="admin" label="GoItalIA Admin" icon={ShieldCheck} />
         )}
-        <div className={"flex flex-col gap-0.5" + (!isComplete ? " opacity-30 pointer-events-none" : "")}>
-          <SidebarNavItem to="/a2a" label="A2A" icon={Network} badge={a2aBadge > 0 ? a2aBadge : undefined} />
-          <SidebarNavItem to="/dashboard" label="Dashboard" icon={LayoutDashboard} liveCount={liveRunCount} />
-          <SidebarNavItem to="/scheduled" label="Attività" icon={CalendarClock} badge={pendingCount > 0 ? pendingCount : undefined} />
-        </div>
+        <SidebarSection label="Menu">
+          <div className={"flex flex-col gap-0.5" + (!isComplete ? " opacity-30 pointer-events-none" : "")}>
+            <SidebarNavItem to="/a2a" label="A2A" icon={Network} badge={a2aBadge > 0 ? a2aBadge : undefined} />
+            <SidebarNavItem to="/dashboard" label="Dashboard" icon={LayoutDashboard} liveCount={liveRunCount} />
+            <SidebarNavItem to="/scheduled" label="Attività" icon={CalendarClock} badge={pendingCount > 0 ? pendingCount : undefined} />
+          </div>
+        </SidebarSection>
 
         {/* Lavoro - Connector Groups */}
         <SidebarSection label="Lavoro">
