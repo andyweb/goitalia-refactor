@@ -2822,24 +2822,29 @@ function AgentConnectorsTab({ companyId, agentRole, agentId, primaryConnector, a
           </div>
         </div>
 
-        {expandedConn === "telegram" && telegramStatus?.connected && telegramStatus.bots?.length ? (
           <div className="space-y-1.5 pt-2">
-            {telegramStatus.bots.map((bot) => {
-              const key = "tg_" + bot.username;
-              const isOn = agentConnectors[key] === true;
-              return (
-                <div key={bot.username} className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  <div className="flex items-center gap-2">
-                    <span className={"w-2 h-2 rounded-full shrink-0 " + (isOn ? "bg-green-500" : "bg-white/20")} />
-                    <div className="text-xs font-medium">@{bot.username}</div>
-                    <div className="text-[10px] text-muted-foreground">{bot.name}</div>
-                  </div>
-                  {nativeToggle(isOn, () => toggleConnector(key))}
+            {telegramStatus.bots.map((bot) => (
+              <div key={bot.username} className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <div className="flex items-center gap-2">
+                  <span className={"w-2 h-2 rounded-full shrink-0 " + ((tgAutoReply[bot.username] ?? false) ? "bg-green-500" : "bg-white/20")} />
+                  <div className="text-xs font-medium">@{bot.username}</div>
+                  <div className="text-[10px] text-muted-foreground">{bot.name}</div>
                 </div>
-              );
-            })}
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">Risposta automatica AI</span>
+                  {nativeToggle(tgAutoReply[bot.username] ?? false, async () => {
+                    const current = tgAutoReply[bot.username] ?? false;
+                    const newVal = !current;
+                    setTgAutoReply({ ...tgAutoReply, [bot.username]: newVal });
+                    await fetch("/api/telegram/settings", {
+                      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+                      body: JSON.stringify({ companyId, autoReply: newVal, botUsername: bot.username }),
+                    });
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
-        ) : null}
       </div>) : null}
 
       {(!primaryConnector || primaryConnector === "whatsapp") && whatsappStatus?.connected && (<div className="glass-card p-4 space-y-4" style={{ order: connOrder("whatsapp") }}>
