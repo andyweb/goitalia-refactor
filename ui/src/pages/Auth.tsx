@@ -5,6 +5,7 @@ import { authApi } from "../api/auth";
 import { queryKeys } from "../lib/queryKeys";
 
 type Mode = "login" | "register";
+type AccountType = "privato" | "azienda";
 
 export function AuthPage() {
   const queryClient = useQueryClient();
@@ -13,7 +14,11 @@ export function AuthPage() {
   const loginInProgress = useRef(false);
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<Mode>("login");
+  const [accountType, setAccountType] = useState<AccountType>("privato");
   const [companyName, setCompanyName] = useState("");
+  const [nome, setNome] = useState("");
+  const [cognome, setCognome] = useState("");
+  const [codiceFiscale, setCodiceFiscale] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -72,10 +77,12 @@ export function AuthPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          companyName: companyName.trim(),
+          companyName: accountType === "azienda" ? companyName.trim() : `${cognome.trim()} ${nome.trim()}`.trim(),
           email: email.trim(),
           password,
           members: [],
+          accountType,
+          ...(accountType === "privato" ? { nome: nome.trim(), cognome: cognome.trim(), codiceFiscale: codiceFiscale.trim() } : {}),
         }),
       });
       const data = await res.json();
@@ -122,7 +129,12 @@ export function AuthPage() {
       if (!email.trim() || !password) { setError("Inserisci email e password"); return; }
       loginMutation.mutate();
     } else {
-      if (!companyName.trim()) { setError("Il nome dell'impresa è obbligatorio"); return; }
+      if (accountType === "privato") {
+        if (!cognome.trim()) { setError("Il cognome è obbligatorio"); return; }
+        if (!nome.trim()) { setError("Il nome è obbligatorio"); return; }
+      } else {
+        if (!companyName.trim()) { setError("La ragione sociale è obbligatoria"); return; }
+      }
       if (!email.trim()) { setError("L'email è obbligatoria"); return; }
       if (password.length < 8) { setError("La password deve avere almeno 8 caratteri"); return; }
       if (password !== confirmPassword) { setError("Le password non corrispondono"); return; }
@@ -208,17 +220,74 @@ export function AuthPage() {
 
           <form className="space-y-4" onSubmit={handleSubmit}>
             {mode === "register" && (
-              <div>
-                <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Nome impresa *</label>
-                <input
-                  className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
-                  style={inputStyle}
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="es. Rossi & Partners S.r.l."
-                  autoComplete="organization"
-                />
-              </div>
+              <>
+                {/* Account type toggle */}
+                <div className="flex gap-1 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <button
+                    type="button"
+                    className="flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5"
+                    style={accountType === "privato" ? {
+                      background: "linear-gradient(135deg, hsl(200 60% 40% / 0.25), hsl(200 60% 40% / 0.15))",
+                      color: "white",
+                    } : { color: "hsl(215 20% 55%)" }}
+                    onClick={() => { setAccountType("privato"); setError(null); }}
+                  >
+                    👤 Privato
+                  </button>
+                  <button
+                    type="button"
+                    className="flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5"
+                    style={accountType === "azienda" ? {
+                      background: "linear-gradient(135deg, hsl(158 64% 42% / 0.25), hsl(158 64% 42% / 0.15))",
+                      color: "white",
+                    } : { color: "hsl(215 20% 55%)" }}
+                    onClick={() => { setAccountType("azienda"); setError(null); }}
+                  >
+                    🏢 Azienda
+                  </button>
+                </div>
+
+                {accountType === "privato" ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Cognome *</label>
+                        <input
+                          className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
+                          style={inputStyle}
+                          value={cognome}
+                          onChange={(e) => setCognome(e.target.value)}
+                          placeholder="Rossi"
+                          autoComplete="family-name"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Nome *</label>
+                        <input
+                          className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
+                          style={inputStyle}
+                          value={nome}
+                          onChange={(e) => setNome(e.target.value)}
+                          placeholder="Mario"
+                          autoComplete="given-name"
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Ragione sociale *</label>
+                    <input
+                      className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors"
+                      style={inputStyle}
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder="es. Rossi & Partners S.r.l."
+                      autoComplete="organization"
+                    />
+                  </div>
+                )}
+              </>
             )}
             <div>
               <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Email *</label>
@@ -233,6 +302,19 @@ export function AuthPage() {
                 autoFocus
               />
             </div>
+            {mode === "register" && accountType === "privato" && (
+              <div>
+                <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Codice Fiscale</label>
+                <input
+                  className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-colors uppercase"
+                  style={inputStyle}
+                  value={codiceFiscale}
+                  onChange={(e) => setCodiceFiscale(e.target.value.toUpperCase())}
+                  placeholder="RSSMRA85M01H501Z"
+                  maxLength={16}
+                />
+              </div>
+            )}
             <div>
               <label className="text-xs mb-1.5 block" style={{ color: "hsl(215 20% 65%)" }}>Password *</label>
               <input
@@ -279,8 +361,36 @@ export function AuthPage() {
                 ? "Caricamento..."
                 : mode === "login"
                   ? "Accedi"
-                  : "Crea la tua impresa AI"}
+                  : accountType === "privato" ? "Registrati" : "Crea la tua impresa AI"}
             </button>
+
+            {mode === "register" && accountType === "azienda" && (
+              <>
+                <div className="flex items-center gap-3 my-1">
+                  <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
+                  <span className="text-[10px] uppercase tracking-widest" style={{ color: "hsl(215 20% 45%)" }}>oppure</span>
+                  <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
+                </div>
+                <button
+                  type="button"
+                  disabled
+                  className="w-full flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium transition-all opacity-50 cursor-not-allowed relative group"
+                  style={{
+                    background: "rgba(0, 102, 204, 0.08)",
+                    border: "1px solid rgba(0, 102, 204, 0.2)",
+                    color: "rgba(255,255,255,0.5)",
+                  }}
+                  title="Disponibile a breve"
+                >
+                  <svg width="20" height="20" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="20" cy="20" r="18" fill="#004C99" stroke="#0066CC" strokeWidth="2"/>
+                    <text x="20" y="26" textAnchor="middle" fill="white" fontSize="16" fontWeight="bold" fontFamily="Arial">S</text>
+                  </svg>
+                  Entra con SPID
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full ml-1" style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.35)" }}>coming soon</span>
+                </button>
+              </>
+            )}
           </form>
         </div>
       </div>
