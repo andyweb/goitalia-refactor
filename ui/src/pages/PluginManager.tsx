@@ -603,9 +603,9 @@ export function PluginManager() {
         connectors: { fic: true },
       },
       fal: {
-        name: "Agente Fal.ai",
+        name: "Fal",
         title: "Generazione Contenuti AI",
-        capabilities: "Genera immagini e contenuti visivi con Fal.ai",
+        capabilities: "Genera immagini e contenuti visivi con Fal",
         connectors: { fal: true },
       },
       openapi: {
