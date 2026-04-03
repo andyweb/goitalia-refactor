@@ -283,7 +283,7 @@ export function Sidebar() {
     { key: "meta", label: "Social", show: hasSocial, pages: [
       { to: "/social", label: "Gestione Social", icon: Share2Icon },
     ]},
-    { key: "fal", label: "fal.ai", show: hasFal, pages: [
+    { key: "fal", label: "Fal", show: hasFal, pages: [
       { to: "/genera", label: "Genera Contenuti", icon: Sparkles },
     ]},
     { key: "fic", label: "Fatture in Cloud", show: hasFic, pages: [
