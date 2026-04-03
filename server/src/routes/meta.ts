@@ -56,27 +56,38 @@ export function metaRoutes(db: Db) {
     try {
       // Exchange code for short-lived token
       const tokenRes = await fetch(`https://graph.facebook.com/v21.0/oauth/access_token?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&client_secret=${META_APP_SECRET}&code=${code}`);
-      if (!tokenRes.ok) { res.redirect("/?error=meta_token_failed"); return; }
+      if (!tokenRes.ok) { console.error("[Meta OAuth] Token exchange failed:", await tokenRes.text()); res.redirect("/?error=meta_token_failed"); return; }
       const tokens = await tokenRes.json() as { access_token: string; token_type: string; expires_in: number };
 
       // Exchange for long-lived token (60 days)
       const longRes = await fetch(`https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${META_APP_ID}&client_secret=${META_APP_SECRET}&fb_exchange_token=${tokens.access_token}`);
       const longToken = longRes.ok ? await longRes.json() as { access_token: string; expires_in: number } : tokens;
 
+      // Check granted permissions
+      const permsRes = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${longToken.access_token}`);
+      const permsData = await permsRes.json();
+      console.log("[Meta OAuth] Granted permissions:", JSON.stringify(permsData));
+
       // Get user info
       const meRes = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${longToken.access_token}`);
       const me = await meRes.json() as { id?: string; name?: string };
+      console.log("[Meta OAuth] User:", me.name, me.id);
 
       // Get pages
       const pagesRes = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${longToken.access_token}`);
-      const pagesData = await pagesRes.json() as { data?: Array<{ id: string; name: string; access_token: string }> };
+      const pagesData = await pagesRes.json() as { data?: Array<{ id: string; name: string; access_token: string }>; error?: any };
+      console.log("[Meta OAuth] Pages response:", JSON.stringify(pagesData));
       const pages = pagesData.data || [];
+      if (pages.length === 0) {
+        console.warn("[Meta OAuth] WARNING: No pages found. User may not have selected pages during authorization or may not manage any pages.");
+      }
 
       // Get Instagram accounts linked to pages
       const igAccounts: Array<{ id: string; username: string; pageId: string; pageName: string }> = [];
       for (const page of pages) {
         const igRes = await fetch(`https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account{id,username}&access_token=${page.access_token}`);
         const igData = await igRes.json() as { instagram_business_account?: { id: string; username: string } };
+        console.log(`[Meta OAuth] Page "${page.name}" (${page.id}) IG:`, igData.instagram_business_account ? igData.instagram_business_account.username : "none");
         if (igData.instagram_business_account) {
           igAccounts.push({
             id: igData.instagram_business_account.id,
@@ -86,6 +97,8 @@ export function metaRoutes(db: Db) {
           });
         }
       }
+
+      console.log(`[Meta OAuth] Final: ${pages.length} pages, ${igAccounts.length} IG accounts`);
 
       // Save everything
       const metaData = {
@@ -117,7 +130,7 @@ export function metaRoutes(db: Db) {
       }
 
       const prefix = stateData.prefix || "";
-      res.redirect(prefix ? "/" + prefix + "/plugins?meta_connected=true" : "/?meta_connected=true");
+      res.redirect("/" + prefix + "/plugins?meta_connected=true");
     } catch (err) {
       console.error("Meta OAuth error:", err);
       res.redirect("/?error=meta_oauth_error");

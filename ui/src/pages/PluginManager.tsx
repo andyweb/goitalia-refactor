@@ -1062,6 +1062,13 @@ export function PluginManager() {
             <div className="px-4 pb-3 pt-3 space-y-2 border-t border-white/5">
               {isMetaConnected ? (
                 <>
+                  {(!metaStatus!.instagram?.length && !metaStatus!.pages?.length) && (
+                    <div className="rounded-lg p-3 space-y-2" style={{ background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
+                      <p className="text-xs text-amber-300">⚠️ Connesso come <strong>{metaStatus!.userName || "utente"}</strong>, ma nessuna Pagina Facebook o account Instagram trovato.</p>
+                      <p className="text-xs text-muted-foreground">Assicurati di selezionare almeno una Pagina Facebook durante l'autorizzazione. L'account Instagram deve essere di tipo Business/Creator e collegato ad una Pagina.</p>
+                      <button onClick={() => { setConnectingId("meta_reconnect"); window.location.href = "/api/oauth/meta/connect?companyId=" + selectedCompany?.id + "&prefix=" + (selectedCompany?.issuePrefix || ""); }} disabled={connectingId === "meta_reconnect"} className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-2 disabled:opacity-60" style={{ background: "rgba(245, 158, 11, 0.2)", border: "1px solid rgba(245, 158, 11, 0.3)", color: "rgba(255,255,255,0.9)" }}>{connectingId === "meta_reconnect" ? <>{spinner} Riconnessione...</> : "🔄 Ricollega"}</button>
+                    </div>
+                  )}
                   {metaStatus!.instagram?.map((ig) => (
                     <div key={ig.id} className="flex items-center gap-2">
                     <div className={row + " flex-1"} style={rowBg}>
