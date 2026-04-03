@@ -639,7 +639,9 @@ export function PluginManager() {
         const existing = agents.find((a: any) =>
           a.adapterConfig?.primaryConnector === connector ||
           (connector === "whatsapp" && a.name?.toLowerCase().includes("whatsapp")) ||
-          (connector === "telegram" && a.name?.toLowerCase().includes("telegram"))
+          (connector === "telegram" && a.name?.toLowerCase().includes("telegram")) ||
+          (connector === "linkedin" && a.name?.toLowerCase().includes("linkedin")) ||
+          (connector === "meta" && (a.name?.toLowerCase().includes("social") || a.name?.toLowerCase().includes("instagram") || a.name?.toLowerCase().includes("meta")))
         );
         if (existing) {
           console.log("[autoCreateAgent] Agent already exists for", connector, "- skipping");

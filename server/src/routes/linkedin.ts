@@ -110,7 +110,7 @@ export function linkedinRoutes(db: Db) {
       await upsertConnectorAccount(db, stateData.companyId, "linkedin", newAccount.email, newAccount.name);
 
       const prefix = stateData.prefix || "";
-      res.redirect(prefix ? "/" + prefix + "/plugins?linkedin_connected=true" : "/?linkedin_connected=true");
+      res.redirect("/" + prefix + "/plugins?linkedin_connected=true");
     } catch (err) {
       console.error("LinkedIn OAuth error:", err);
       res.redirect("/?error=linkedin_error");
